@@ -26,10 +26,12 @@ data Icon a = Icon {iconDia :: Diagram a, ports :: [P2 Double]}
 instance IsName PortName
 newtype PortName = PortName Int deriving (Show, Ord, Eq)
 
+defaultLineWidth = 0.15
+
 -- | Names the diagram and puts all sub-names in the namespace of the top level name.
 nameDiagram name dia = name .>> (dia # named name)
 
-arrowOptions = with & arrowHead .~ noHead & shaftStyle %~ lw veryThick . lc white
+arrowOptions = with & arrowHead .~ noHead & shaftStyle %~ lwG defaultLineWidth . lc white
 
 connectPorts icon0 port0 icon1 port1 =
   connect'
@@ -59,7 +61,7 @@ drawIconsAndPortNumbers (Icon dia ports) =
 
 -- APPLY 0 ICON --
 circleRadius = 0.5
-apply0LineWidth = 0.25
+apply0LineWidth = defaultLineWidth
 
 resultCircle :: Diagram B
 resultCircle = circle circleRadius # fc red # lw none
@@ -97,7 +99,7 @@ monoLetterWidthToHeightFraction = 0.6
 textBoxHeightFactor = 1.1
 textBox :: String -> Diagram B
 textBox t =
-  text t # fc white # font "freemono" # fontSize (local textBoxFontSize)
+  text t # fc white # font "freemono" # bold # fontSize (local textBoxFontSize)
   <> rect rectangleWidth (textBoxFontSize * textBoxHeightFactor) # lc white
   where
     rectangleWidth = textBoxFontSize * monoLetterWidthToHeightFraction
