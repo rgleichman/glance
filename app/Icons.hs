@@ -10,7 +10,9 @@ module Icons
     connectPorts,
     connectIconToPort,
     connectIconToIcon,
-    textBox
+    textBox,
+    enclosure,
+    lambdaRegion
     ) where
 
 import Diagrams.Prelude
@@ -78,11 +80,10 @@ apply0Dia = (resultCircle ||| apply0Line ||| apply0Triangle) <> makePortDiagrams
 apply0Icon :: Icon B
 apply0Icon = Icon apply0Dia verts
 
+makePort x = mempty # named (PortName x)
+
 makePortDiagrams points =
   atPoints points (map makePort [0,1..])
-  where
-    --makePort x = (circle 0.2 # fc green) # named (PortName x)
-    makePort x = mempty # named (PortName x)
 
 verts = map p2 [
   (circleRadius + apply0LineWidth + triangleWidth, 0),
@@ -97,11 +98,30 @@ verts = map p2 [
 textBoxFontSize = 1
 monoLetterWidthToHeightFraction = 0.6
 textBoxHeightFactor = 1.1
+
 textBox :: String -> Diagram B
-textBox t =
-  text t # fc white # font "freemono" # bold # fontSize (local textBoxFontSize)
-  <> rect rectangleWidth (textBoxFontSize * textBoxHeightFactor) # lc white
+textBox = coloredTextBox white $ opaque white
+
+-- Since the normal SVG text has no size, some hackery is needed to determine
+-- the size of the text's bounding box.
+coloredTextBox textColor boxColor t =
+  text t # fc textColor # font "freemono" # bold # fontSize (local textBoxFontSize)
+  <> rect rectangleWidth (textBoxFontSize * textBoxHeightFactor) # lcA boxColor
   where
     rectangleWidth = textBoxFontSize * monoLetterWidthToHeightFraction
       * fromIntegral (length t)
       + (textBoxFontSize * 0.2)
+
+-- ENCLOSING REGION --
+enclosure dia = dia <> boundingRect (dia # frame 0.5) # lc red # lwG defaultLineWidth
+
+-- LAMBDA ICON --
+-- Don't use === here to put the port under the text box since mempty will stay
+-- at the origin of the text box.
+lambdaIcon x = coloredTextBox lime transparent "λ" # alignB <> makePort x
+
+-- LAMBDA REGION --
+
+-- | lambdaRegion takes as an argument the numbers of parameters to the lambda,
+-- and draws the diagram inside a region with the lambda icons on top.
+lambdaRegion n dia = hsep 0.4 (take n (map lambdaIcon [0,1..])) # center === enclosure dia

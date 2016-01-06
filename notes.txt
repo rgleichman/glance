@@ -1,9 +1,10 @@
 to run:
 Using Atom, in a terminal run
-stack exec glance-exe -- -l -s app/Main.hs -o circle.svg
+cd app
+stack exec glance-exe -- -l -s Main.hs -o ../output.svg
 
 or if that does not work
 
-stack build  --exec "glance-exe -o circle.svg -w 500"
+stack build  --exec "glance-exe -o output.svg -w 500"
 
 View circle.svg with svg-preview plug-in.
