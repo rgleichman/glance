@@ -12,7 +12,8 @@ module Icons
     connectIconToIcon,
     textBox,
     enclosure,
-    lambdaRegion
+    lambdaRegion,
+    resultIcon
     ) where
 
 import Diagrams.Prelude
@@ -125,3 +126,6 @@ lambdaIcon x = coloredTextBox lime transparent "λ" # alignB <> makePort x
 -- | lambdaRegion takes as an argument the numbers of parameters to the lambda,
 -- and draws the diagram inside a region with the lambda icons on top.
 lambdaRegion n dia = hsep 0.4 (take n (map lambdaIcon [0,1..])) # center === enclosure dia
+
+-- RESULT ICON --
+resultIcon = unitSquare # lw none # fc lime
