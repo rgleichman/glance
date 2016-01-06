@@ -25,6 +25,7 @@ ex8 = enclosure ex6
 ex9 = lambdaRegion 3 ex6 # nameDiagram "lam0"
 ex10 = ex9 # connectPorts ("lam0" .> "A") (PortName 1) "lam0" (PortName 0)
   # connectPorts ("lam0" .> "B") (PortName 1) "lam0" (PortName 2)
+ex11 = connectIcons "lam0" "y" $ ex10 === vrule 2 === textBox "y" # named "y"
 
 main :: IO ()
-main = mainWith (ex10 # bgFrame 0.1 black)
+main = mainWith (ex11 # bgFrame 0.1 black)

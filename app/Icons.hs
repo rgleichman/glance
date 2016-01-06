@@ -9,7 +9,7 @@ module Icons
     nameDiagram,
     connectPorts,
     connectIconToPort,
-    connectIconToIcon,
+    connectIcons,
     textBox,
     enclosure,
     lambdaRegion,
@@ -45,7 +45,7 @@ connectPorts icon0 port0 icon1 port1 =
 connectIconToPort icon0 icon1 port1 =
   connectOutside' arrowOptions icon0 (icon1 .> port1)
 
-connectIconToIcon =
+connectIcons =
   connectOutside' arrowOptions
 
 -- | Draw the icon with circles where the ports are
@@ -114,7 +114,7 @@ coloredTextBox textColor boxColor t =
       + (textBoxFontSize * 0.2)
 
 -- ENCLOSING REGION --
-enclosure dia = dia <> boundingRect (dia # frame 0.5) # lc red # lwG defaultLineWidth
+enclosure dia = dia <> boundingRect (dia # frame 0.5) # lc white # lwG defaultLineWidth
 
 -- LAMBDA ICON --
 -- Don't use === here to put the port under the text box since mempty will stay
