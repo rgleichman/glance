@@ -30,6 +30,7 @@ executable glance-exe
                      , diagrams-svg
                      , diagrams-graphviz
                      , graphviz
+                     , containers
   default-language:    Haskell2010
   Other-modules: Icons
 

@@ -7,6 +7,7 @@ module Icons
     drawIconsAndPortNumbers,
     PortName(..),
     nameDiagram,
+    connectMaybePorts,
     connectPorts,
     connectIconToPort,
     connectIcons,
@@ -36,17 +37,26 @@ nameDiagram name dia = name .>> (dia # named name)
 
 arrowOptions = with & arrowHead .~ noHead & shaftStyle %~ lwG defaultLineWidth . lc white
 
-connectPorts icon0 port0 icon1 port1 =
+connectMaybePorts icon0 (Just port0) icon1 (Just port1) =
   connect'
   arrowOptions
   (icon0 .> port0)
   (icon1 .> port1)
+connectMaybePorts icon0 Nothing icon1 (Just port1) =
+  connectOutside' arrowOptions icon0 (icon1 .> port1)
+connectMaybePorts icon0 (Just port0) icon1 Nothing =
+  connectOutside' arrowOptions (icon0 .> port0) icon1
+connectMaybePorts icon0 Nothing icon1 Nothing =
+  connectOutside' arrowOptions icon0 icon1
+
+connectPorts icon0 port0 icon1 port1 =
+  connectMaybePorts icon0 (Just port0) icon1 (Just port1)
 
 connectIconToPort icon0 icon1 port1 =
-  connectOutside' arrowOptions icon0 (icon1 .> port1)
+  connectMaybePorts icon0 (Nothing :: Maybe PortName) icon1 (Just port1)
 
-connectIcons =
-  connectOutside' arrowOptions
+connectIcons icon0 icon1 =
+  connectMaybePorts icon0 (Nothing:: Maybe PortName) icon1 (Nothing :: Maybe PortName)
 
 -- | Draw the icon with circles where the ports are
 drawIconAndPorts :: Icon B -> Diagram B
