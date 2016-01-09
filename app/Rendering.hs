@@ -12,8 +12,8 @@ import Diagrams.Prelude
 import Diagrams.TwoD.GraphViz
 
 import Data.GraphViz
-import qualified Data.GraphViz.Attributes.Complete as GVA
-import Data.GraphViz.Commands
+--import qualified Data.GraphViz.Attributes.Complete as GVA
+--import Data.GraphViz.Commands
 import Data.Map((!))
 import Data.Maybe (fromMaybe)
 
@@ -21,7 +21,8 @@ import Icons
 
 -- | A drawing is a map from names to Icons, a list of edges,
 -- and a map of names to subDrawings
-data Drawing b = Drawing [(Name, Icon)] b [(Name, Drawing b)]
+type Edge = (Name, Maybe Int, Name, Maybe Int)
+data Drawing = Drawing [(Name, Icon)] [Edge] [(Name, Drawing)]
 
 makeNamedMap subDiagramMap =
   map (\(label, dia) -> (label, iconToDiagram dia subDiagramMap # nameDiagram label))
@@ -31,8 +32,8 @@ mapFst f = map (\(x, y) -> (f x, y))
 toNames :: (IsName a) => [(a, b)] -> [(Name, b)]
 toNames = mapFst toName
 
-portToPort a b c d = (toName a, Just $ PortName b, toName c, Just $ PortName d)
-iconToPort a   c d = (toName a, Nothing, toName c, Just $ PortName d)
+portToPort a b c d = (toName a, Just b, toName c, Just d)
+iconToPort a   c d = (toName a, Nothing, toName c, Just d)
 iconToIcon a   c   = (toName a, Nothing, toName c, Nothing)
 
 edgesToGraph labels edges = mkGraph labels simpleEdges
@@ -55,7 +56,7 @@ placeNodes scaleFactor layoutResult labelDiagramMap = mconcat placedNodes
         placedNode = place
           diagram
           --(fromMaybe (error ("placeNodes: label not in map: " ++ (show (map fst labelDiagramMap)))) maybeDiagram)
-          (scaleFactor * positionMap ! label)
+          (scaleFactor *^ (positionMap ! label))
 
 doGraphLayout scaleFactor graph labelDiagramMap connectNodes = do
   layoutResult <- layoutGraph Neato graph

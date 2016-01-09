@@ -15,8 +15,6 @@ import Lib
 import Icons
 import Rendering
 
--- todo: Clean up. Put renderDrawing code in a new file.
-
 -- todo: Give graphviz info about the size of the nodes such that a variable scaleFactor
 -- todo: Test with more lambdas, (eg. two per layer, 3 or more layers)
 -- for subDiagrams is not necessary.
@@ -94,8 +92,9 @@ superDrawing = Drawing superIcons superEdges [(d0Name, drawing0)]
 
 --main1 = mainWith (ex11 # bgFrame 0.1 black)
 
+main1 :: IO ()
 main1 = do
-  placedNodes <- renderDrawing superDrawing 0.1
+  placedNodes <- renderDrawing superDrawing (0.1 :: Double)
   mainWith (placedNodes # bgFrame 0.1 black)
 
 main :: IO ()
