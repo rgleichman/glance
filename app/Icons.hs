@@ -1,10 +1,11 @@
 {-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeFamilies #-}
 module Icons
     (
-    apply0Icon,
     Icon(..),
-    drawIconAndPorts,
-    drawIconsAndPortNumbers,
+    apply0Dia,
+    iconToDiagram,
+    --drawIconAndPorts,
+    --drawIconsAndPortNumbers,
     PortName(..),
     nameDiagram,
     connectMaybePorts,
@@ -19,11 +20,20 @@ module Icons
 
 import Diagrams.Prelude
 import Diagrams.Backend.SVG.CmdLine
+import Data.Maybe (fromMaybe)
 
--- | An icon is a Diagram and a list of points for the ports to the diagram.
--- The first portection is the right most (ie. 0 degrees), and other ports
--- proceed counterclockwise.
-data Icon a = Icon {iconDia :: Diagram a, ports :: [P2 Double]}
+-- | A datatype that represents an icon.
+-- The TextBoxIcon's data is the text that appears in the text box.
+-- The LambdaRegionIcon's data is the number of lambda ports, and the name of it's
+-- subdrawing.
+data Icon = Apply0Icon | ResultIcon | TextBoxIcon String | LambdaRegionIcon Int Name
+
+iconToDiagram Apply0Icon _ = apply0Dia
+iconToDiagram ResultIcon _ = resultIcon
+iconToDiagram (TextBoxIcon s) _ = textBox s
+iconToDiagram (LambdaRegionIcon n diagramName) nameToSubdiagramMap = lambdaRegion n dia
+  where
+    dia = fromMaybe (error "iconToDiagram: subdiagram not found") $ lookup diagramName nameToSubdiagramMap
 
 -- | PortName is a simple wrapper around Int that is used for the diagram names
 -- of all the ports.
@@ -59,18 +69,18 @@ connectIcons icon0 icon1 =
   connectMaybePorts icon0 (Nothing:: Maybe PortName) icon1 (Nothing :: Maybe PortName)
 
 -- | Draw the icon with circles where the ports are
-drawIconAndPorts :: Icon B -> Diagram B
-drawIconAndPorts (Icon dia ports) =
-  vertCircles <> dia
-  where
-    vertCircles = atPoints ports $ repeat $ circle 0.05 # lw none # fc blue
-
-drawIconsAndPortNumbers :: Icon B -> Diagram B
-drawIconsAndPortNumbers (Icon dia ports) =
-  portNumbers <> dia
-  where
-    portNumbers = atPoints ports $ map makeNumDia [0,1..]
-    makeNumDia num = text (show num) # fontSize (local 0.1) # fc blue <> square 0.1 # fc white
+-- drawIconAndPorts :: Icon B -> Diagram B
+-- drawIconAndPorts (Icon dia ports) =
+--   vertCircles <> dia
+--   where
+--     vertCircles = atPoints ports $ repeat $ circle 0.05 # lw none # fc blue
+--
+-- drawIconsAndPortNumbers :: Icon B -> Diagram B
+-- drawIconsAndPortNumbers (Icon dia ports) =
+--   portNumbers <> dia
+--   where
+--     portNumbers = atPoints ports $ map makeNumDia [0,1..]
+--     makeNumDia num = text (show num) # fontSize (local 0.1) # fc blue <> square 0.1 # fc white
 
 -- APPLY 0 ICON --
 circleRadius = 0.5
@@ -87,9 +97,6 @@ apply0Line = rect apply0LineWidth (2 * circleRadius) # fc white # lw none
 
 apply0Dia :: Diagram B
 apply0Dia = (resultCircle ||| apply0Line ||| apply0Triangle) <> makePortDiagrams verts
-
-apply0Icon :: Icon B
-apply0Icon = Icon apply0Dia verts
 
 makePort x = mempty # named (PortName x)
 
@@ -135,7 +142,7 @@ lambdaIcon x = coloredTextBox lime transparent "λ" # alignB <> makePort x
 
 -- | lambdaRegion takes as an argument the numbers of parameters to the lambda,
 -- and draws the diagram inside a region with the lambda icons on top.
-lambdaRegion n dia = hsep 0.4 (take n (map lambdaIcon [0,1..])) # center === enclosure dia
+lambdaRegion n dia = centerXY $ hsep 0.4 (take n (map lambdaIcon [0,1..])) # centerX === (enclosure dia # centerX)
 
 -- RESULT ICON --
 resultIcon = unitSquare # lw none # fc lime

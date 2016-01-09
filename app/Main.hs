@@ -14,9 +14,13 @@ import Data.Maybe (fromMaybe)
 import Lib
 import Icons
 
--- todo: Put
+-- todo: Clean up. Put renderDrawing code in a new file.
 
-applyDia = iconDia apply0Icon
+-- todo: Give graphviz info about the size of the nodes such that a variable scaleFactor
+-- todo: Test with more lambdas, (eg. two per layer, 3 or more layers)
+-- for subDiagrams is not necessary.
+
+applyDia = apply0Dia
 -- --apply0A = "A" .>> applyDia
 -- apply0A = applyDia # nameDiagram "A"
 -- apply0B = applyDia # nameDiagram "B"
@@ -42,23 +46,26 @@ applyDia = iconDia apply0Icon
 --   # connectPorts ("lam0" .> "B") (PortName 1) "lam0" (PortName 2)
 -- ex11 = connectIcons "lam0" "y" $ ex10 === vrule 2 === textBox "y" # named "y"
 
-makeNamedMap :: (IsName a) => [(a, Diagram B)] -> [(a, Diagram B)]
-makeNamedMap =
-  map (\(label, dia) -> (label, dia # nameDiagram label))
+-- | A drawing is a map from names to Icons, a list of edges, and a map of names to subDrawings
+data Drawing b = Drawing [(Name, Icon)] b [(Name, Drawing b)]
 
-labelDiagramMap = makeNamedMap
-  [("A", applyDia ),
-  ("B", applyDia),
-  ("res", resultIcon),
-  ("foo", textBox "foo"),
-  ("bar", textBox "bar")
+makeNamedMap subDiagramMap =
+  map (\(label, dia) -> (label, iconToDiagram dia subDiagramMap # nameDiagram label))
+
+mapFst f = map (\(x, y) -> (f x, y))
+toNames = mapFst toName
+
+rawDiagramMap = toNames $
+  [("A", Apply0Icon),
+  ("B", Apply0Icon),
+  ("res", ResultIcon),
+  ("foo", TextBoxIcon "foo"),
+  ("bar", TextBoxIcon "bar")
   ]
 
-labels = map fst labelDiagramMap
-
-portToPort a b c d = (a, Just $ PortName b, c, Just $ PortName d)
-iconToPort a   c d = (a, Nothing, c, Just $ PortName d)
-iconToIcon a   c   = (a, Nothing, c, Nothing)
+portToPort a b c d = (toName a, Just $ PortName b, toName c, Just $ PortName d)
+iconToPort a   c d = (toName a, Nothing, toName c, Just $ PortName d)
+iconToIcon a   c   = (toName a, Nothing, toName c, Nothing)
 
 edges =
   [
@@ -70,11 +77,30 @@ edges =
   iconToPort "bar" "A" 3
   ]
 
+superEdges =
+  [
+  portToPort ("lam0" .> "A") 1 "lam0" 0,
+  iconToIcon "y" "lam0",
+  iconToIcon "z" "lam0",
+  iconToIcon "q" "lam0"
+  ]
+
+drawing0 = Drawing rawDiagramMap edges []
+
+superIcons = toNames $ [
+  ("lam0", LambdaRegionIcon 3 (toName "d0")),
+  ("y", TextBoxIcon "y"),
+  ("z", TextBoxIcon "z"),
+  ("q", TextBoxIcon "q")
+  ]
+
+--superDrawing :: (IsName c) => Drawing Name c
+--superDrawing = Drawing [((toName "lam0"), LambdaRegionIcon 3 (toName"d0"))] superEdges [((toName "d0"), drawing0)]
+superDrawing = Drawing superIcons superEdges [(toName "d0", drawing0)]
+
 edgesToGraph labels edges = mkGraph labels simpleEdges
   where
     simpleEdges = map (\(a, _, c, _) -> (a, c, ())) edges
-
-graph = edgesToGraph labels edges
 
 uncurry4 f (a, b, c, d) = f a b c d
 
@@ -85,12 +111,13 @@ makeConnections edges = applyAll connections
 placeNodes scaleFactor layoutResult labelDiagramMap = mconcat placedNodes
   where
     (positionMap, _) = getGraph layoutResult
-    placedNodes = map mapper labels
-    mapper label = placedNode
+    placedNodes = map mapper labelDiagramMap
+    mapper (label, diagram) = placedNode
       where
-        maybeDiagram = lookup label labelDiagramMap
+        --maybeDiagram = lookup label labelDiagramMap
         placedNode = place
-          (fromMaybe (error "placeNodes: label not in map") maybeDiagram)
+          diagram
+          --(fromMaybe (error ("placeNodes: label not in map: " ++ (show (map fst labelDiagramMap)))) maybeDiagram)
           (scaleFactor * positionMap ! label)
 
 -- This is left commented out for a future test of the manual connect functions.
@@ -99,17 +126,34 @@ placeNodes scaleFactor layoutResult labelDiagramMap = mconcat placedNodes
 --   # connectIconToPort "bar" "B" (PortName 3) # connectPorts "A" (PortName 0) "B" (PortName 2)
 --   # connectIconToPort "bar" "A" (PortName 3)
 
-connectNodes = makeConnections edges
 
-doGraphLayout graph labelDiagramMap connectNodes = do
+doGraphLayout scaleFactor graph labelDiagramMap connectNodes = do
   layoutResult <- layoutGraph Neato graph
-  return $ placeNodes 0.04 layoutResult labelDiagramMap # connectNodes
+  return $ placeNodes scaleFactor layoutResult labelDiagramMap # connectNodes
+  --where
+    --diagramScaleConstant = 0.04
+    --diagramScaleConstant = 0.1
 
 --main1 = mainWith (ex11 # bgFrame 0.1 black)
 
-main0 = do
-  placedNodes <- doGraphLayout graph labelDiagramMap connectNodes
+--renderDrawing :: Drawing a -> IO (Diagram B)
+renderDrawing (Drawing nameIconMap edges subDrawings) scaleFactor = do
+  subDiagramMap <- mapM subDrawingMapper subDrawings
+  let diagramMap = makeNamedMap subDiagramMap nameIconMap
+  doGraphLayout scaleFactor (edgesToGraph iconNames edges) diagramMap $ makeConnections edges
+  where
+    iconNames = map fst nameIconMap
+    subDrawingMapper (label, subDrawing) = do
+      subDiagram <- renderDrawing subDrawing (0.4 * scaleFactor)
+      return (label, subDiagram)
+
+-- main0 = do
+--   placedNodes <- doGraphLayout graph labelDiagramMap connectNodes
+--   mainWith (placedNodes # bgFrame 0.1 black)
+
+main1 = do
+  placedNodes <- renderDrawing superDrawing 0.1
   mainWith (placedNodes # bgFrame 0.1 black)
 
 main :: IO ()
-main = main0
+main = main1
