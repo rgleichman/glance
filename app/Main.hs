@@ -11,13 +11,15 @@ import Data.GraphViz.Commands
 import Data.Map((!))
 import Data.Maybe (fromMaybe)
 
+import Data.Typeable(Typeable)
+
 import Lib
 import Icons
 import Rendering
 
 -- todo: Give graphviz info about the size of the nodes such that a variable scaleFactor
--- todo: Test with more lambdas, (eg. two per layer, 3 or more layers)
 -- for subDiagrams is not necessary.
+-- todo: Find out how to hide unqualified names such that recursive drawings are connected correctly
 
 applyDia = apply0Dia
 -- --apply0A = "A" .>> applyDia
@@ -63,16 +65,17 @@ d0Edges =
   iconToPort "bar" "A" 3
   ]
 
+drawing0 = Drawing d0Icons d0Edges []
+d0Name = toName "d0"
+
 superEdges =
   [
   portToPort ("lam0" .> "A") 1 "lam0" 0,
   iconToIcon "y" "lam0",
   iconToIcon "z" "lam0",
-  iconToIcon "q" "lam0"
+  iconToIcon "q" "lam0",
+  iconToIcon "A" "z"
   ]
-
-drawing0 = Drawing d0Icons d0Edges []
-d0Name = toName "d0"
 
 superIcons = toNames [
   ("lam0", LambdaRegionIcon 3 d0Name),
@@ -84,6 +87,35 @@ superIcons = toNames [
 --superDrawing = Drawing [((toName "lam0"), LambdaRegionIcon 3 (toName"d0"))] superEdges [((toName "d0"), drawing0)]
 superDrawing = Drawing superIcons superEdges [(d0Name, drawing0)]
 
+super2Icons = toNames [
+  ("lam0", LambdaRegionIcon 1 d0Name),
+  --("y", TextBoxIcon "y"),
+  ("lam1", LambdaRegionIcon 2 d0Name)
+  ]
+
+super2Edges =
+  [
+  iconToIcon "lam0" "lam1"
+  --iconToIcon "y" "lam0"
+  ]
+
+super2Drawing = Drawing super2Icons super2Edges [(d0Name, drawing0)]
+super2Name = toName "s2"
+
+super3Icons = toNames [
+  ("lam0", LambdaRegionIcon 3 d1Name),
+  --("y", TextBoxIcon "y"),
+  ("lam1", LambdaRegionIcon 4 d1Name)
+  ]
+
+super3Edges =
+  [
+--  iconToIcon "lam0" "lam1",
+  iconToIcon "lam0" "A"
+  ]
+d1Name = toName "d1"
+super3Drawing = Drawing super3Icons super3Edges [(d1Name, super2Drawing)]
+
 -- This is left commented out for a future test of the manual connect functions.
 -- connectNodes g =
 --   g # connectIconToPort "res" "A" (PortName 2) # connectIconToPort "foo" "B" (PortName 0)
@@ -94,7 +126,7 @@ superDrawing = Drawing superIcons superEdges [(d0Name, drawing0)]
 
 main1 :: IO ()
 main1 = do
-  placedNodes <- renderDrawing superDrawing (0.1 :: Double)
+  placedNodes <- renderDrawing superDrawing (0.7 :: Double)
   mainWith (placedNodes # bgFrame 0.1 black)
 
 main :: IO ()

@@ -30,7 +30,8 @@ data Icon = Apply0Icon | ResultIcon | TextBoxIcon String | LambdaRegionIcon Int 
 iconToDiagram Apply0Icon _ = apply0Dia
 iconToDiagram ResultIcon _ = resultIcon
 iconToDiagram (TextBoxIcon s) _ = textBox s
-iconToDiagram (LambdaRegionIcon n diagramName) nameToSubdiagramMap = lambdaRegion n dia
+iconToDiagram (LambdaRegionIcon n diagramName) nameToSubdiagramMap =
+  lambdaRegion n dia
   where
     dia = fromMaybe (error "iconToDiagram: subdiagram not found") $ lookup diagramName nameToSubdiagramMap
 
