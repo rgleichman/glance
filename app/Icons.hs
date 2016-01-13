@@ -21,16 +21,20 @@ import Data.Maybe (fromMaybe)
 
 -- TYPES --
 -- | A datatype that represents an icon.
+-- The BranchIcon is used as a branching point for a line.
 -- The TextBoxIcon's data is the text that appears in the text box.
 -- The LambdaRegionIcon's data is the number of lambda ports, and the name of it's
 -- subdrawing.
-data Icon = Apply0Icon | ResultIcon | TextBoxIcon String | LambdaRegionIcon Int Name
+data Icon = Apply0Icon | ResultIcon | BranchIcon | TextBoxIcon String | GuardIcon Int
+  | LambdaRegionIcon Int Name
 
 -- FUNCTIONS --
 
 iconToDiagram Apply0Icon _ = apply0Dia
 iconToDiagram ResultIcon _ = resultIcon
+iconToDiagram BranchIcon _ = branchIcon
 iconToDiagram (TextBoxIcon s) _ = textBox s
+iconToDiagram (GuardIcon n) _ = guardIcon n
 iconToDiagram (LambdaRegionIcon n diagramName) nameToSubdiagramMap =
   lambdaRegion n dia
   where
@@ -129,6 +133,10 @@ lambdaRegion n dia =
 -- RESULT ICON --
 resultIcon = unitSquare # lw none # fc lime
 
+-- BRANCH ICON --
+branchIcon :: Diagram B
+branchIcon = circle 0.3 # fc white # lc white
+
 -- GUARD ICON --
 guardTriangle :: Int -> Diagram B
 guardTriangle x = triangleAndPort # alignL
@@ -147,7 +155,7 @@ guardLBracket x = ell # alignT # alignL <> makePort x
 -- Ports 1,3,5...: The left ports for the booleans
 -- Ports 2,4...: The right ports for the values
 guardIcon :: Int -> Diagram B
-guardIcon n = (vcat $ take n trianglesAndBrackets # alignT) <> makePort 0
+guardIcon n = centerXY $ vcat (take n trianglesAndBrackets # alignT) <> makePort 0
   where
     --guardTriangles = vsep 0.4 (take n (map guardTriangle [0,1..]))
     trianglesWithPorts = map guardTriangle [2,4..]

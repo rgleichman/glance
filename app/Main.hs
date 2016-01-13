@@ -114,6 +114,38 @@ super3Edges =
 d1Name = toName "d1"
 super3Drawing = Drawing super3Icons super2Edges [(d1Name, super2Drawing)]
 
+factIcons = toNames
+  [
+  ("g0", GuardIcon 2),
+  ("one", TextBoxIcon "1"),
+  ("eq0", TextBoxIcon "== 0"),
+  ("-1", TextBoxIcon "-1"),
+  ("eq0Ap", Apply0Icon),
+  ("-1Ap", Apply0Icon),
+  ("*", TextBoxIcon "*"),
+  ("recurAp", Apply0Icon),
+  ("*Ap1", Apply0Icon),
+  ("*Ap2", Apply0Icon),
+  ("arg", BranchIcon)
+  ]
+
+factEdges = [
+    iconToPort "eq0" "eq0Ap" 0,
+    portToPort "eq0Ap" 2 "g0" 1,
+    iconToPort "-1" "-1Ap" 0,
+    iconToPort "*" "*Ap1" 0,
+    iconToPort "one" "g0" 2,
+    portToPort "*Ap2" 2 "g0" 4,
+    portToPort "*Ap1" 2 "*Ap2" 0,
+    portToPort "recurAp" 2 "*Ap1" 1,
+    iconToPort "arg" "eq0Ap" 1,
+    iconToPort "arg" "-1Ap" 1,
+    iconToPort "arg" "*Ap2" 1
+
+  ]
+
+factDrawing = Drawing factIcons factEdges []
+
 -- This is left commented out for a future test of the manual connect functions.
 -- connectNodes g =
 --   g # connectIconToPort "res" "A" (PortName 2) # connectIconToPort "foo" "B" (PortName 0)
@@ -124,10 +156,10 @@ super3Drawing = Drawing super3Icons super2Edges [(d1Name, super2Drawing)]
 
 main1 :: IO ()
 main1 = do
-  placedNodes <- renderDrawing super2Drawing
+  placedNodes <- renderDrawing factDrawing
   mainWith (placedNodes # bgFrame 0.1 black)
 
 main2 = mainWith (guardIcon 3 # bgFrame 0.1 black)
 
 main :: IO ()
-main = main2
+main = main1

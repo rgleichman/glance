@@ -64,9 +64,10 @@ placeNodes layoutResult nameDiagramMap = mconcat placedNodes
   where
     (positionMap, _) = getGraph layoutResult
     placedNodes = map placeNode nameDiagramMap
-    placeNode (name, diagram) = place diagram (scaleFactor *^ (positionMap ! name))
+    -- todo: Not sure if the diagrams should already be centered at this point.
+    placeNode (name, diagram) = place (diagram # centerXY) (scaleFactor *^ (positionMap ! name))
     -- constant
-    scaleFactor = 0.017
+    scaleFactor = 0.025
 
 doGraphLayout graph nameDiagramMap connectNodes = do
   layoutResult <- layoutGraph' layoutParams Neato graph
