@@ -11,7 +11,8 @@ module Icons
     textBox,
     enclosure,
     lambdaRegion,
-    resultIcon
+    resultIcon,
+    guardIcon,
     ) where
 
 import Diagrams.Prelude
@@ -52,8 +53,12 @@ connectMaybePorts icon0 (Just port0) icon1 Nothing =
 connectMaybePorts icon0 Nothing icon1 Nothing =
   connectOutside' arrowOptions icon0 icon1
 
+-- | Make an port with an integer name. Always use <> to add a ports (not === or |||)
+--- since mempty has no size and will not be placed where you want it.
 makePort :: Int -> Diagram B
 makePort x = mempty # named x
+--makePort x = circle 0.2 # fc green # named x
+--makePort x = textBox (show x) # fc green # named x
 
 
 makePortDiagrams points =
@@ -123,3 +128,32 @@ lambdaRegion n dia =
 
 -- RESULT ICON --
 resultIcon = unitSquare # lw none # fc lime
+
+-- GUARD ICON --
+guardTriangle :: Int -> Diagram B
+guardTriangle x = triangleAndPort # alignL
+  where
+    triangleAndPort = polygon (with & polyType .~ PolySides [90 @@ deg, 45 @@ deg] [1, 1])
+      # rotateBy (1/8)# lc white # lwG defaultLineWidth # alignT # alignR <> (makePort x # showOrigin)
+
+guardLBracket :: Int -> Diagram B
+guardLBracket x = ell # alignT # alignL <> makePort x
+  where
+    -- todo: use a path or trail here so that the corner is rounded correctly
+    ell = (hrule 1 # lc orange # lwG defaultLineWidth # alignR) <> (vrule 1 # lc orange # lwG defaultLineWidth # alignT)
+
+-- | The ports of the guard icon are as follows:
+-- Port 0: The top port for the result
+-- Ports 1,3,5...: The left ports for the booleans
+-- Ports 2,4...: The right ports for the values
+guardIcon :: Int -> Diagram B
+guardIcon n = (vcat $ take n trianglesAndBrackets # alignT) <> makePort 0
+  where
+    --guardTriangles = vsep 0.4 (take n (map guardTriangle [0,1..]))
+    trianglesWithPorts = map guardTriangle [2,4..]
+    lBrackets = map guardLBracket [1,3..]
+    trianglesAndBrackets =
+      zipWith zipper trianglesWithPorts lBrackets
+    zipper tri lBrack = verticalLine === ((lBrack ||| hrule 0.4) # alignR <> (tri # alignL))
+      where
+        verticalLine = vrule 0.4 # lc white # lwG defaultLineWidth

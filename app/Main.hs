@@ -17,8 +17,6 @@ import Lib
 import Icons
 import Rendering
 
--- todo: Give graphviz info about the size of the nodes such that a variable scaleFactor
--- for subDiagrams is not necessary.
 -- todo: Find out how to hide unqualified names such that recursive drawings are connected correctly
 
 applyDia = apply0Dia
@@ -129,5 +127,7 @@ main1 = do
   placedNodes <- renderDrawing super2Drawing
   mainWith (placedNodes # bgFrame 0.1 black)
 
+main2 = mainWith (guardIcon 3 # bgFrame 0.1 black)
+
 main :: IO ()
-main = main1
+main = main2
