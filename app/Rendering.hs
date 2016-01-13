@@ -14,7 +14,7 @@ import Diagrams.TwoD.GraphViz
 import Diagrams.Backend.SVG(B)
 
 import Data.GraphViz
---import qualified Data.GraphViz.Attributes.Complete as GVA
+import qualified Data.GraphViz.Attributes.Complete as GVA
 --import Data.GraphViz.Commands
 import Data.Map((!))
 import Data.Maybe (fromMaybe)
@@ -60,23 +60,40 @@ makeConnections edges = applyAll connections
   where
     connections = map (uncurry4 connectMaybePorts) edges
 
-placeNodes scaleFactor layoutResult nameDiagramMap = mconcat placedNodes
+placeNodes layoutResult nameDiagramMap = mconcat placedNodes
   where
     (positionMap, _) = getGraph layoutResult
     placedNodes = map placeNode nameDiagramMap
     placeNode (name, diagram) = place diagram (scaleFactor *^ (positionMap ! name))
+    -- constant
+    scaleFactor = 0.017
 
-doGraphLayout scaleFactor graph nameDiagramMap connectNodes = do
-  layoutResult <- layoutGraph Neato graph
-  return $ placeNodes scaleFactor layoutResult nameDiagramMap # connectNodes
+doGraphLayout graph nameDiagramMap connectNodes = do
+  layoutResult <- layoutGraph' layoutParams Neato graph
+  return $ placeNodes layoutResult nameDiagramMap # connectNodes
+  where
+    layoutParams :: GraphvizParams Int v e () v
+    layoutParams = defaultDiaParams{
+      fmtEdge = const [arrowTo noArrow],
+      fmtNode = nodeAttribute
+      }
+    nodeAttribute :: (Int, l) -> [Data.GraphViz.Attribute]
+    nodeAttribute (nodeInt, _) =
+      -- todo: Potential bug. GVA.Width and GVA.Height have a minimum of 0.01
+      -- throw an error if the width or height are less than 0.01
+      [GVA.Shape BoxShape, GVA.Width (width dia), GVA.Height (height dia)]
+      where
+        --todo: Hack!!! Using (!!) here relies upon the implementation of Diagrams.TwoD.GraphViz.mkGraph
+        -- to name the nodes in order
+        (_, dia) = nameDiagramMap !! nodeInt
 
-renderDrawing (Drawing nameIconMap edges subDrawings) scaleFactor = do
+renderDrawing (Drawing nameIconMap edges subDrawings) = do
   subDiagramMap <- mapM subDrawingMapper subDrawings
   let diagramMap = makeNamedMap subDiagramMap nameIconMap
   --mapM_ (putStrLn . (++"\n") . show . (map fst) . names . snd) diagramMap
-  doGraphLayout scaleFactor (edgesToGraph iconNames edges) diagramMap (makeConnections edges)
+  doGraphLayout (edgesToGraph iconNames edges) diagramMap (makeConnections edges)
   where
     iconNames = map fst nameIconMap
     subDrawingMapper (name, subDrawing) = do
-      subDiagram <- renderDrawing subDrawing (0.2 * scaleFactor)
+      subDiagram <- renderDrawing subDrawing
       return (name, subDiagram)

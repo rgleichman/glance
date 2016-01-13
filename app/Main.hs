@@ -114,7 +114,7 @@ super3Edges =
   iconToIcon "lam0" "A"
   ]
 d1Name = toName "d1"
-super3Drawing = Drawing super3Icons super3Edges [(d1Name, super2Drawing)]
+super3Drawing = Drawing super3Icons super2Edges [(d1Name, super2Drawing)]
 
 -- This is left commented out for a future test of the manual connect functions.
 -- connectNodes g =
@@ -126,7 +126,7 @@ super3Drawing = Drawing super3Icons super3Edges [(d1Name, super2Drawing)]
 
 main1 :: IO ()
 main1 = do
-  placedNodes <- renderDrawing superDrawing (0.7 :: Double)
+  placedNodes <- renderDrawing super2Drawing
   mainWith (placedNodes # bgFrame 0.1 black)
 
 main :: IO ()
