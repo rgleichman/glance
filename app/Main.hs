@@ -18,6 +18,7 @@ import Icons
 import Rendering
 
 -- todo: Find out how to hide unqualified names such that recursive drawings are connected correctly
+-- todo: Flip and rotate the icons after placement to minimize line distances to ports.
 
 applyDia = apply0Dia
 -- --apply0A = "A" .>> applyDia
@@ -137,11 +138,10 @@ factEdges = [
     iconToPort "one" "g0" 2,
     portToPort "*Ap2" 2 "g0" 4,
     portToPort "*Ap1" 2 "*Ap2" 0,
-    portToPort "recurAp" 2 "*Ap1" 1,
-    iconToPort "arg" "eq0Ap" 1,
+    portToPort "recurAp" 2 "*Ap1" 3,
+    iconToPort "arg" "eq0Ap" 3,
     iconToPort "arg" "-1Ap" 1,
     iconToPort "arg" "*Ap2" 1
-
   ]
 
 factDrawing = Drawing factIcons factEdges []

@@ -17,7 +17,11 @@ import Data.GraphViz
 import qualified Data.GraphViz.Attributes.Complete as GVA
 --import Data.GraphViz.Commands
 import Data.Map((!))
-import Data.Maybe (fromMaybe)
+import qualified Data.Map as Map
+import Data.Maybe(fromMaybe, isJust)
+import qualified Debug.Trace
+import Data.List(minimumBy)
+import Data.Function(on)
 
 import Icons
 
@@ -60,18 +64,72 @@ makeConnections edges = applyAll connections
   where
     connections = map (uncurry4 connectMaybePorts) edges
 
-placeNodes layoutResult nameDiagramMap = mconcat placedNodes
+-- | Returns [(myport, other node, other node's port)]
+connectedPorts :: [Edge] -> Name -> [(Int, Name, Maybe Int)]
+connectedPorts edges name = map edgeToPort $ filter nameInEdge edges
+  where
+    nameInEdge (n1, p1, n2, p2) = (name == n1 && (isJust p1)) || (name == n2 && (isJust p2))
+    edgeToPort (n1, p1, n2, p2) =
+      if name == n1
+        then (fromMaybe (error "connectedPorts port is Nothing") p1, n2, p2)
+        else (fromMaybe (error "connectedPorts port is Nothing") p2, n1, p1)
+
+printSelf :: (Show a) => a -> a
+printSelf a = Debug.Trace.trace (show a ++ "/n") a
+
+totalLenghtOfLines :: Double -> P2 Double -> [(P2 Double, P2 Double)] -> Double
+totalLenghtOfLines angle myLocation edges = sum $ map edgeDist edges
+  where
+    --edgeDist :: (P2 a, P2 a) -> Double
+    edgeDist (relativePortLocation, iconLocation) =
+      (norm $  absPortVec ^-^ iconLocationVec)
+      where
+        -- todo: is there a better way to convert from Points to vectors?
+        relPortVec = r2 $ unp2 relativePortLocation
+        iconLocationVec = r2 $ unp2 iconLocation
+        myLocVec = r2 $ unp2 myLocation
+        absPortVec = myLocVec ^+^ (rotateBy angle relPortVec)
+
+angleWithMinDist :: P2 Double -> [(P2 Double, P2 Double)] -> Double
+angleWithMinDist myLocation edges =
+  fst $ minimumBy (compare `on` snd) $ map totalLength [0,(1/40)..1]
+  where
+    totalLength angle = (angle, totalLenghtOfLines angle myLocation edges)
+
+
+-- | rotateNodes rotates the nodes such that the distance of its connecting lines
+-- are minimized.
+-- Precondition: the diagrams are already centered
+-- todo: confirm precondition (or use a newtype)
+rotateNodes positionMap nameDiagramMap edges = map rotateDiagram nameDiagramMap
+  where
+    rotateDiagram (name, dia) = (name, rotateBy minAngle dia)
+      where
+        --ports = Debug.Trace.trace ((show $ names dia) ++ "\n") $ names dia
+        ports = names dia
+        namesOfPortsWithLines = connectedPorts edges name
+        portEdges = map makePortEdge $ filter iconInMap namesOfPortsWithLines
+        iconInMap (_, otherIconName, _) = Map.member otherIconName positionMap
+        makePortEdge (portInt, otherIconName, _) = (getPortPoint portInt, positionMap ! otherIconName)
+        getPortPoint :: Int -> P2 Double
+        getPortPoint x = head $ fromMaybe
+          (error "port not found")
+          (lookup (name .> x) ports)
+        minAngle = angleWithMinDist (positionMap ! name) portEdges
+
+placeNodes layoutResult nameDiagramMap edges = mconcat placedNodes
   where
     (positionMap, _) = getGraph layoutResult
-    placedNodes = map placeNode nameDiagramMap
+    rotatedNameDiagramMap = rotateNodes positionMap nameDiagramMap edges
+    placedNodes = map placeNode rotatedNameDiagramMap
     -- todo: Not sure if the diagrams should already be centered at this point.
     placeNode (name, diagram) = place (diagram # centerXY) (scaleFactor *^ (positionMap ! name))
     -- constant
     scaleFactor = 0.025
 
-doGraphLayout graph nameDiagramMap connectNodes = do
+doGraphLayout graph nameDiagramMap connectNodes edges = do
   layoutResult <- layoutGraph' layoutParams Neato graph
-  return $ placeNodes layoutResult nameDiagramMap # connectNodes
+  return $ placeNodes layoutResult nameDiagramMap edges # connectNodes
   where
     layoutParams :: GraphvizParams Int v e () v
     layoutParams = defaultDiaParams{
@@ -92,7 +150,7 @@ renderDrawing (Drawing nameIconMap edges subDrawings) = do
   subDiagramMap <- mapM subDrawingMapper subDrawings
   let diagramMap = makeNamedMap subDiagramMap nameIconMap
   --mapM_ (putStrLn . (++"\n") . show . (map fst) . names . snd) diagramMap
-  doGraphLayout (edgesToGraph iconNames edges) diagramMap (makeConnections edges)
+  doGraphLayout (edgesToGraph iconNames edges) diagramMap (makeConnections edges) edges
   where
     iconNames = map fst nameIconMap
     subDrawingMapper (name, subDrawing) = do
