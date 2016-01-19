@@ -18,10 +18,10 @@ import Icons
 import Rendering
 
 -- todo: Find out how to hide unqualified names such that recursive drawings are connected correctly
+-- todo: Find out and fix why connectinos to sub-icons need to be qualified twice (eg. "lam0" .> "arg" .> "arg")
 -- todo: Rotate based on difference from ideal tangent angle, not line distance.
 -- todo: layout and rotate considering external connections.
 -- todo: add port to bottom of guard.
--- todo: give GraphViz square or circular icons such that rotation can not cause icons to inersect.
 -- todo: use constants for icon name strings in Main
 -- todo: figure out local vs. global icon positions
 
@@ -78,7 +78,8 @@ superEdges =
   iconToIcon "y" "lam0",
   iconToIcon "z" "lam0",
   iconToIcon "q" "lam0",
-  iconToIcon "A" "z"
+  iconToIcon "A" "z",
+  iconToPort ("lam0" .> "foo" .> "foo") "lam0" 0
   ]
 
 superIcons = toNames [
@@ -120,7 +121,7 @@ super3Edges =
 d1Name = toName "d1"
 super3Drawing = Drawing super3Icons super2Edges [(d1Name, super2Drawing)]
 
-factIcons = toNames
+fact0Icons = toNames
   [
   ("g0", GuardIcon 2),
   ("one", TextBoxIcon "1"),
@@ -136,7 +137,7 @@ factIcons = toNames
   ("res", ResultIcon)
   ]
 
-factEdges = [
+fact0Edges = [
     iconToPort "eq0" "eq0Ap" 0,
     portToPort "eq0Ap" 2 "g0" 1,
     iconToPort "-1" "-1Ap" 0,
@@ -152,7 +153,22 @@ factEdges = [
     iconToPort "res" "g0" 0
   ]
 
-factDrawing = Drawing factIcons factEdges []
+fact0Drawing = Drawing fact0Icons fact0Edges []
+fact0Name = toName "fac0"
+
+factLam0Icons = toNames [
+  ("lam0", LambdaRegionIcon 1 fact0Name),
+  ("fac", TextBoxIcon "factorial")
+  ]
+
+factLam0Edges = [
+  iconToPort ("lam0" .> "arg" .> "arg") "lam0" 0,
+  iconToPort "lam0" ("lam0" .> "recurAp") 0,
+  --portToPort "lam0" 0 ("lam0" .> "*Ap2") 3,
+  iconToIcon "lam0" "fac"
+  ]
+
+factLam0Drawing = Drawing factLam0Icons factLam0Edges [(fact0Name, fact0Drawing)]
 
 -- This is left commented out for a future test of the manual connect functions.
 -- connectNodes g =
@@ -164,7 +180,7 @@ factDrawing = Drawing factIcons factEdges []
 
 main1 :: IO ()
 main1 = do
-  placedNodes <- renderDrawing factDrawing
+  placedNodes <- renderDrawing factLam0Drawing
   mainWith (placedNodes # bgFrame 0.1 black)
 
 main2 = mainWith (guardIcon 3 # bgFrame 0.1 black)

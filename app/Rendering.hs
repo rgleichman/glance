@@ -16,7 +16,6 @@ import Diagrams.Backend.SVG(B)
 import Data.GraphViz
 import qualified Data.GraphViz.Attributes.Complete as GVA
 --import Data.GraphViz.Commands
-import Data.Map((!))
 import qualified Data.Map as Map
 import Data.Maybe(fromMaybe, isJust)
 import qualified Debug.Trace
@@ -68,7 +67,7 @@ makeConnections edges = applyAll connections
 connectedPorts :: [Edge] -> Name -> [(Int, Name, Maybe Int)]
 connectedPorts edges name = map edgeToPort $ filter nameInEdge edges
   where
-    nameInEdge (n1, p1, n2, p2) = (name == n1 && (isJust p1)) || (name == n2 && (isJust p2))
+    nameInEdge (n1, p1, n2, p2) = (name == n1 && isJust p1) || (name == n2 && isJust p2)
     edgeToPort (n1, p1, n2, p2) =
       if name == n1
         then (fromMaybe (error "connectedPorts port is Nothing") p1, n2, p2)
@@ -99,9 +98,9 @@ angleWithMinDist myLocation edges =
     totalLength angle = (angle, totalLenghtOfLines angle myLocation edges)
 
 -- constant
-scaleFactor = 0.025
+scaleFactor = 0.02
 
-getFromMapAndScale posMap name = scaleFactor *^ (posMap ! name)
+getFromMapAndScale posMap name = scaleFactor *^ (posMap Map.! name)
 
 -- | rotateNodes rotates the nodes such that the distance of its connecting lines
 -- are minimized.
@@ -138,14 +137,18 @@ placeNodes layoutResult nameDiagramMap edges = mconcat placedNodes
     placedNodes = map placeNode rotatedNameDiagramMap
     --placedNodes = map placeNode nameDiagramMap
     -- todo: Not sure if the diagrams should already be centered at this point.
-    placeNode (name, diagram) = place (diagram # centerXY) (scaleFactor *^ (positionMap ! name))
+    placeNode (name, diagram) = place (diagram # centerXY) (scaleFactor *^ (positionMap Map.! name))
 
 doGraphLayout graph nameDiagramMap connectNodes edges = do
   layoutResult <- layoutGraph' layoutParams Neato graph
   return $ placeNodes layoutResult nameDiagramMap edges # connectNodes
   where
     layoutParams :: GraphvizParams Int v e () v
-    layoutParams = defaultDiaParams{
+    layoutParams = defaultParams{
+      globalAttributes =
+        [ NodeAttrs [shape Circle]
+        , GraphAttrs [GVA.Overlap GVA.ScaleXYOverlaps]
+        ],
       fmtEdge = const [arrowTo noArrow],
       fmtNode = nodeAttribute
       }
@@ -153,9 +156,10 @@ doGraphLayout graph nameDiagramMap connectNodes edges = do
     nodeAttribute (nodeInt, _) =
       -- todo: Potential bug. GVA.Width and GVA.Height have a minimum of 0.01
       -- throw an error if the width or height are less than 0.01
-      [GVA.Shape BoxShape, GVA.Width (width dia), GVA.Height (height dia)]
+      [GVA.Width shapeDimensions, GVA.Height shapeDimensions]
       where
-        --todo: Hack!!! Using (!!) here relies upon the implementation of Diagrams.TwoD.GraphViz.mkGraph
+        shapeDimensions = max (width dia) (height dia)
+        --todo: Hack! Using (!!) here relies upon the implementation of Diagrams.TwoD.GraphViz.mkGraph
         -- to name the nodes in order
         (_, dia) = nameDiagramMap !! nodeInt
 
