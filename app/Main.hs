@@ -18,7 +18,12 @@ import Icons
 import Rendering
 
 -- todo: Find out how to hide unqualified names such that recursive drawings are connected correctly
--- todo: Flip and rotate the icons after placement to minimize line distances to ports.
+-- todo: Rotate based on difference from ideal tangent angle, not line distance.
+-- todo: layout and rotate considering external connections.
+-- todo: add port to bottom of guard.
+-- todo: give GraphViz square or circular icons such that rotation can not cause icons to inersect.
+-- todo: use constants for icon name strings in Main
+-- todo: figure out local vs. global icon positions
 
 applyDia = apply0Dia
 -- --apply0A = "A" .>> applyDia
@@ -127,7 +132,8 @@ factIcons = toNames
   ("recurAp", Apply0Icon),
   ("*Ap1", Apply0Icon),
   ("*Ap2", Apply0Icon),
-  ("arg", BranchIcon)
+  ("arg", BranchIcon),
+  ("res", ResultIcon)
   ]
 
 factEdges = [
@@ -138,10 +144,12 @@ factEdges = [
     iconToPort "one" "g0" 2,
     portToPort "*Ap2" 2 "g0" 4,
     portToPort "*Ap1" 2 "*Ap2" 0,
-    portToPort "recurAp" 2 "*Ap1" 3,
-    iconToPort "arg" "eq0Ap" 3,
+    portToPort "recurAp" 2 "*Ap1" 1,
+    iconToPort "arg" "eq0Ap" 1,
     iconToPort "arg" "-1Ap" 1,
-    iconToPort "arg" "*Ap2" 1
+    iconToPort "arg" "*Ap2" 1,
+    portToPort "-1Ap" 2 "recurAp" 1,
+    iconToPort "res" "g0" 0
   ]
 
 factDrawing = Drawing factIcons factEdges []

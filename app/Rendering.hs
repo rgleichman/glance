@@ -82,7 +82,8 @@ totalLenghtOfLines angle myLocation edges = sum $ map edgeDist edges
   where
     --edgeDist :: (P2 a, P2 a) -> Double
     edgeDist (relativePortLocation, iconLocation) =
-      (norm $  absPortVec ^-^ iconLocationVec)
+      -- The squaring here is arbitrary. Distance should be replaced with angle diff.
+      (norm $  absPortVec ^-^ iconLocationVec) ** 2
       where
         -- todo: is there a better way to convert from Points to vectors?
         relPortVec = r2 $ unp2 relativePortLocation
@@ -90,12 +91,17 @@ totalLenghtOfLines angle myLocation edges = sum $ map edgeDist edges
         myLocVec = r2 $ unp2 myLocation
         absPortVec = myLocVec ^+^ (rotateBy angle relPortVec)
 
-angleWithMinDist :: P2 Double -> [(P2 Double, P2 Double)] -> Double
+-- | returns (angle, total distance)
+angleWithMinDist :: P2 Double -> [(P2 Double, P2 Double)] -> (Double, Double)
 angleWithMinDist myLocation edges =
-  fst $ minimumBy (compare `on` snd) $ map totalLength [0,(1/40)..1]
+  minimumBy (compare `on` snd) $ map totalLength [0,(1/40)..1]
   where
     totalLength angle = (angle, totalLenghtOfLines angle myLocation edges)
 
+-- constant
+scaleFactor = 0.025
+
+getFromMapAndScale posMap name = scaleFactor *^ (posMap ! name)
 
 -- | rotateNodes rotates the nodes such that the distance of its connecting lines
 -- are minimized.
@@ -103,29 +109,36 @@ angleWithMinDist myLocation edges =
 -- todo: confirm precondition (or use a newtype)
 rotateNodes positionMap nameDiagramMap edges = map rotateDiagram nameDiagramMap
   where
-    rotateDiagram (name, dia) = (name, rotateBy minAngle dia)
+    rotateDiagram (name, dia) = (name, diaToUse)
       where
+        flippedDia = reflectX dia
+        (unflippedAngle, unflippedDist) = minAngleForDia dia
+        (flippedAngle, flippedDist) = minAngleForDia flippedDia
+        diaToUse = if flippedDist < unflippedDist
+          then rotateBy flippedAngle flippedDia
+          else rotateBy unflippedAngle dia
+        minAngleForDia :: Diagram B -> (Double, Double)
+        minAngleForDia dia = minAngle where
         --ports = Debug.Trace.trace ((show $ names dia) ++ "\n") $ names dia
-        ports = names dia
-        namesOfPortsWithLines = connectedPorts edges name
-        portEdges = map makePortEdge $ filter iconInMap namesOfPortsWithLines
-        iconInMap (_, otherIconName, _) = Map.member otherIconName positionMap
-        makePortEdge (portInt, otherIconName, _) = (getPortPoint portInt, positionMap ! otherIconName)
-        getPortPoint :: Int -> P2 Double
-        getPortPoint x = head $ fromMaybe
-          (error "port not found")
-          (lookup (name .> x) ports)
-        minAngle = angleWithMinDist (positionMap ! name) portEdges
+          ports = names dia
+          namesOfPortsWithLines = connectedPorts edges name
+          portEdges = map makePortEdge $ filter iconInMap namesOfPortsWithLines
+          iconInMap (_, otherIconName, _) = Map.member otherIconName positionMap
+          makePortEdge (portInt, otherIconName, _) = (getPortPoint portInt, getFromMapAndScale positionMap otherIconName)
+          getPortPoint :: Int -> P2 Double
+          getPortPoint x = head $ fromMaybe
+            (error "port not found")
+            (lookup (name .> x) ports)
+          minAngle = angleWithMinDist (getFromMapAndScale positionMap name) portEdges
 
 placeNodes layoutResult nameDiagramMap edges = mconcat placedNodes
   where
     (positionMap, _) = getGraph layoutResult
     rotatedNameDiagramMap = rotateNodes positionMap nameDiagramMap edges
     placedNodes = map placeNode rotatedNameDiagramMap
+    --placedNodes = map placeNode nameDiagramMap
     -- todo: Not sure if the diagrams should already be centered at this point.
     placeNode (name, diagram) = place (diagram # centerXY) (scaleFactor *^ (positionMap ! name))
-    -- constant
-    scaleFactor = 0.025
 
 doGraphLayout graph nameDiagramMap connectNodes edges = do
   layoutResult <- layoutGraph' layoutParams Neato graph
