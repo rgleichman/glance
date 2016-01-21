@@ -13,24 +13,19 @@ module Icons
     lambdaRegion,
     resultIcon,
     guardIcon,
+    apply0NDia
     ) where
 
 import Diagrams.Prelude
 import Diagrams.Backend.SVG(B)
 import Data.Maybe (fromMaybe)
 
--- TYPES --
--- | A datatype that represents an icon.
--- The BranchIcon is used as a branching point for a line.
--- The TextBoxIcon's data is the text that appears in the text box.
--- The LambdaRegionIcon's data is the number of lambda ports, and the name of it's
--- subdrawing.
-data Icon = Apply0Icon | ResultIcon | BranchIcon | TextBoxIcon String | GuardIcon Int
-  | LambdaRegionIcon Int Name
+import Types(Icon(..), Edge(..))
 
 -- FUNCTIONS --
 
 iconToDiagram Apply0Icon _ = apply0Dia
+iconToDiagram (Apply0NIcon n) _ = apply0NDia n
 iconToDiagram ResultIcon _ = resultIcon
 iconToDiagram BranchIcon _ = branchIcon
 iconToDiagram (TextBoxIcon s) _ = textBox s
@@ -45,16 +40,17 @@ nameDiagram name dia = name .>> (dia # named name)
 
 arrowOptions = with & arrowHead .~ noHead & shaftStyle %~ lwG defaultLineWidth . lc white
 
-connectMaybePorts icon0 (Just port0) icon1 (Just port1) =
+connectMaybePorts :: Edge -> Diagram B -> Diagram B
+connectMaybePorts (Edge (icon0, Just port0, icon1, Just port1) _) =
   connect'
   arrowOptions
   (icon0 .> port0)
   (icon1 .> port1)
-connectMaybePorts icon0 Nothing icon1 (Just port1) =
+connectMaybePorts (Edge (icon0, Nothing, icon1, Just port1) _) =
   connectOutside' arrowOptions icon0 (icon1 .> port1)
-connectMaybePorts icon0 (Just port0) icon1 Nothing =
+connectMaybePorts (Edge (icon0, Just port0, icon1, Nothing) _) =
   connectOutside' arrowOptions (icon0 .> port0) icon1
-connectMaybePorts icon0 Nothing icon1 Nothing =
+connectMaybePorts (Edge (icon0, Nothing, icon1, Nothing) _) =
   connectOutside' arrowOptions icon0 icon1
 
 -- | Make an port with an integer name. Always use <> to add a ports (not === or |||)
@@ -85,7 +81,7 @@ apply0Triangle = eqTriangle (2 * circleRadius) # rotateBy (-1/12) # fc red # lw 
 apply0Line = rect apply0LineWidth (2 * circleRadius) # fc white # lw none
 
 --apply0Dia :: Diagram B
-apply0Dia = (resultCircle ||| apply0Line ||| apply0Triangle) <> makePortDiagrams apply0PortLocations
+apply0Dia = (resultCircle ||| apply0Line ||| apply0Triangle) <> makePortDiagrams apply0PortLocations # centerXY
 
 apply0PortLocations = map p2 [
   (circleRadius + apply0LineWidth + triangleWidth, 0),
@@ -95,6 +91,21 @@ apply0PortLocations = map p2 [
   where
     triangleWidth = circleRadius * sqrt 3
     lineCenter = circleRadius + (apply0LineWidth / 2.0)
+
+-- apply0N Icon--
+
+apply0NDia :: Int -> Diagram B
+apply0NDia n = finalDia # centerXY where
+  seperation = 0.6
+  trianglePortsCircle = hcat [
+    reflectX apply0Triangle,
+    hcat $ take n $ map (\x -> makePort x <> strutX seperation) [2,3..],
+    makePort 1 <> alignR (circle circleRadius # fc red # lwG defaultLineWidth # lc red)
+    ]
+  allPorts = makePort 0 <> alignL trianglePortsCircle
+  topAndBottomLineWidth = width allPorts - circleRadius
+  topAndBottomLine = hrule topAndBottomLineWidth # lc red # lwG defaultLineWidth # alignL
+  finalDia = topAndBottomLine === allPorts === topAndBottomLine
 
 -- TEXT ICON --
 textBoxFontSize = 1

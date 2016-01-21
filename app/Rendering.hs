@@ -21,16 +21,11 @@ import Data.Maybe(fromMaybe, isJust)
 import qualified Debug.Trace
 import Data.List(minimumBy)
 import Data.Function(on)
+import Data.Graph.Inductive.PatriciaTree (Gr)
 
 import Icons
+import Types(Edge(..), Connection, Drawing(..), EdgeEndType(..))
 
--- | An Edge has an name of the source icon, and its optional port number,
--- and the name of the destination icon, and its optional port number.
-type Edge = (Name, Maybe Int, Name, Maybe Int)
-
--- | A drawing is a map from names to Icons, a list of edges,
--- and a map of names to subDrawings
-data Drawing = Drawing [(Name, Icon)] [Edge] [(Name, Drawing)]
 
 -- | Convert a map of names and icons, to a list of names and diagrams.
 -- The subDiagramMap
@@ -44,27 +39,32 @@ mapFst f = map (\(x, y) -> (f x, y))
 toNames :: (IsName a) => [(a, b)] -> [(Name, b)]
 toNames = mapFst toName
 
-portToPort :: (IsName a, IsName c) => a -> b -> c -> d -> (Name, Maybe b, Name, Maybe d)
-portToPort a b c d = (toName a, Just b, toName c, Just d)
+noEnds = (NoEnd, NoEnd)
 
-iconToPort :: (IsName a, IsName c) => a -> c -> d -> (Name, Maybe b, Name, Maybe d)
-iconToPort a   c d = (toName a, Nothing, toName c, Just d)
+--portToPort :: (IsName a, IsName c) => a -> b -> c -> d -> Edge
+portToPort :: (IsName a, IsName b) => a -> Int -> b -> Int -> Edge
+portToPort a b c d = Edge (toName a, Just b, toName c, Just d) noEnds
 
-iconToIcon :: (IsName a, IsName c) => a -> c -> (Name, Maybe b, Name, Maybe d)
-iconToIcon a   c   = (toName a, Nothing, toName c, Nothing)
+iconToPort :: (IsName a, IsName b) => a -> b -> Int -> Edge
+iconToPort a   c d = Edge (toName a, Nothing, toName c, Just d) noEnds
 
+iconToIcon :: (IsName a, IsName b) => a -> b -> Edge
+iconToIcon a   c   = Edge (toName a, Nothing, toName c, Nothing) noEnds
+
+edgesToGraph :: (Ord v) => [v] -> [(v, t, v , t1)] -> Gr v ()
 edgesToGraph names edges = mkGraph names simpleEdges
   where
     simpleEdges = map (\(a, _, c, _) -> (a, c, ())) edges
 
 uncurry4 f (a, b, c, d) = f a b c d
 
+makeConnections :: [Edge] -> Diagram B -> Diagram B
 makeConnections edges = applyAll connections
   where
-    connections = map (uncurry4 connectMaybePorts) edges
+    connections = map connectMaybePorts edges
 
 -- | Returns [(myport, other node, other node's port)]
-connectedPorts :: [Edge] -> Name -> [(Int, Name, Maybe Int)]
+connectedPorts :: [Connection] -> Name -> [(Int, Name, Maybe Int)]
 connectedPorts edges name = map edgeToPort $ filter nameInEdge edges
   where
     nameInEdge (n1, p1, n2, p2) = (name == n1 && isJust p1) || (name == n2 && isJust p2)
@@ -100,12 +100,14 @@ angleWithMinDist myLocation edges =
 -- constant
 scaleFactor = 0.02
 
+getFromMapAndScale :: (Fractional a, Functor f, Ord k) => Map.Map k (f a) -> k -> f a
 getFromMapAndScale posMap name = scaleFactor *^ (posMap Map.! name)
 
 -- | rotateNodes rotates the nodes such that the distance of its connecting lines
 -- are minimized.
 -- Precondition: the diagrams are already centered
 -- todo: confirm precondition (or use a newtype)
+rotateNodes :: Map.Map Name (Point V2 Double) -> [(Name, Diagram B)] -> [Connection] -> [(Name, Diagram B)]
 rotateNodes positionMap nameDiagramMap edges = map rotateDiagram nameDiagramMap
   where
     rotateDiagram (name, dia) = (name, diaToUse)
@@ -139,6 +141,7 @@ placeNodes layoutResult nameDiagramMap edges = mconcat placedNodes
     -- todo: Not sure if the diagrams should already be centered at this point.
     placeNode (name, diagram) = place (diagram # centerXY) (scaleFactor *^ (positionMap Map.! name))
 
+doGraphLayout :: Gr Name e -> [(Name, Diagram B)] -> (Diagram B -> r) -> [Connection] -> IO r
 doGraphLayout graph nameDiagramMap connectNodes edges = do
   layoutResult <- layoutGraph' layoutParams Neato graph
   return $ placeNodes layoutResult nameDiagramMap edges # connectNodes
@@ -147,7 +150,7 @@ doGraphLayout graph nameDiagramMap connectNodes edges = do
     layoutParams = defaultParams{
       globalAttributes =
         [ NodeAttrs [shape Circle]
-        , GraphAttrs [GVA.Overlap GVA.ScaleXYOverlaps]
+        , GraphAttrs [GVA.Overlap GVA.ScaleXYOverlaps, GVA.Splines GVA.LineEdges]
         ],
       fmtEdge = const [arrowTo noArrow],
       fmtNode = nodeAttribute
@@ -163,12 +166,14 @@ doGraphLayout graph nameDiagramMap connectNodes edges = do
         -- to name the nodes in order
         (_, dia) = nameDiagramMap !! nodeInt
 
+renderDrawing :: Drawing -> IO (Diagram B)
 renderDrawing (Drawing nameIconMap edges subDrawings) = do
   subDiagramMap <- mapM subDrawingMapper subDrawings
   let diagramMap = makeNamedMap subDiagramMap nameIconMap
   --mapM_ (putStrLn . (++"\n") . show . (map fst) . names . snd) diagramMap
-  doGraphLayout (edgesToGraph iconNames edges) diagramMap (makeConnections edges) edges
+  doGraphLayout (edgesToGraph iconNames connections) diagramMap (makeConnections edges) connections
   where
+    connections = map edgeConnection edges
     iconNames = map fst nameIconMap
     subDrawingMapper (name, subDrawing) = do
       subDiagram <- renderDrawing subDrawing

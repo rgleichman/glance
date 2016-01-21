@@ -14,8 +14,9 @@ import Data.Maybe (fromMaybe)
 import Data.Typeable(Typeable)
 
 import Lib
-import Icons
-import Rendering
+import Icons(apply0Dia, apply0NDia)
+import Rendering(toNames, portToPort, iconToPort, iconToIcon, renderDrawing)
+import Types(Icon(..), Drawing(..))
 
 -- todo: Find out how to hide unqualified names such that recursive drawings are connected correctly
 -- todo: Find out and fix why connectinos to sub-icons need to be qualified twice (eg. "lam0" .> "arg" .> "arg")
@@ -24,6 +25,7 @@ import Rendering
 -- todo: add port to bottom of guard.
 -- todo: use constants for icon name strings in Main
 -- todo: figure out local vs. global icon positions
+-- todo: replace hrule and vrule with strutX and strutY
 
 applyDia = apply0Dia
 -- --apply0A = "A" .>> applyDia
@@ -131,8 +133,9 @@ fact0Icons = toNames
   ("-1Ap", Apply0Icon),
   ("*", TextBoxIcon "*"),
   ("recurAp", Apply0Icon),
-  ("*Ap1", Apply0Icon),
-  ("*Ap2", Apply0Icon),
+  ("*Ap", Apply0NIcon 2),
+  --("*Ap1", Apply0Icon),
+  --("*Ap2", Apply0Icon),
   ("arg", BranchIcon),
   ("res", ResultIcon)
   ]
@@ -141,14 +144,14 @@ fact0Edges = [
     iconToPort "eq0" "eq0Ap" 0,
     portToPort "eq0Ap" 2 "g0" 1,
     iconToPort "-1" "-1Ap" 0,
-    iconToPort "*" "*Ap1" 0,
+    iconToPort "*" "*Ap" 0,
     iconToPort "one" "g0" 2,
-    portToPort "*Ap2" 2 "g0" 4,
-    portToPort "*Ap1" 2 "*Ap2" 0,
-    portToPort "recurAp" 2 "*Ap1" 1,
+    portToPort "*Ap" 1 "g0" 4,
+    --portToPort "*Ap" 3 "recurAp" 0,
+    portToPort "recurAp" 2 "*Ap" 3,
     iconToPort "arg" "eq0Ap" 1,
     iconToPort "arg" "-1Ap" 1,
-    iconToPort "arg" "*Ap2" 1,
+    iconToPort "arg" "*Ap" 2,
     portToPort "-1Ap" 2 "recurAp" 1,
     iconToPort "res" "g0" 0
   ]
@@ -183,7 +186,7 @@ main1 = do
   placedNodes <- renderDrawing factLam0Drawing
   mainWith (placedNodes # bgFrame 0.1 black)
 
-main2 = mainWith (guardIcon 3 # bgFrame 0.1 black)
+main2 = mainWith (apply0NDia 3 # bgFrame 0.1 black)
 
 main :: IO ()
 main = main1
