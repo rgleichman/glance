@@ -15,11 +15,14 @@ import Data.Typeable(Typeable)
 
 import Lib
 import Icons(apply0Dia, apply0NDia)
-import Rendering(toNames, portToPort, iconToPort, iconToIcon, iconToIconEnds, renderDrawing)
+import Rendering(toNames, portToPort, iconToPort, iconToIcon,
+  iconToIconEnds, iconHeadToPort, iconTailToPort, renderDrawing)
 import Types(Icon(..), Drawing(..), EdgeEnd(..))
 
 -- TODO Now --
+-- todo: add example goal and status drawings for factorial to readme.
 -- todo: replace hrule and vrule with strutX and strutY
+-- todo: consolidate colors to one place
 -- todo: add port to bottom of guard.
 -- todo: use constants for icon name strings in Main
 -- todo: figure out how to deal with the difference between arrow heads and arrow tails
@@ -29,6 +32,7 @@ import Types(Icon(..), Drawing(..), EdgeEnd(..))
 -- todo: Find out how to hide unqualified names such that recursive drawings are connected correctly
 -- todo: Find out and fix why connectinos to sub-icons need to be qualified twice (eg. "lam0" .> "arg" .> "arg")
 -- todo: Rotate based on difference from ideal tangent angle, not line distance.
+-- todo: Try using connectPerim for port ot port connections. Hopefully this will draw a spline.
 -- todo: layout and rotate considering external connections.
 -- todo: figure out local vs. global icon positions
 
@@ -151,14 +155,12 @@ fact0Edges = [
     iconToPort "*" "*Ap" 0,
     iconToPort "one" "g0" 2,
     portToPort "*Ap" 1 "g0" 4,
-    --portToPort "*Ap" 3 "recurAp" 0,
     portToPort "recurAp" 2 "*Ap" 3,
     iconToPort "arg" "eq0Ap" 1,
     iconToPort "arg" "-1Ap" 1,
     iconToPort "arg" "*Ap" 2,
     portToPort "-1Ap" 2 "recurAp" 1,
     iconToPort "res" "g0" 0
-    --iconToIconEnds "-1" Ap1Result "eq0" Ap1Arg
   ]
 
 fact0Drawing = Drawing fact0Icons fact0Edges []
@@ -172,11 +174,48 @@ factLam0Icons = toNames [
 factLam0Edges = [
   iconToPort ("lam0" .> "arg" .> "arg") "lam0" 0,
   iconToPort "lam0" ("lam0" .> "recurAp") 0,
-  --portToPort "lam0" 0 ("lam0" .> "*Ap2") 3,
   iconToIcon "lam0" "fac"
   ]
 
 factLam0Drawing = Drawing factLam0Icons factLam0Edges [(fact0Name, fact0Drawing)]
+
+fact1Icons = toNames
+  [
+  ("g0", GuardIcon 2),
+  ("one", TextBoxIcon "1"),
+  ("eq0", TextBoxIcon "== 0"),
+  ("-1", TextBoxIcon "-1"),
+  ("*", TextBoxIcon "*"),
+  ("recurAp", Apply0Icon),
+  ("*Ap", Apply0NIcon 2),
+  ("arg", BranchIcon),
+  ("res", ResultIcon)
+  ]
+
+fact1Edges = [
+    --iconToPort "eq0" "eq0Ap" 0,
+    --portToPort "eq0Ap" 2 "g0" 1,
+    --iconToPort "-1" "-1Ap" 0,
+    iconToIconEnds "arg" EndNone "eq0" EndAp1Arg,
+    iconTailToPort "eq0" EndAp1Result "g0" 1,
+    iconToIconEnds "arg" EndNone "-1" EndAp1Arg,
+    iconTailToPort "-1" EndAp1Result "recurAp" 1,
+    --iconHeadTo
+    iconToPort "*" "*Ap" 0,
+    iconToPort "one" "g0" 2,
+    portToPort "*Ap" 1 "g0" 4,
+    portToPort "recurAp" 2 "*Ap" 3,
+    --iconToPort "arg" "eq0Ap" 1,
+    --iconToPort "arg" "-1Ap" 1,
+    iconToPort "arg" "*Ap" 2,
+    --portToPort "-1Ap" 2 "recurAp" 1,
+    iconToPort "res" "g0" 0
+    --iconToIconEnds "-1" Ap1Result "eq0" Ap1Arg
+  ]
+
+fact1Drawing = Drawing fact1Icons fact1Edges []
+
+factLam1Drawing = Drawing factLam0Icons factLam0Edges [(fact0Name, fact1Drawing)]
 
 -- This is left commented out for a future test of the manual connect functions.
 -- connectNodes g =
@@ -188,7 +227,7 @@ factLam0Drawing = Drawing factLam0Icons factLam0Edges [(fact0Name, fact0Drawing)
 
 main1 :: IO ()
 main1 = do
-  placedNodes <- renderDrawing factLam0Drawing
+  placedNodes <- renderDrawing factLam1Drawing
   mainWith (placedNodes # bgFrame 0.1 black)
 
 main2 = mainWith (apply0NDia 3 # bgFrame 0.1 black)

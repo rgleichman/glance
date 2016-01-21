@@ -6,6 +6,8 @@ module Rendering (
   iconToPort,
   iconToIcon,
   iconToIconEnds,
+  iconHeadToPort,
+  iconTailToPort,
   toNames,
   renderDrawing
 ) where
@@ -41,7 +43,7 @@ mapFst f = map (\(x, y) -> (f x, y))
 toNames :: (IsName a) => [(a, b)] -> [(Name, b)]
 toNames = mapFst toName
 
-noEnds = (NoEnd, NoEnd)
+noEnds = (EndNone, EndNone)
 
 --portToPort :: (IsName a, IsName c) => a -> b -> c -> d -> Edge
 portToPort :: (IsName a, IsName b) => a -> Int -> b -> Int -> Edge
@@ -59,6 +61,10 @@ iconToIcon a   c   = Edge (toName a, Nothing, toName c, Nothing) noEnds
 iconToIconEnds :: (IsName a, IsName b) => a -> EdgeEnd -> b -> EdgeEnd -> Edge
 iconToIconEnds a b c d = Edge (toName a, Nothing, toName c, Nothing) (b, d)
 
+iconHeadToPort a endHead c d = Edge (toName a, Nothing, toName c, Just d) (EndNone, endHead)
+
+iconTailToPort a endTail c d = Edge (toName a, Nothing, toName c, Just d) (endTail, EndNone)
+
 edgesToGraph :: (Ord v) => [v] -> [(v, t, v , t1)] -> Gr v ()
 edgesToGraph names edges = mkGraph names simpleEdges
   where
@@ -73,27 +79,28 @@ getArrowOpts :: (RealFloat n, Typeable n) => (EdgeEnd, EdgeEnd) -> ArrowOpts n
 getArrowOpts (t, h) = arrowOptions
   where
     lookupEnd :: (RealFloat n, Typeable n) => EdgeEnd -> ArrowOpts n -> ArrowOpts n
-    lookupEnd NoEnd = id
-    lookupEnd Ap1Arg = (arrowHead .~ thorn) . (headTexture .~ solid cyan)
-    lookupEnd Ap1Result = (arrowTail .~ arg1ResHT) . (tailTexture .~ solid cyan)
+    lookupEnd EndNone = id
+    lookupEnd EndAp1Arg = (arrowHead .~ thorn) . (headTexture .~ solid cyan)
+    lookupEnd EndAp1Result = (arrowTail .~ arg1ResHT) . (tailTexture .~ solid cyan)
     arrowOptions =
       with & arrowHead .~ noHead
       & arrowTail .~ noTail
+      & lengths .~ large
       & shaftStyle %~ lwG defaultLineWidth . lc white
       & (lookupEnd t) & (lookupEnd h)
 
-plainLine = getArrowOpts (NoEnd, NoEnd)
+plainLine = getArrowOpts (EndNone, EndNone)
 
 connectMaybePorts :: Edge -> Diagram B -> Diagram B
-connectMaybePorts (Edge (icon0, Just port0, icon1, Just port1) _) =
+connectMaybePorts (Edge (icon0, Just port0, icon1, Just port1) ends) =
   connect'
-  plainLine
+  (getArrowOpts ends)
   (icon0 .> port0)
   (icon1 .> port1)
-connectMaybePorts (Edge (icon0, Nothing, icon1, Just port1) _) =
-  connectOutside' plainLine icon0 (icon1 .> port1)
-connectMaybePorts (Edge (icon0, Just port0, icon1, Nothing) _) =
-  connectOutside' plainLine (icon0 .> port0) icon1
+connectMaybePorts (Edge (icon0, Nothing, icon1, Just port1) ends) =
+  connectOutside' (getArrowOpts ends) icon0 (icon1 .> port1)
+connectMaybePorts (Edge (icon0, Just port0, icon1, Nothing) ends) =
+  connectOutside' (getArrowOpts ends) (icon0 .> port0) icon1
 connectMaybePorts (Edge (icon0, Nothing, icon1, Nothing) ends) =
   connectOutside' (getArrowOpts ends) icon0 icon1
 

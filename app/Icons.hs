@@ -134,17 +134,18 @@ branchIcon :: Diagram B
 branchIcon = circle 0.3 # fc white # lc white
 
 -- GUARD ICON --
+guardSize = 0.7
 guardTriangle :: Int -> Diagram B
-guardTriangle x = triangleAndPort # alignL
+guardTriangle x = ((triangleAndPort ||| (hrule (guardSize * 0.8) # lc white # lwG defaultLineWidth)) # alignR) <> (makePort x) # alignL
   where
-    triangleAndPort = polygon (with & polyType .~ PolySides [90 @@ deg, 45 @@ deg] [1, 1])
-      # rotateBy (1/8)# lc white # lwG defaultLineWidth # alignT # alignR <> (makePort x # showOrigin)
+    triangleAndPort = polygon (with & polyType .~ PolySides [90 @@ deg, 45 @@ deg] [guardSize, guardSize])
+      # rotateBy (1/8)# lc white # lwG defaultLineWidth # alignT # alignR
 
 guardLBracket :: Int -> Diagram B
 guardLBracket x = ell # alignT # alignL <> makePort x
   where
     -- todo: use a path or trail here so that the corner is rounded correctly
-    ell = (hrule 1 # lc orange # lwG defaultLineWidth # alignR) <> (vrule 1 # lc orange # lwG defaultLineWidth # alignT)
+    ell = (hrule guardSize # lc orange # lwG defaultLineWidth # alignR) <> (vrule guardSize # lc orange # lwG defaultLineWidth # alignT)
 
 -- | The ports of the guard icon are as follows:
 -- Port 0: The top port for the result
@@ -158,6 +159,6 @@ guardIcon n = centerXY $ vcat (take n trianglesAndBrackets # alignT) <> makePort
     lBrackets = map guardLBracket [1,3..]
     trianglesAndBrackets =
       zipWith zipper trianglesWithPorts lBrackets
-    zipper tri lBrack = verticalLine === ((lBrack ||| hrule 0.4) # alignR <> (tri # alignL))
+    zipper tri lBrack = verticalLine === ((lBrack ||| strut (guardSize * 0.4)) # alignR <> (tri # alignL))
       where
         verticalLine = vrule 0.4 # lc white # lwG defaultLineWidth
