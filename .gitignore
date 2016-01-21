@@ -15,5 +15,4 @@ cabal.sandbox.config
 *.hp
 .stack-work/
 *.*~
-*.svg
 *~

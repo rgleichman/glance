@@ -228,7 +228,7 @@ factLam1Drawing = Drawing factLam0Icons factLam0Edges [(fact0Name, fact1Drawing)
 main1 :: IO ()
 main1 = do
   placedNodes <- renderDrawing factLam1Drawing
-  mainWith (placedNodes # bgFrame 0.1 black)
+  mainWith (placedNodes # bgFrame 1 black)
 
 main2 = mainWith (apply0NDia 3 # bgFrame 0.1 black)
 
