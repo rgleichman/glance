@@ -14,18 +14,18 @@ import Data.Maybe (fromMaybe)
 import Data.Typeable(Typeable)
 
 import Lib
-import Icons(apply0Dia, apply0NDia, guardIcon)
+import Icons(apply0Dia, apply0NDia, guardIcon, colorScheme, ColorStyle(..))
 import Rendering(toNames, portToPort, iconToPort, iconToIcon,
   iconToIconEnds, iconHeadToPort, iconTailToPort, renderDrawing)
 import Types(Icon(..), Drawing(..), EdgeEnd(..))
 
 -- TODO Now --
--- todo: consolidate colors to one place
 -- todo: use constants for icon name strings in Main
 -- todo: figure out how to deal with the difference between arrow heads and arrow tails
 -- todo: consider moving portToPort etc. to a new file
 
 -- TODO Later --
+-- Add a small black border to lines to help distinguish line crossings.
 -- todo: Find out how to hide unqualified names such that recursive drawings are connected correctly
 -- todo: Find out and fix why connectinos to sub-icons need to be qualified twice (eg. "lam0" .> "arg" .> "arg")
 -- todo: Rotate based on difference from ideal tangent angle, not line distance.
@@ -217,7 +217,7 @@ factLam1Drawing = Drawing factLam0Icons factLam0Edges [(fact0Name, fact1Drawing)
 main1 :: IO ()
 main1 = do
   placedNodes <- renderDrawing factLam1Drawing
-  mainWith (placedNodes # bgFrame 1 black)
+  mainWith (placedNodes # bgFrame 1 (backgroundC colorScheme))
 
 main2 = mainWith (guardIcon 3 # bgFrame 0.1 black)
 

@@ -13,7 +13,9 @@ module Icons
     resultIcon,
     guardIcon,
     apply0NDia,
-    defaultLineWidth
+    defaultLineWidth,
+    ColorStyle(..),
+    colorScheme
     ) where
 
 import Diagrams.Prelude
@@ -21,6 +23,64 @@ import Diagrams.Backend.SVG(B)
 import Data.Maybe (fromMaybe)
 
 import Types(Icon(..), Edge(..))
+
+-- COLO(U)RS --
+colorScheme :: (Floating a, Ord a) => ColorStyle a
+colorScheme = colorOnBlackScheme
+
+data ColorStyle a = ColorStyle {
+  backgroundC :: Colour a,
+  lineC :: Colour a,
+  textBoxTextC :: Colour a,
+  textBoxC :: Colour a,
+  apply0C :: Colour a,
+  apply1C :: Colour a,
+  boolC :: Colour a,
+  lamArgResC :: Colour a,
+  regionPerimC :: Colour a
+}
+
+colorOnBlackScheme :: (Floating a, Ord a) => ColorStyle a
+colorOnBlackScheme = ColorStyle {
+  backgroundC = black,
+  lineC = white,
+  textBoxTextC = white,
+  textBoxC = white,
+  apply0C = red,
+  apply1C = cyan,
+  boolC = orange,
+  lamArgResC = lime,
+  regionPerimC = white
+}
+
+whiteOnBlackScheme :: (Floating a, Ord a) => ColorStyle a
+whiteOnBlackScheme = ColorStyle {
+  backgroundC = black,
+  lineC = white,
+  textBoxTextC = white,
+  textBoxC = white,
+  apply0C = white,
+  apply1C = white,
+  boolC = white,
+  lamArgResC = white,
+  regionPerimC = white
+}
+
+-- Use this to test that all of the colors use the colorScheme
+randomColorScheme :: (Floating a, Ord a) => ColorStyle a
+randomColorScheme = ColorStyle {
+  backgroundC = darkorchid,
+  lineC = yellow,
+  textBoxTextC = blue,
+  textBoxC = magenta,
+  apply0C = orange,
+  apply1C = green,
+  boolC = lightpink,
+  lamArgResC = red,
+  regionPerimC = cyan
+}
+
+lineCol = lineC colorScheme
 
 -- FUNCTIONS --
 
@@ -57,13 +117,13 @@ circleRadius = 0.5
 apply0LineWidth = defaultLineWidth
 
 --resultCircle :: Diagram B
-resultCircle = circle circleRadius # fc red # lw none
+resultCircle = circle circleRadius # fc (apply0C colorScheme) # lw none
 
 --apply0Triangle :: Diagram B
-apply0Triangle = eqTriangle (2 * circleRadius) # rotateBy (-1/12) # fc red # lw none
+apply0Triangle = eqTriangle (2 * circleRadius) # rotateBy (-1/12) # fc (apply0C colorScheme) # lw none
 
 --apply0Line :: Diagram B
-apply0Line = rect apply0LineWidth (2 * circleRadius) # fc white # lw none
+apply0Line = rect apply0LineWidth (2 * circleRadius) # fc lineCol # lw none
 
 --apply0Dia :: Diagram B
 apply0Dia = (resultCircle ||| apply0Line ||| apply0Triangle) <> makePortDiagrams apply0PortLocations # centerXY
@@ -85,11 +145,11 @@ apply0NDia n = finalDia # centerXY where
   trianglePortsCircle = hcat [
     reflectX apply0Triangle,
     hcat $ take n $ map (\x -> makePort x <> strutX seperation) [2,3..],
-    makePort 1 <> alignR (circle circleRadius # fc red # lwG defaultLineWidth # lc red)
+    makePort 1 <> alignR (circle circleRadius # fc (apply0C colorScheme) # lwG defaultLineWidth # lc (apply0C colorScheme))
     ]
   allPorts = makePort 0 <> alignL trianglePortsCircle
   topAndBottomLineWidth = width allPorts - circleRadius
-  topAndBottomLine = hrule topAndBottomLineWidth # lc red # lwG defaultLineWidth # alignL
+  topAndBottomLine = hrule topAndBottomLineWidth # lc (apply0C colorScheme) # lwG defaultLineWidth # alignL
   finalDia = topAndBottomLine === allPorts === topAndBottomLine
 
 -- TEXT ICON --
@@ -98,7 +158,7 @@ monoLetterWidthToHeightFraction = 0.6
 textBoxHeightFactor = 1.1
 
 --textBox :: String -> Diagram B
-textBox = coloredTextBox white $ opaque white
+textBox = coloredTextBox (textBoxTextC colorScheme) $ opaque (textBoxC colorScheme)
 
 -- Since the normal SVG text has no size, some hackery is needed to determine
 -- the size of the text's bounding box.
@@ -111,12 +171,12 @@ coloredTextBox textColor boxColor t =
       + (textBoxFontSize * 0.2)
 
 -- ENCLOSING REGION --
-enclosure dia = dia <> boundingRect (dia # frame 0.5) # lc white # lwG defaultLineWidth
+enclosure dia = dia <> boundingRect (dia # frame 0.5) # lc (regionPerimC colorScheme) # lwG defaultLineWidth
 
 -- LAMBDA ICON --
 -- Don't use === here to put the port under the text box since mempty will stay
 -- at the origin of the text box.
-lambdaIcon x = coloredTextBox lime transparent "λ" # alignB <> makePort x
+lambdaIcon x = coloredTextBox (lamArgResC colorScheme) transparent "λ" # alignB <> makePort x
 
 -- LAMBDA REGION --
 
@@ -127,26 +187,26 @@ lambdaRegion n dia =
   where lambdaIcons = hsep 0.4 (take n (map lambdaIcon [0,1..]))
 
 -- RESULT ICON --
-resultIcon = unitSquare # lw none # fc lime
+resultIcon = unitSquare # lw none # fc (lamArgResC colorScheme)
 
 -- BRANCH ICON --
 branchIcon :: Diagram B
-branchIcon = circle 0.3 # fc white # lc white
+branchIcon = circle 0.3 # fc lineCol # lc lineCol
 
 -- GUARD ICON --
 guardSize = 0.7
 guardTriangle :: Int -> Diagram B
 guardTriangle x =
-  ((triangleAndPort ||| (hrule (guardSize * 0.8) # lc white # lwG defaultLineWidth)) # alignR) <> makePort x # alignL
+  ((triangleAndPort ||| (hrule (guardSize * 0.8) # lc lineCol # lwG defaultLineWidth)) # alignR) <> makePort x # alignL
   where
     triangleAndPort = polygon (with & polyType .~ PolySides [90 @@ deg, 45 @@ deg] [guardSize, guardSize])
-      # rotateBy (1/8)# lc white # lwG defaultLineWidth # alignT # alignR
+      # rotateBy (1/8)# lc lineCol # lwG defaultLineWidth # alignT # alignR
 
 guardLBracket :: Int -> Diagram B
 guardLBracket x = ell # alignT # alignL <> makePort x
   where
     ellShape = fromOffsets $ map r2 [(0, guardSize), (-guardSize,0)]
-    ell = ellShape # strokeLine # lc orange # lwG defaultLineWidth # lineJoin LineJoinRound
+    ell = ellShape # strokeLine # lc (boolC colorScheme) # lwG defaultLineWidth # lineJoin LineJoinRound
 
 -- | The ports of the guard icon are as follows:
 -- Port 0: The top port for the result
@@ -163,4 +223,4 @@ guardIcon n = centerXY $ makePort 1 <> alignB (vcat (take n trianglesAndBrackets
       zipWith zipper trianglesWithPorts lBrackets
     zipper tri lBrack = verticalLine === ((lBrack # extrudeRight guardSize) # alignR <> (tri # alignL))
       where
-        verticalLine = vrule 0.4 # lc white # lwG defaultLineWidth
+        verticalLine = vrule 0.4 # lc lineCol # lwG defaultLineWidth

@@ -27,7 +27,7 @@ import Data.Function(on)
 import Data.Graph.Inductive.PatriciaTree (Gr)
 import Data.Typeable(Typeable)
 
-import Icons
+import Icons(colorScheme, Icon(..), iconToDiagram, nameDiagram, defaultLineWidth, ColorStyle(..))
 import Types(Edge(..), Connection, Drawing(..), EdgeEnd(..))
 
 
@@ -81,13 +81,13 @@ getArrowOpts (t, h) = arrowOptions
     lookupEnd :: (RealFloat n, Typeable n) => EdgeEnd -> ArrowOpts n -> ArrowOpts n
     lookupEnd EndNone = id
     lookupEnd EndAp1Arg = (arrowHead .~ arrowheadDart (0.4 @@ turn))
-      . (headTexture .~ solid black) . (headStyle %~ (lw thick . lc cyan ))
-    lookupEnd EndAp1Result = (arrowTail .~ arg1ResHT) . (tailTexture .~ solid cyan)
+      . (headTexture .~ solid (backgroundC colorScheme)) . (headStyle %~ (lw thick . lc (apply1C colorScheme) ))
+    lookupEnd EndAp1Result = (arrowTail .~ arg1ResHT) . (tailTexture .~ solid (apply1C colorScheme))
     arrowOptions =
       with & arrowHead .~ noHead
       & arrowTail .~ noTail
       & lengths .~ large
-      & shaftStyle %~ lwG defaultLineWidth . lc white
+      & shaftStyle %~ lwG defaultLineWidth . lc (lineC colorScheme)
       & lookupEnd t & lookupEnd h
 
 plainLine = getArrowOpts (EndNone, EndNone)
