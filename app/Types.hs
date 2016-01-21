@@ -17,9 +17,9 @@ type Connection = (Name, Maybe Int, Name, Maybe Int)
 
 -- | An Edge has an name of the source icon, and its optional port number,
 -- and the name of the destination icon, and its optional port number.
-data Edge = Edge {edgeConnection :: Connection, edgeEnds :: (EdgeEndType, EdgeEndType)}
+data Edge = Edge {edgeConnection :: Connection, edgeEnds :: (EdgeEnd, EdgeEnd)}
 
-data EdgeEndType = Ap1Result | Ap1Arg | NoEnd
+data EdgeEnd = Ap1Result | Ap1Arg | NoEnd
 
 -- | A drawing is a map from names to Icons, a list of edges,
 -- and a map of names to subDrawings

@@ -7,13 +7,13 @@ module Icons
     --drawIconAndPorts,
     --drawIconsAndPortNumbers,
     nameDiagram,
-    connectMaybePorts,
     textBox,
     enclosure,
     lambdaRegion,
     resultIcon,
     guardIcon,
-    apply0NDia
+    apply0NDia,
+    defaultLineWidth
     ) where
 
 import Diagrams.Prelude
@@ -37,21 +37,6 @@ iconToDiagram (LambdaRegionIcon n diagramName) nameToSubdiagramMap =
 
 -- | Names the diagram and puts all sub-names in the namespace of the top level name.
 nameDiagram name dia = name .>> (dia # named name)
-
-arrowOptions = with & arrowHead .~ noHead & shaftStyle %~ lwG defaultLineWidth . lc white
-
-connectMaybePorts :: Edge -> Diagram B -> Diagram B
-connectMaybePorts (Edge (icon0, Just port0, icon1, Just port1) _) =
-  connect'
-  arrowOptions
-  (icon0 .> port0)
-  (icon1 .> port1)
-connectMaybePorts (Edge (icon0, Nothing, icon1, Just port1) _) =
-  connectOutside' arrowOptions icon0 (icon1 .> port1)
-connectMaybePorts (Edge (icon0, Just port0, icon1, Nothing) _) =
-  connectOutside' arrowOptions (icon0 .> port0) icon1
-connectMaybePorts (Edge (icon0, Nothing, icon1, Nothing) _) =
-  connectOutside' arrowOptions icon0 icon1
 
 -- | Make an port with an integer name. Always use <> to add a ports (not === or |||)
 --- since mempty has no size and will not be placed where you want it.

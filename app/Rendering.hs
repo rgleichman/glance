@@ -5,6 +5,7 @@ module Rendering (
   portToPort,
   iconToPort,
   iconToIcon,
+  iconToIconEnds,
   toNames,
   renderDrawing
 ) where
@@ -13,7 +14,7 @@ import Diagrams.Prelude
 import Diagrams.TwoD.GraphViz
 import Diagrams.Backend.SVG(B)
 
-import Data.GraphViz
+import qualified Data.GraphViz as GV
 import qualified Data.GraphViz.Attributes.Complete as GVA
 --import Data.GraphViz.Commands
 import qualified Data.Map as Map
@@ -22,9 +23,10 @@ import qualified Debug.Trace
 import Data.List(minimumBy)
 import Data.Function(on)
 import Data.Graph.Inductive.PatriciaTree (Gr)
+import Data.Typeable(Typeable)
 
 import Icons
-import Types(Edge(..), Connection, Drawing(..), EdgeEndType(..))
+import Types(Edge(..), Connection, Drawing(..), EdgeEnd(..))
 
 
 -- | Convert a map of names and icons, to a list of names and diagrams.
@@ -51,12 +53,49 @@ iconToPort a   c d = Edge (toName a, Nothing, toName c, Just d) noEnds
 iconToIcon :: (IsName a, IsName b) => a -> b -> Edge
 iconToIcon a   c   = Edge (toName a, Nothing, toName c, Nothing) noEnds
 
+
+-- If there are gaps between the arrow and the icon, try switching the first two arguments
+-- with the last two arguments
+iconToIconEnds :: (IsName a, IsName b) => a -> EdgeEnd -> b -> EdgeEnd -> Edge
+iconToIconEnds a b c d = Edge (toName a, Nothing, toName c, Nothing) (b, d)
+
 edgesToGraph :: (Ord v) => [v] -> [(v, t, v , t1)] -> Gr v ()
 edgesToGraph names edges = mkGraph names simpleEdges
   where
     simpleEdges = map (\(a, _, c, _) -> (a, c, ())) edges
 
-uncurry4 f (a, b, c, d) = f a b c d
+-- Custom arrow tail for the arg1 result circle.
+-- The ArrowHT type does not seem to be documented.
+arg1ResHT :: (RealFloat n) => ArrowHT n
+arg1ResHT len _ = (circle (len / 2) # alignR, mempty)
+
+getArrowOpts :: (RealFloat n, Typeable n) => (EdgeEnd, EdgeEnd) -> ArrowOpts n
+getArrowOpts (t, h) = arrowOptions
+  where
+    lookupEnd :: (RealFloat n, Typeable n) => EdgeEnd -> ArrowOpts n -> ArrowOpts n
+    lookupEnd NoEnd = id
+    lookupEnd Ap1Arg = (arrowHead .~ thorn) . (headTexture .~ solid cyan)
+    lookupEnd Ap1Result = (arrowTail .~ arg1ResHT) . (tailTexture .~ solid cyan)
+    arrowOptions =
+      with & arrowHead .~ noHead
+      & arrowTail .~ noTail
+      & shaftStyle %~ lwG defaultLineWidth . lc white
+      & (lookupEnd t) & (lookupEnd h)
+
+plainLine = getArrowOpts (NoEnd, NoEnd)
+
+connectMaybePorts :: Edge -> Diagram B -> Diagram B
+connectMaybePorts (Edge (icon0, Just port0, icon1, Just port1) _) =
+  connect'
+  plainLine
+  (icon0 .> port0)
+  (icon1 .> port1)
+connectMaybePorts (Edge (icon0, Nothing, icon1, Just port1) _) =
+  connectOutside' plainLine icon0 (icon1 .> port1)
+connectMaybePorts (Edge (icon0, Just port0, icon1, Nothing) _) =
+  connectOutside' plainLine (icon0 .> port0) icon1
+connectMaybePorts (Edge (icon0, Nothing, icon1, Nothing) ends) =
+  connectOutside' (getArrowOpts ends) icon0 icon1
 
 makeConnections :: [Edge] -> Diagram B -> Diagram B
 makeConnections edges = applyAll connections
@@ -143,19 +182,19 @@ placeNodes layoutResult nameDiagramMap edges = mconcat placedNodes
 
 doGraphLayout :: Gr Name e -> [(Name, Diagram B)] -> (Diagram B -> r) -> [Connection] -> IO r
 doGraphLayout graph nameDiagramMap connectNodes edges = do
-  layoutResult <- layoutGraph' layoutParams Neato graph
+  layoutResult <- layoutGraph' layoutParams GVA.Neato graph
   return $ placeNodes layoutResult nameDiagramMap edges # connectNodes
   where
-    layoutParams :: GraphvizParams Int v e () v
-    layoutParams = defaultParams{
-      globalAttributes =
-        [ NodeAttrs [shape Circle]
-        , GraphAttrs [GVA.Overlap GVA.ScaleXYOverlaps, GVA.Splines GVA.LineEdges]
+    layoutParams :: GV.GraphvizParams Int v e () v
+    layoutParams = GV.defaultParams{
+      GV.globalAttributes =
+        [ GV.NodeAttrs [GVA.Shape GVA.Circle]
+        , GV.GraphAttrs [GVA.Overlap GVA.ScaleXYOverlaps, GVA.Splines GVA.LineEdges]
         ],
-      fmtEdge = const [arrowTo noArrow],
-      fmtNode = nodeAttribute
+      GV.fmtEdge = const [GV.arrowTo GV.noArrow],
+      GV.fmtNode = nodeAttribute
       }
-    nodeAttribute :: (Int, l) -> [Data.GraphViz.Attribute]
+    nodeAttribute :: (Int, l) -> [GV.Attribute]
     nodeAttribute (nodeInt, _) =
       -- todo: Potential bug. GVA.Width and GVA.Height have a minimum of 0.01
       -- throw an error if the width or height are less than 0.01

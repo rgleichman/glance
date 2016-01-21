@@ -15,17 +15,23 @@ import Data.Typeable(Typeable)
 
 import Lib
 import Icons(apply0Dia, apply0NDia)
-import Rendering(toNames, portToPort, iconToPort, iconToIcon, renderDrawing)
-import Types(Icon(..), Drawing(..))
+import Rendering(toNames, portToPort, iconToPort, iconToIcon, iconToIconEnds, renderDrawing)
+import Types(Icon(..), Drawing(..), EdgeEnd(..))
 
+-- TODO Now --
+-- todo: replace hrule and vrule with strutX and strutY
+-- todo: add port to bottom of guard.
+-- todo: use constants for icon name strings in Main
+-- todo: figure out how to deal with the difference between arrow heads and arrow tails
+-- todo: consider moving portToPort etc. to a new file
+
+-- TODO Later --
 -- todo: Find out how to hide unqualified names such that recursive drawings are connected correctly
 -- todo: Find out and fix why connectinos to sub-icons need to be qualified twice (eg. "lam0" .> "arg" .> "arg")
 -- todo: Rotate based on difference from ideal tangent angle, not line distance.
 -- todo: layout and rotate considering external connections.
--- todo: add port to bottom of guard.
--- todo: use constants for icon name strings in Main
 -- todo: figure out local vs. global icon positions
--- todo: replace hrule and vrule with strutX and strutY
+
 
 applyDia = apply0Dia
 -- --apply0A = "A" .>> applyDia
@@ -134,8 +140,6 @@ fact0Icons = toNames
   ("*", TextBoxIcon "*"),
   ("recurAp", Apply0Icon),
   ("*Ap", Apply0NIcon 2),
-  --("*Ap1", Apply0Icon),
-  --("*Ap2", Apply0Icon),
   ("arg", BranchIcon),
   ("res", ResultIcon)
   ]
@@ -154,6 +158,7 @@ fact0Edges = [
     iconToPort "arg" "*Ap" 2,
     portToPort "-1Ap" 2 "recurAp" 1,
     iconToPort "res" "g0" 0
+    --iconToIconEnds "-1" Ap1Result "eq0" Ap1Arg
   ]
 
 fact0Drawing = Drawing fact0Icons fact0Edges []
