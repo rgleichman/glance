@@ -80,14 +80,15 @@ getArrowOpts (t, h) = arrowOptions
   where
     lookupEnd :: (RealFloat n, Typeable n) => EdgeEnd -> ArrowOpts n -> ArrowOpts n
     lookupEnd EndNone = id
-    lookupEnd EndAp1Arg = (arrowHead .~ thorn) . (headTexture .~ solid cyan)
+    lookupEnd EndAp1Arg = (arrowHead .~ arrowheadDart (0.4 @@ turn))
+      . (headTexture .~ solid black) . (headStyle %~ (lw thick . lc cyan ))
     lookupEnd EndAp1Result = (arrowTail .~ arg1ResHT) . (tailTexture .~ solid cyan)
     arrowOptions =
       with & arrowHead .~ noHead
       & arrowTail .~ noTail
       & lengths .~ large
       & shaftStyle %~ lwG defaultLineWidth . lc white
-      & (lookupEnd t) & (lookupEnd h)
+      & lookupEnd t & lookupEnd h
 
 plainLine = getArrowOpts (EndNone, EndNone)
 
