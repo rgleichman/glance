@@ -14,16 +14,13 @@ import Data.Maybe (fromMaybe)
 import Data.Typeable(Typeable)
 
 import Lib
-import Icons(apply0Dia, apply0NDia)
+import Icons(apply0Dia, apply0NDia, guardIcon)
 import Rendering(toNames, portToPort, iconToPort, iconToIcon,
   iconToIconEnds, iconHeadToPort, iconTailToPort, renderDrawing)
 import Types(Icon(..), Drawing(..), EdgeEnd(..))
 
 -- TODO Now --
--- todo: add example goal and status drawings for factorial to readme.
--- todo: replace hrule and vrule with strutX and strutY
 -- todo: consolidate colors to one place
--- todo: add port to bottom of guard.
 -- todo: use constants for icon name strings in Main
 -- todo: figure out how to deal with the difference between arrow heads and arrow tails
 -- todo: consider moving portToPort etc. to a new file
@@ -150,7 +147,7 @@ fact0Icons = toNames
 
 fact0Edges = [
     iconToPort "eq0" "eq0Ap" 0,
-    portToPort "eq0Ap" 2 "g0" 1,
+    portToPort "eq0Ap" 2 "g0" 3,
     iconToPort "-1" "-1Ap" 0,
     iconToPort "*" "*Ap" 0,
     iconToPort "one" "g0" 2,
@@ -193,24 +190,16 @@ fact1Icons = toNames
   ]
 
 fact1Edges = [
-    --iconToPort "eq0" "eq0Ap" 0,
-    --portToPort "eq0Ap" 2 "g0" 1,
-    --iconToPort "-1" "-1Ap" 0,
-    iconToIconEnds "arg" EndNone "eq0" EndAp1Arg,
-    iconTailToPort "eq0" EndAp1Result "g0" 1,
-    iconToIconEnds "arg" EndNone "-1" EndAp1Arg,
-    iconTailToPort "-1" EndAp1Result "recurAp" 1,
-    --iconHeadTo
-    iconToPort "*" "*Ap" 0,
-    iconToPort "one" "g0" 2,
-    portToPort "*Ap" 1 "g0" 4,
-    portToPort "recurAp" 2 "*Ap" 3,
-    --iconToPort "arg" "eq0Ap" 1,
-    --iconToPort "arg" "-1Ap" 1,
-    iconToPort "arg" "*Ap" 2,
-    --portToPort "-1Ap" 2 "recurAp" 1,
-    iconToPort "res" "g0" 0
-    --iconToIconEnds "-1" Ap1Result "eq0" Ap1Arg
+  iconToIconEnds "arg" EndNone "eq0" EndAp1Arg,
+  iconTailToPort "eq0" EndAp1Result "g0" 3,
+  iconToIconEnds "arg" EndNone "-1" EndAp1Arg,
+  iconTailToPort "-1" EndAp1Result "recurAp" 1,
+  iconToPort "*" "*Ap" 0,
+  iconToPort "one" "g0" 2,
+  portToPort "*Ap" 1 "g0" 4,
+  portToPort "recurAp" 2 "*Ap" 3,
+  iconToPort "arg" "*Ap" 2,
+  iconToPort "res" "g0" 0
   ]
 
 fact1Drawing = Drawing fact1Icons fact1Edges []
@@ -230,7 +219,7 @@ main1 = do
   placedNodes <- renderDrawing factLam1Drawing
   mainWith (placedNodes # bgFrame 1 black)
 
-main2 = mainWith (apply0NDia 3 # bgFrame 0.1 black)
+main2 = mainWith (guardIcon 3 # bgFrame 0.1 black)
 
 main :: IO ()
 main = main1

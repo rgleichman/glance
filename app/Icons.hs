@@ -136,7 +136,8 @@ branchIcon = circle 0.3 # fc white # lc white
 -- GUARD ICON --
 guardSize = 0.7
 guardTriangle :: Int -> Diagram B
-guardTriangle x = ((triangleAndPort ||| (hrule (guardSize * 0.8) # lc white # lwG defaultLineWidth)) # alignR) <> (makePort x) # alignL
+guardTriangle x =
+  ((triangleAndPort ||| (hrule (guardSize * 0.8) # lc white # lwG defaultLineWidth)) # alignR) <> makePort x # alignL
   where
     triangleAndPort = polygon (with & polyType .~ PolySides [90 @@ deg, 45 @@ deg] [guardSize, guardSize])
       # rotateBy (1/8)# lc white # lwG defaultLineWidth # alignT # alignR
@@ -144,21 +145,22 @@ guardTriangle x = ((triangleAndPort ||| (hrule (guardSize * 0.8) # lc white # lw
 guardLBracket :: Int -> Diagram B
 guardLBracket x = ell # alignT # alignL <> makePort x
   where
-    -- todo: use a path or trail here so that the corner is rounded correctly
-    ell = (hrule guardSize # lc orange # lwG defaultLineWidth # alignR) <> (vrule guardSize # lc orange # lwG defaultLineWidth # alignT)
+    ellShape = fromOffsets $ map r2 [(0, guardSize), (-guardSize,0)]
+    ell = ellShape # strokeLine # lc orange # lwG defaultLineWidth # lineJoin LineJoinRound
 
 -- | The ports of the guard icon are as follows:
 -- Port 0: The top port for the result
--- Ports 1,3,5...: The left ports for the booleans
+-- Port 1: Bottom result port
+-- Ports 3,5...: The left ports for the booleans
 -- Ports 2,4...: The right ports for the values
 guardIcon :: Int -> Diagram B
-guardIcon n = centerXY $ vcat (take n trianglesAndBrackets # alignT) <> makePort 0
+guardIcon n = centerXY $ makePort 1 <> alignB (vcat (take n trianglesAndBrackets # alignT) <> makePort 0)
   where
     --guardTriangles = vsep 0.4 (take n (map guardTriangle [0,1..]))
     trianglesWithPorts = map guardTriangle [2,4..]
-    lBrackets = map guardLBracket [1,3..]
+    lBrackets = map guardLBracket [3, 5..]
     trianglesAndBrackets =
       zipWith zipper trianglesWithPorts lBrackets
-    zipper tri lBrack = verticalLine === ((lBrack ||| strut (guardSize * 0.4)) # alignR <> (tri # alignL))
+    zipper tri lBrack = verticalLine === ((lBrack # extrudeRight guardSize) # alignR <> (tri # alignL))
       where
         verticalLine = vrule 0.4 # lc white # lwG defaultLineWidth
