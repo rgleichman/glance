@@ -86,7 +86,7 @@ getArrowOpts (t, h) = arrowOptions
     arrowOptions =
       with & arrowHead .~ noHead
       & arrowTail .~ noTail
-      & lengths .~ large
+      & lengths .~ normalized 0.04
       & shaftStyle %~ lwG defaultLineWidth . lc (lineC colorScheme)
       & lookupEnd t & lookupEnd h
 

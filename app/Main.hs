@@ -3,24 +3,17 @@ module Main where
 
 import Diagrams.Prelude
 import Diagrams.Backend.SVG.CmdLine
-import Diagrams.TwoD.GraphViz
 
-import Data.GraphViz
-import qualified Data.GraphViz.Attributes.Complete as GVA
-import Data.GraphViz.Commands
-import Data.Map((!))
 import Data.Maybe (fromMaybe)
 
 import Data.Typeable(Typeable)
 
-import Lib
-import Icons(apply0Dia, apply0NDia, guardIcon, colorScheme, ColorStyle(..))
+import Icons(guardIcon, colorScheme, ColorStyle(..))
 import Rendering(toNames, portToPort, iconToPort, iconToIcon,
   iconToIconEnds, iconHeadToPort, iconTailToPort, renderDrawing)
 import Types(Icon(..), Drawing(..), EdgeEnd(..))
 
 -- TODO Now --
--- todo: use constants for icon name strings in Main
 -- todo: figure out how to deal with the difference between arrow heads and arrow tails
 -- todo: consider moving portToPort etc. to a new file
 
@@ -33,83 +26,58 @@ import Types(Icon(..), Drawing(..), EdgeEnd(..))
 -- todo: layout and rotate considering external connections.
 -- todo: figure out local vs. global icon positions
 
-
-applyDia = apply0Dia
--- --apply0A = "A" .>> applyDia
--- apply0A = applyDia # nameDiagram "A"
--- apply0B = applyDia # nameDiagram "B"
--- result = resultIcon # named "res"
--- fooBox = textBox "foo" # named "foo"
--- barBox = textBox "bar" # named "bar"
-
--- ex1 = drawIconAndPorts apply0Icon
--- ex2 = drawIconsAndPortNumbers apply0Icon
---ex3 = atPoints (map p2 [(0,0), (3,0)]) [apply0A, apply0B]
-
--- fromAtoB = ex3 # connectPorts "A" (PortName 0) "B" (PortName 2)
---ex4 = apply0A ||| textBox "hello world" === textBox "1" === textBox "gpq" === textBox ['A'..'Z']
-
--- ex5 = resultIcon # named "res"||| hrule 1 ||| fromAtoB ||| hrule 1 ||| textBox "foo" # named "foo" === vrule 1 === textBox "bar" # named "bar"
--- ex6 = ex5 # connectIconToPort "res" "A" (PortName 2) # connectIconToPort "foo" "B" (PortName 0)
---   # connectIconToPort "bar" "B" (PortName 3) # centerXY
---
--- ex7 = ex6 # center # showOrigin # showEnvelope
--- ex8 = enclosure ex6
--- ex9 = lambdaRegion 3 ex6  "lam0"
--- ex10 = ex9 # connectPorts ("lam0" .> "A") (PortName 1) "lam0" (PortName 0)
---   # connectPorts ("lam0" .> "B") (PortName 1) "lam0" (PortName 2)
--- ex11 = connectIcons "lam0" "y" $ ex10 === vrule 2 === textBox "y" # named "y"
-
+(d0A, d0B, d0Res, d0Foo, d0Bar) = ("A", "B", "res", "foo", "bar")
 d0Icons = toNames
-  [("A", Apply0Icon),
-  ("B", Apply0Icon),
-  ("res", ResultIcon),
-  ("foo", TextBoxIcon "foo"),
-  ("bar", TextBoxIcon "bar")
+  [(d0A, Apply0Icon),
+  (d0B, Apply0Icon),
+  (d0Res, ResultIcon),
+  (d0Foo, TextBoxIcon d0Foo),
+  (d0Bar, TextBoxIcon d0Bar)
   ]
 
 d0Edges =
   [
-  portToPort "A" 0 "B" 2,
-  iconToPort "foo" "B" 0,
-  iconToPort "res" "A" 2,
-  iconToPort "foo" "B" 0,
-  iconToPort "bar" "B" 3,
-  iconToPort "bar" "A" 3
+  portToPort d0A 0 d0B 2,
+  iconToPort d0Foo d0B 0,
+  iconToPort d0Res d0A 2,
+  iconToPort d0Foo d0B 0,
+  iconToPort d0Bar d0B 3,
+  iconToPort d0Bar d0A 3
   ]
 
 drawing0 = Drawing d0Icons d0Edges []
 d0Name = toName "d0"
 
-superEdges =
-  [
-  portToPort ("lam0" .> "A") 1 "lam0" 0,
-  iconToIcon "y" "lam0",
-  iconToIcon "z" "lam0",
-  iconToIcon "q" "lam0",
-  iconToIcon "A" "z",
-  iconToPort ("lam0" .> "foo" .> "foo") "lam0" 0
+(s1Lam, s1y, s1z, s1q) = ("lam0", "y", "z", "q")
+superIcons = toNames [
+  (s1Lam, LambdaRegionIcon 3 d0Name),
+  (s1y, TextBoxIcon s1y),
+  (s1z, TextBoxIcon s1z),
+  (s1q, TextBoxIcon s1q)
   ]
 
-superIcons = toNames [
-  ("lam0", LambdaRegionIcon 3 d0Name),
-  ("y", TextBoxIcon "y"),
-  ("z", TextBoxIcon "z"),
-  ("q", TextBoxIcon "q")
+superEdges =
+  [
+  portToPort (s1Lam .> d0A) 1 s1Lam 0,
+  iconToIcon s1y s1Lam,
+  iconToIcon s1z s1Lam,
+  iconToIcon s1q s1Lam,
+  iconToIcon d0A s1z,
+  iconToPort (s1Lam .> d0Foo .> d0Foo) s1Lam 0
   ]
 
 --superDrawing = Drawing [((toName "lam0"), LambdaRegionIcon 3 (toName"d0"))] superEdges [((toName "d0"), drawing0)]
 superDrawing = Drawing superIcons superEdges [(d0Name, drawing0)]
 
 super2Icons = toNames [
-  ("lam0", LambdaRegionIcon 1 d0Name),
+  (s1Lam, LambdaRegionIcon 1 d0Name),
   --("y", TextBoxIcon "y"),
   ("lam1", LambdaRegionIcon 2 d0Name)
   ]
 
 super2Edges =
   [
-  iconToIcon "lam0" "lam1"
+  iconToIcon s1Lam "lam1"
   --iconToIcon "y" "lam0"
   ]
 
@@ -117,47 +85,50 @@ super2Drawing = Drawing super2Icons super2Edges [(d0Name, drawing0)]
 super2Name = toName "s2"
 
 super3Icons = toNames [
-  ("lam0", LambdaRegionIcon 3 d1Name),
+  (s1Lam, LambdaRegionIcon 3 super2Name),
   --("y", TextBoxIcon "y"),
-  ("lam1", LambdaRegionIcon 4 d1Name)
+  ("lam1", LambdaRegionIcon 4 super2Name)
   ]
 
 super3Edges =
   [
 --  iconToIcon "lam0" "lam1",
-  iconToIcon "lam0" "A"
+  iconToIcon s1Lam "A"
   ]
-d1Name = toName "d1"
-super3Drawing = Drawing super3Icons super2Edges [(d1Name, super2Drawing)]
+
+super3Drawing = Drawing super3Icons super2Edges [(super2Name, super2Drawing)]
+
+(fG0, fOne, fEq0, fMinus1, fEq0Ap, fMinus1Ap, fTimes, fRecurAp, fTimesAp, fArg, fRes) =
+  ("g0", "one", "eq0", "-1", "eq0Ap", "-1Ap", "*", "recurAp", "*Ap", "arg", "res")
 
 fact0Icons = toNames
   [
-  ("g0", GuardIcon 2),
-  ("one", TextBoxIcon "1"),
-  ("eq0", TextBoxIcon "== 0"),
-  ("-1", TextBoxIcon "-1"),
-  ("eq0Ap", Apply0Icon),
-  ("-1Ap", Apply0Icon),
-  ("*", TextBoxIcon "*"),
-  ("recurAp", Apply0Icon),
-  ("*Ap", Apply0NIcon 2),
-  ("arg", BranchIcon),
-  ("res", ResultIcon)
+  (fG0, GuardIcon 2),
+  (fOne, TextBoxIcon "1"),
+  (fEq0, TextBoxIcon "== 0"),
+  (fMinus1, TextBoxIcon fMinus1),
+  (fEq0Ap, Apply0Icon),
+  (fMinus1Ap, Apply0Icon),
+  (fTimes, TextBoxIcon fTimes),
+  (fRecurAp, Apply0Icon),
+  (fTimesAp, Apply0NIcon 2),
+  (fArg, BranchIcon),
+  (fRes, ResultIcon)
   ]
 
 fact0Edges = [
-    iconToPort "eq0" "eq0Ap" 0,
-    portToPort "eq0Ap" 2 "g0" 3,
-    iconToPort "-1" "-1Ap" 0,
-    iconToPort "*" "*Ap" 0,
-    iconToPort "one" "g0" 2,
-    portToPort "*Ap" 1 "g0" 4,
-    portToPort "recurAp" 2 "*Ap" 3,
-    iconToPort "arg" "eq0Ap" 1,
-    iconToPort "arg" "-1Ap" 1,
-    iconToPort "arg" "*Ap" 2,
-    portToPort "-1Ap" 2 "recurAp" 1,
-    iconToPort "res" "g0" 0
+    iconToPort fEq0 fEq0Ap 0,
+    portToPort fEq0Ap 2 fG0 3,
+    iconToPort fMinus1 fMinus1Ap 0,
+    iconToPort fTimes fTimesAp 0,
+    iconToPort fOne fG0 2,
+    portToPort fTimesAp 1 fG0 4,
+    portToPort fRecurAp 2 fTimesAp 3,
+    iconToPort fArg fEq0Ap 1,
+    iconToPort fArg fMinus1Ap 1,
+    iconToPort fArg fTimesAp 2,
+    portToPort fMinus1Ap 2 fRecurAp 1,
+    iconToPort fRes fG0 0
   ]
 
 fact0Drawing = Drawing fact0Icons fact0Edges []
@@ -169,8 +140,8 @@ factLam0Icons = toNames [
   ]
 
 factLam0Edges = [
-  iconToPort ("lam0" .> "arg" .> "arg") "lam0" 0,
-  iconToPort "lam0" ("lam0" .> "recurAp") 0,
+  iconToPort ("lam0" .> fArg .> fArg) "lam0" 0,
+  iconToPort "lam0" ("lam0" .> fRecurAp) 0,
   iconToIcon "lam0" "fac"
   ]
 
@@ -178,41 +149,33 @@ factLam0Drawing = Drawing factLam0Icons factLam0Edges [(fact0Name, fact0Drawing)
 
 fact1Icons = toNames
   [
-  ("g0", GuardIcon 2),
-  ("one", TextBoxIcon "1"),
-  ("eq0", TextBoxIcon "== 0"),
-  ("-1", TextBoxIcon "-1"),
-  ("*", TextBoxIcon "*"),
-  ("recurAp", Apply0Icon),
-  ("*Ap", Apply0NIcon 2),
-  ("arg", BranchIcon),
-  ("res", ResultIcon)
+  (fG0, GuardIcon 2),
+  (fOne, TextBoxIcon "1"),
+  (fEq0, TextBoxIcon "== 0"),
+  (fMinus1, TextBoxIcon fMinus1),
+  (fTimes, TextBoxIcon fTimes),
+  (fRecurAp, Apply0Icon),
+  (fTimesAp, Apply0NIcon 2),
+  (fArg, BranchIcon),
+  (fRes, ResultIcon)
   ]
 
 fact1Edges = [
-  iconToIconEnds "arg" EndNone "eq0" EndAp1Arg,
-  iconTailToPort "eq0" EndAp1Result "g0" 3,
-  iconToIconEnds "arg" EndNone "-1" EndAp1Arg,
-  iconTailToPort "-1" EndAp1Result "recurAp" 1,
-  iconToPort "*" "*Ap" 0,
-  iconToPort "one" "g0" 2,
-  portToPort "*Ap" 1 "g0" 4,
-  portToPort "recurAp" 2 "*Ap" 3,
-  iconToPort "arg" "*Ap" 2,
-  iconToPort "res" "g0" 0
+  iconToIconEnds fArg EndNone fEq0 EndAp1Arg,
+  iconTailToPort fEq0 EndAp1Result fG0 3,
+  iconToIconEnds fArg EndNone fMinus1 EndAp1Arg,
+  iconTailToPort fMinus1 EndAp1Result fRecurAp 1,
+  iconToPort fTimes fTimesAp 0,
+  iconToPort fOne fG0 2,
+  portToPort fTimesAp 1 fG0 4,
+  portToPort fRecurAp 2 fTimesAp 3,
+  iconToPort fArg fTimesAp 2,
+  iconToPort fRes fG0 0
   ]
 
 fact1Drawing = Drawing fact1Icons fact1Edges []
 
 factLam1Drawing = Drawing factLam0Icons factLam0Edges [(fact0Name, fact1Drawing)]
-
--- This is left commented out for a future test of the manual connect functions.
--- connectNodes g =
---   g # connectIconToPort "res" "A" (PortName 2) # connectIconToPort "foo" "B" (PortName 0)
---   # connectIconToPort "bar" "B" (PortName 3) # connectPorts "A" (PortName 0) "B" (PortName 2)
---   # connectIconToPort "bar" "A" (PortName 3)
-
---main1 = mainWith (ex11 # bgFrame 0.1 black)
 
 main1 :: IO ()
 main1 = do
