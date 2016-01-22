@@ -14,4 +14,4 @@ Goal:
 </br>
 Current Status:
 
-<img src="https://cdn.rawgit.com/rgleichman/glance/26b88fd14ce643b7d5dd89bc987a311a4f6eee2f/examples/guard_factorial_1.svg" alt="guard_factorial_1" height="350"/>
+<img src="https://cdn.rawgit.com/rgleichman/glance/b68a9c88d1c1742408d6de9c6722215d5c31e8bd/examples/guard_factorial_1.svg" alt="guard_factorial_1" height="350"/>
