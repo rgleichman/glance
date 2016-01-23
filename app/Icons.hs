@@ -141,10 +141,10 @@ apply0PortLocations = map p2 [
 
 apply0NDia :: Int -> Diagram B
 apply0NDia n = finalDia # centerXY where
-  seperation = 0.6
+  seperation = circleRadius * 1.5
   trianglePortsCircle = hcat [
     reflectX apply0Triangle,
-    hcat $ take n $ map (\x -> makePort x <> strutX seperation) [2,3..],
+    hcat $ take n $ map (\x -> makePort x <> circle (circleRadius * 0.5) # fc lineCol  <> strutX seperation) [2,3..],
     makePort 1 <> alignR (circle circleRadius # fc (apply0C colorScheme) # lwG defaultLineWidth # lc (apply0C colorScheme))
     ]
   allPorts = makePort 0 <> alignL trianglePortsCircle

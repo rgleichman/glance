@@ -8,7 +8,7 @@ import Data.Maybe (fromMaybe)
 
 import Data.Typeable(Typeable)
 
-import Icons(guardIcon, colorScheme, ColorStyle(..))
+import Icons(guardIcon, apply0NDia, colorScheme, ColorStyle(..))
 import Rendering(toNames, portToPort, iconToPort, iconToIcon,
   iconToIconEnds, iconHeadToPort, iconTailToPort, renderDrawing)
 import Types(Icon(..), Drawing(..), EdgeEnd(..))
@@ -176,6 +176,45 @@ fact1Drawing = Drawing fact1Icons fact1Edges []
 
 factLam1Drawing = Drawing factLam0Icons factLam0Edges [(fact0Name, fact1Drawing)]
 
+-- fact2 is like fact1, but uses fTimesAp port 2 to distrubute the argument,
+-- not fArg
+fact2Icons = toNames
+  [
+  (fG0, GuardIcon 2),
+  (fOne, TextBoxIcon "1"),
+  (fEq0, TextBoxIcon "== 0"),
+  (fMinus1, TextBoxIcon fMinus1),
+  (fTimes, TextBoxIcon fTimes),
+  (fRecurAp, Apply0Icon),
+  (fTimesAp, Apply0NIcon 2),
+  --(fArg, BranchIcon),
+  (fRes, ResultIcon)
+  ]
+
+fact2Edges = [
+  --iconToIconEnds fArg EndNone fEq0 EndAp1Arg,
+  iconTailToPort fEq0 EndAp1Arg fTimesAp 2,
+  iconTailToPort fEq0 EndAp1Result fG0 3,
+  --iconToIconEnds fArg EndNone fMinus1 EndAp1Arg,
+  iconTailToPort fMinus1 EndAp1Arg fTimesAp 2,
+  iconTailToPort fMinus1 EndAp1Result fRecurAp 1,
+  iconToPort fTimes fTimesAp 0,
+  iconToPort fOne fG0 2,
+  portToPort fTimesAp 1 fG0 4,
+  portToPort fRecurAp 2 fTimesAp 3,
+  --iconToPort fArg fTimesAp 2,
+  iconToPort fRes fG0 0
+  ]
+
+fact2Drawing = Drawing fact2Icons fact2Edges []
+
+factLam2Edges = [
+  iconToPort ("lam0" .> fTimesAp .> (2 :: Int)) "lam0" 0,
+  iconToPort "lam0" ("lam0" .> fRecurAp) 0,
+  iconToIcon "lam0" "fac"
+  ]
+factLam2Drawing = Drawing factLam0Icons factLam2Edges [(fact0Name, fact2Drawing)]
+
 (arr1, arr2, arr3, arr4) = ("arr1", "arr2", "arr3", "arr4")
 
 arrowTestIcons = toNames [
@@ -199,7 +238,7 @@ main1 = do
   placedNodes <- renderDrawing factLam1Drawing
   mainWith (placedNodes # bgFrame 1 (backgroundC colorScheme))
 
-main2 = mainWith (guardIcon 3 # bgFrame 0.1 black)
+main2 = mainWith (apply0NDia 3 # bgFrame 0.1 black)
 
 main :: IO ()
 main = main1

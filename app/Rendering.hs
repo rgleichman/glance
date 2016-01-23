@@ -96,7 +96,7 @@ getArrowOpts (t, h) = arrowOptions
     lookupTail EndAp1Result = (arrowTail .~ arg1ResT) . (tailTexture .~ ap1ResultTexture)
 
     lookupHead EndNone = id
-    lookupHead EndAp1Arg = (arrowHead .~ arrowheadDart (0.4 @@ turn))
+    lookupHead EndAp1Arg = (arrowHead .~ dart)
       . (headTexture .~ ap1ArgTexture) . (headStyle %~ ap1ArgStyle)
     lookupHead EndAp1Result = (arrowHead .~ arg1ResH) . (headTexture .~ ap1ResultTexture)
 
