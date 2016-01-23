@@ -1,14 +1,6 @@
 {-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeFamilies #-}
 
 module Rendering (
-  Drawing(..),
-  portToPort,
-  iconToPort,
-  iconToIcon,
-  iconToIconEnds,
-  iconHeadToPort,
-  iconTailToPort,
-  toNames,
   renderDrawing
 ) where
 
@@ -29,8 +21,6 @@ import Data.Typeable(Typeable)
 
 import Icons(colorScheme, Icon(..), iconToDiagram, nameDiagram, defaultLineWidth, ColorStyle(..))
 import Types(Edge(..), Connection, Drawing(..), EdgeEnd(..))
-import Control.Arrow(first)
-
 
 -- | Convert a map of names and icons, to a list of names and diagrams.
 -- The first argument is the subdiagram map used for the inside of lambdaIcons
@@ -39,40 +29,11 @@ makeNamedMap :: IsName name => [(Name, Diagram B)] -> [(name, Icon)] -> [(name, 
 makeNamedMap subDiagramMap =
   map (\(name, icon) -> (name, iconToDiagram icon subDiagramMap # nameDiagram name))
 
-mapFst :: (a -> b) -> [(a, c)] -> [(b, c)]
-mapFst f = map (first f)
-
-toNames :: (IsName a) => [(a, b)] -> [(Name, b)]
-toNames = mapFst toName
-
-noEnds = (EndNone, EndNone)
-
--- Edge constructors --
-portToPort :: (IsName a, IsName b) => a -> Int -> b -> Int -> Edge
-portToPort a b c d = Edge (toName a, Just b, toName c, Just d) noEnds
-
-iconToPort :: (IsName a, IsName b) => a -> b -> Int -> Edge
-iconToPort a   c d = Edge (toName a, Nothing, toName c, Just d) noEnds
-
-iconToIcon :: (IsName a, IsName b) => a -> b -> Edge
-iconToIcon a   c   = Edge (toName a, Nothing, toName c, Nothing) noEnds
-
-
--- If there are gaps between the arrow and the icon, try switching the first two arguments
--- with the last two arguments
-iconToIconEnds :: (IsName a, IsName b) => a -> EdgeEnd -> b -> EdgeEnd -> Edge
-iconToIconEnds a b c d = Edge (toName a, Nothing, toName c, Nothing) (b, d)
-
-iconHeadToPort a endHead c d = Edge (toName a, Nothing, toName c, Just d) (EndNone, endHead)
-
-iconTailToPort a endTail c d = Edge (toName a, Nothing, toName c, Just d) (endTail, EndNone)
-
 -- | Make an inductive Graph from a list of node names, and a list of Connections.
 edgesToGraph :: (Ord v) => [v] -> [(v, t, v , t1)] -> Gr v ()
 edgesToGraph names edges = mkGraph names simpleEdges
   where
     simpleEdges = map (\(a, _, c, _) -> (a, c, ())) edges
-
 
 -- | Custom arrow tail for the arg1 result circle.
 -- The ArrowHT type does not seem to be documented.

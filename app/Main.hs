@@ -9,21 +9,20 @@ import Data.Maybe (fromMaybe)
 import Data.Typeable(Typeable)
 
 import Icons(guardIcon, apply0NDia, colorScheme, ColorStyle(..))
-import Rendering(toNames, portToPort, iconToPort, iconToIcon,
-  iconToIconEnds, iconHeadToPort, iconTailToPort, renderDrawing)
+import Rendering(renderDrawing)
+import Util(toNames, portToPort, iconToPort, iconToIcon,
+  iconToIconEnds, iconHeadToPort, iconTailToPort)
 import Types(Icon(..), Drawing(..), EdgeEnd(..))
 
 -- TODO Now --
--- todo: consider moving portToPort etc. to a new file
 
 -- TODO Later --
 -- Add a small black border to lines to help distinguish line crossings.
 -- todo: Find out how to hide unqualified names such that recursive drawings are connected correctly
 -- todo: Find out and fix why connectinos to sub-icons need to be qualified twice (eg. "lam0" .> "arg" .> "arg")
 -- todo: Rotate based on difference from ideal tangent angle, not line distance.
--- todo: Try using connectPerim for port ot port connections. Hopefully this will draw a spline.
+-- todo: Try using connectPerim for port to port connections. Hopefully this will draw a spline.
 -- todo: layout and rotate considering external connections.
--- todo: figure out local vs. global icon positions
 
 (d0A, d0B, d0Res, d0Foo, d0Bar) = ("A", "B", "res", "foo", "bar")
 d0Icons = toNames
