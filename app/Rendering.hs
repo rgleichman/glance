@@ -23,6 +23,12 @@ import Data.Typeable(Typeable)
 import Icons(colorScheme, Icon(..), iconToDiagram, nameDiagram, defaultLineWidth, ColorStyle(..))
 import Types(Edge(..), Connection, Drawing(..), EdgeEnd(..))
 
+-- CONSTANT
+scaleFactor = 0.02
+--scaleFactor = 0.04
+
+-- CONVERTING Edges AND Icons TO DIAGRAMS --
+
 -- | Convert a map of names and icons, to a list of names and diagrams.
 -- The first argument is the subdiagram map used for the inside of lambdaIcons
 -- The second argument is the map of icons that should be converted to diagrams.
@@ -30,8 +36,7 @@ import Types(Edge(..), Connection, Drawing(..), EdgeEnd(..))
 makeNamedMap ::
    (RealFloat n, Typeable n, Renderable (Path V2 n) b,
       Renderable (Diagrams.TwoD.Text.Text n) b, IsName nm) =>
-     [(Name, QDiagram b V2 n Any)]
-     -> [(nm, Icon)] -> [(nm, QDiagram b V2 n Any)]
+     [(Name, QDiagram b V2 n Any)]-> [(nm, Icon)] -> [(nm, QDiagram b V2 n Any)]
 makeNamedMap subDiagramMap =
   map (\(name, icon) -> (name, iconToDiagram icon subDiagramMap # nameDiagram name))
 
@@ -77,6 +82,7 @@ getArrowOpts (t, h) = arrowOptions
 plainLine :: (RealFloat n, Typeable n) => ArrowOpts n
 plainLine = getArrowOpts (EndNone, EndNone)
 
+-- | Given an Edge, return a transformation on Diagrams that will draw a line.
 connectMaybePorts ::
    (RealFloat n, Typeable n, Renderable (Path V2 n) b) =>
      Edge -> QDiagram b V2 n Any -> QDiagram b V2 n Any
@@ -99,23 +105,24 @@ makeConnections edges = applyAll connections
   where
     connections = map connectMaybePorts edges
 
--- | Returns [(myport, other node, other node's port)]
-connectedPorts :: [Connection] -> Name -> [(Int, Name, Maybe Int)]
-connectedPorts edges name = map edgeToPort $ filter nameInEdge edges
-  where
-    nameInEdge (n1, p1, n2, p2) = (name == n1 && isJust p1) || (name == n2 && isJust p2)
-    edgeToPort (n1, p1, n2, p2) =
-      if name == n1
-        then (fromMaybe (error "connectedPorts port is Nothing") p1, n2, p2)
-        else (fromMaybe (error "connectedPorts port is Nothing") p2, n1, p1)
+fromMaybeError :: String -> Maybe a -> a
+fromMaybeError s = fromMaybe (error s)
+
+-- ROTATING/FLIPPING ICONS --
 
 printSelf :: (Show a) => a -> a
 printSelf a = Debug.Trace.trace (show a ++ "/n") a
 
+{-# ANN totalLenghtOfLines "HLint: ignore Redundant bracket" #-}
+{-# ANN totalLenghtOfLines "HLint: ignore Move brackets to avoid $" #-}
+-- | For a specific icon, given its angle, location, and a list of pairs of locations
+-- of (this icon's port, icon that connects to this port), return the sum of the
+-- distances (possibly squared) between the ports and the icons they connect to.
+-- This function is used to find that angle that minimizes the sum of distances.
 totalLenghtOfLines :: Double -> P2 Double -> [(P2 Double, P2 Double)] -> Double
 totalLenghtOfLines angle myLocation edges = sum $ map edgeDist edges
   where
-    --edgeDist :: (P2 a, P2 a) -> Double
+    edgeDist :: (P2 Double, P2 Double) -> Double
     edgeDist (relativePortLocation, iconLocation) =
       -- The squaring here is arbitrary. Distance should be replaced with angle diff.
       (norm $  absPortVec ^-^ iconLocationVec) ** 2
@@ -126,19 +133,30 @@ totalLenghtOfLines angle myLocation edges = sum $ map edgeDist edges
         myLocVec = r2 $ unp2 myLocation
         absPortVec = myLocVec ^+^ (rotateBy angle relPortVec)
 
--- | returns (angle, total distance)
+ -- | For a specific icon, given its location, and a list of pairs of locations
+-- of (this icon's port, icon that connects to this port), find the angle that
+-- minimizes the the sum of the distances (possibly squared) between the ports
+-- and the icons they connect to. Returns (angle, sum of distances).
+-- todo: Return 0 immediatly if edges == [].
 angleWithMinDist :: P2 Double -> [(P2 Double, P2 Double)] -> (Double, Double)
 angleWithMinDist myLocation edges =
   minimumBy (compare `on` snd) $ map totalLength [0,(1/40)..1]
   where
     totalLength angle = (angle, totalLenghtOfLines angle myLocation edges)
 
--- constant
-scaleFactor = 0.02
---scaleFactor = 0.04
-
 getFromMapAndScale :: (Fractional a, Functor f, Ord k) => Map.Map k (f a) -> k -> f a
 getFromMapAndScale posMap name = scaleFactor *^ (posMap Map.! name)
+
+-- | Returns [(myport, other node, maybe other node's port)]
+connectedPorts :: [Connection] -> Name -> [(Int, Name, Maybe Int)]
+connectedPorts edges name = map edgeToPort $ filter nameInEdge edges
+  where
+    isPort = isJust
+    nameInEdge (n1, p1, n2, p2) = (name == n1 && isPort p1) || (name == n2 && isPort p2)
+    edgeToPort (n1, p1, n2, p2) =
+      if name == n1
+        then (fromMaybeError "connectedPorts: port is Nothing" p1, n2, p2)
+        else (fromMaybeError "connectedPorts: port is Nothing" p2, n1, p1)
 
 -- | rotateNodes rotates the nodes such that the distance of its connecting lines
 -- are minimized.
@@ -152,26 +170,33 @@ rotateNodes ::
      -> [(Name, QDiagram b V2 Double m)]
 rotateNodes positionMap nameDiagramMap edges = map rotateDiagram nameDiagramMap
   where
-    rotateDiagram (name, dia) = (name, diaToUse)
+    rotateDiagram (name, dia) = (name, transformedDia)
       where
+        transformedDia = if flippedDist < unflippedDist
+          then rotateBy flippedAngle flippedDia
+          else rotateBy unflippedAngle dia
         flippedDia = reflectX dia
         (unflippedAngle, unflippedDist) = minAngleForDia dia
         (flippedAngle, flippedDist) = minAngleForDia flippedDia
-        diaToUse = if flippedDist < unflippedDist
-          then rotateBy flippedAngle flippedDia
-          else rotateBy unflippedAngle dia
-        --minAngleForDia :: Diagram B -> (Double, Double)
+        --minAngleForDia :: QDiagram b V2 Double m -> (Double, Double)
         minAngleForDia dia = minAngle where
         --ports = Debug.Trace.trace ((show $ names dia) ++ "\n") $ names dia
           ports = names dia
           namesOfPortsWithLines = connectedPorts edges name
-          portEdges = map makePortEdge $ filter iconInMap namesOfPortsWithLines
+
+          iconInMap :: (Int, Name, Maybe Int) -> Bool
           iconInMap (_, otherIconName, _) = Map.member otherIconName positionMap
-          makePortEdge (portInt, otherIconName, _) = (getPortPoint portInt, getFromMapAndScale positionMap otherIconName)
+
           getPortPoint :: Int -> P2 Double
-          getPortPoint x = head $ fromMaybe
-            (error "port not found")
-            (lookup (name .> x) ports)
+          getPortPoint x =
+            head $ fromMaybeError "port not found" (lookup (name .> x) ports)
+
+          makePortEdge :: (Int, Name, Maybe Int) -> (P2 Double, P2 Double)
+          makePortEdge (portInt, otherIconName, _) =
+            (getPortPoint portInt, getFromMapAndScale positionMap otherIconName)
+
+          portEdges = map makePortEdge $ filter iconInMap namesOfPortsWithLines
+
           minAngle = angleWithMinDist (getFromMapAndScale positionMap name) portEdges
 
 type LayoutResult a = Gr (GV.AttributeNode Name) (GV.AttributeNode a)
@@ -194,13 +219,12 @@ doGraphLayout ::
    (Monoid m, Semigroup m) =>
      Gr Name e
      -> [(Name, QDiagram b V2 Double m)]
-     -> (QDiagram b V2 Double m -> r)
      -> [Connection]
-     -> IO r
-doGraphLayout graph nameDiagramMap connectNodes edges = do
+     -> IO (QDiagram b V2 Double m)
+doGraphLayout graph nameDiagramMap edges = do
   layoutResult <- layoutGraph' layoutParams GVA.Neato graph
   --  layoutResult <- layoutGraph' layoutParams GVA.Fdp graph
-  return $ placeNodes layoutResult nameDiagramMap edges # connectNodes
+  return $ placeNodes layoutResult nameDiagramMap edges
   where
     layoutParams :: GV.GraphvizParams Int v e () v
     layoutParams = GV.defaultParams{
@@ -222,18 +246,21 @@ doGraphLayout graph nameDiagramMap connectNodes edges = do
         -- to name the nodes in order
         (_, dia) = nameDiagramMap !! nodeInt
 
+-- | Given a Drawing, produce a Diagram complete with rotated/flipped icons and
+-- lines connecting ports and icons. IO is needed for the GraphViz layout.
 renderDrawing ::
    (Renderable (Path V2 Double) b,
       Renderable (Text Double) b) =>
      Drawing -> IO (QDiagram b V2 Double Any)
 renderDrawing (Drawing nameIconMap edges subDrawings) = do
-  subDiagramMap <- mapM subDrawingMapper subDrawings
+  subDiagramMap <- mapM renderSubDrawing subDrawings
   let diagramMap = makeNamedMap subDiagramMap nameIconMap
   --mapM_ (putStrLn . (++"\n") . show . (map fst) . names . snd) diagramMap
-  doGraphLayout (edgesToGraph iconNames connections) diagramMap (makeConnections edges) connections
+  makeConnections edges <$>
+    doGraphLayout (edgesToGraph iconNames connections) diagramMap connections
   where
     connections = map edgeConnection edges
     iconNames = map fst nameIconMap
-    subDrawingMapper (name, subDrawing) = do
+    renderSubDrawing (name, subDrawing) = do
       subDiagram <- renderDrawing subDrawing
       return (name, subDiagram)

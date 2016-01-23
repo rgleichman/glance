@@ -163,7 +163,10 @@ apply0PortLocations = map p2 [
     lineCenter = circleRadius + (apply0LineWidth / 2.0)
 
 -- apply0N Icon--
-
+-- | apply0N port locations:
+-- Port 0: Function
+-- Port 1: Result
+-- Ports 2,3..: Arguments
 apply0NDia ::
    (RealFloat n, Typeable n, Monoid m, Semigroup m,
       TrailLike (QDiagram b V2 n m)) =>
@@ -265,7 +268,7 @@ guardLBracket x = ell # alignT # alignL <> makePort x
     ell = ellShape # strokeLine # lc (boolC colorScheme) # lwG defaultLineWidth # lineJoin LineJoinRound
 
 -- | The ports of the guard icon are as follows:
--- Port 0: The top port for the result
+-- Port 0: Top result port
 -- Port 1: Bottom result port
 -- Ports 3,5...: The left ports for the booleans
 -- Ports 2,4...: The right ports for the values
