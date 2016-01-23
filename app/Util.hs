@@ -21,6 +21,7 @@ mapFst f = map (first f)
 toNames :: (IsName a) => [(a, b)] -> [(Name, b)]
 toNames = mapFst toName
 
+noEnds :: (EdgeEnd, EdgeEnd)
 noEnds = (EndNone, EndNone)
 
 -- Edge constructors --
@@ -39,6 +40,8 @@ iconToIcon a   c   = Edge (toName a, Nothing, toName c, Nothing) noEnds
 iconToIconEnds :: (IsName a, IsName b) => a -> EdgeEnd -> b -> EdgeEnd -> Edge
 iconToIconEnds a b c d = Edge (toName a, Nothing, toName c, Nothing) (b, d)
 
+iconHeadToPort :: (IsName a, IsName b) => a -> EdgeEnd -> b -> Int -> Edge
 iconHeadToPort a endHead c d = Edge (toName a, Nothing, toName c, Just d) (EndNone, endHead)
 
+iconTailToPort :: (IsName a, IsName b) => a -> EdgeEnd -> b -> Int -> Edge
 iconTailToPort a endTail c d = Edge (toName a, Nothing, toName c, Just d) (endTail, EndNone)

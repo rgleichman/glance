@@ -6,7 +6,8 @@ module Rendering (
 
 import Diagrams.Prelude
 import Diagrams.TwoD.GraphViz(mkGraph, getGraph, layoutGraph')
-import Diagrams.Backend.SVG(B)
+import Diagrams.TwoD.Text(Text)
+--import Diagrams.Backend.SVG(B)
 
 import qualified Data.GraphViz as GV
 import qualified Data.GraphViz.Attributes.Complete as GVA
@@ -25,7 +26,12 @@ import Types(Edge(..), Connection, Drawing(..), EdgeEnd(..))
 -- | Convert a map of names and icons, to a list of names and diagrams.
 -- The first argument is the subdiagram map used for the inside of lambdaIcons
 -- The second argument is the map of icons that should be converted to diagrams.
-makeNamedMap :: IsName name => [(Name, Diagram B)] -> [(name, Icon)] -> [(name, Diagram B)]
+--makeNamedMap :: IsName name => [(Name, Diagram B)] -> [(name, Icon)] -> [(name, Diagram B)]
+makeNamedMap ::
+   (RealFloat n, Typeable n, Renderable (Path V2 n) b,
+      Renderable (Diagrams.TwoD.Text.Text n) b, IsName nm) =>
+     [(Name, QDiagram b V2 n Any)]
+     -> [(nm, Icon)] -> [(nm, QDiagram b V2 n Any)]
 makeNamedMap subDiagramMap =
   map (\(name, icon) -> (name, iconToDiagram icon subDiagramMap # nameDiagram name))
 
@@ -68,9 +74,12 @@ getArrowOpts (t, h) = arrowOptions
       & shaftStyle %~ lwG defaultLineWidth . lc (lineC colorScheme)
       & lookupTail t & lookupHead h
 
+plainLine :: (RealFloat n, Typeable n) => ArrowOpts n
 plainLine = getArrowOpts (EndNone, EndNone)
 
-connectMaybePorts :: Edge -> Diagram B -> Diagram B
+connectMaybePorts ::
+   (RealFloat n, Typeable n, Renderable (Path V2 n) b) =>
+     Edge -> QDiagram b V2 n Any -> QDiagram b V2 n Any
 connectMaybePorts (Edge (icon0, Just port0, icon1, Just port1) ends) =
   connect'
   (getArrowOpts ends)
@@ -83,7 +92,9 @@ connectMaybePorts (Edge (icon0, Just port0, icon1, Nothing) ends) =
 connectMaybePorts (Edge (icon0, Nothing, icon1, Nothing) ends) =
   connectOutside' (getArrowOpts ends) icon0 icon1
 
-makeConnections :: [Edge] -> Diagram B -> Diagram B
+makeConnections ::
+   (RealFloat n, Typeable n, Renderable (Path V2 n) b) =>
+     [Edge] -> QDiagram b V2 n Any -> QDiagram b V2 n Any
 makeConnections edges = applyAll connections
   where
     connections = map connectMaybePorts edges
@@ -133,7 +144,12 @@ getFromMapAndScale posMap name = scaleFactor *^ (posMap Map.! name)
 -- are minimized.
 -- Precondition: the diagrams are already centered
 -- todo: confirm precondition (or use a newtype)
-rotateNodes :: Map.Map Name (Point V2 Double) -> [(Name, Diagram B)] -> [Connection] -> [(Name, Diagram B)]
+rotateNodes ::
+   Semigroup m =>
+     Map.Map Name (Point V2 Double)
+     -> [(Name, QDiagram b V2 Double m)]
+     -> [Connection]
+     -> [(Name, QDiagram b V2 Double m)]
 rotateNodes positionMap nameDiagramMap edges = map rotateDiagram nameDiagramMap
   where
     rotateDiagram (name, dia) = (name, diaToUse)
@@ -144,7 +160,7 @@ rotateNodes positionMap nameDiagramMap edges = map rotateDiagram nameDiagramMap
         diaToUse = if flippedDist < unflippedDist
           then rotateBy flippedAngle flippedDia
           else rotateBy unflippedAngle dia
-        minAngleForDia :: Diagram B -> (Double, Double)
+        --minAngleForDia :: Diagram B -> (Double, Double)
         minAngleForDia dia = minAngle where
         --ports = Debug.Trace.trace ((show $ names dia) ++ "\n") $ names dia
           ports = names dia
@@ -158,6 +174,13 @@ rotateNodes positionMap nameDiagramMap edges = map rotateDiagram nameDiagramMap
             (lookup (name .> x) ports)
           minAngle = angleWithMinDist (getFromMapAndScale positionMap name) portEdges
 
+type LayoutResult a = Gr (GV.AttributeNode Name) (GV.AttributeNode a)
+placeNodes ::
+   (Monoid m, Semigroup m) =>
+     LayoutResult a
+     -> [(Name, QDiagram b V2 Double m)]
+     -> [Connection]
+     -> QDiagram b V2 Double m
 placeNodes layoutResult nameDiagramMap edges = mconcat placedNodes
   where
     (positionMap, _) = getGraph layoutResult
@@ -167,7 +190,13 @@ placeNodes layoutResult nameDiagramMap edges = mconcat placedNodes
     -- todo: Not sure if the diagrams should already be centered at this point.
     placeNode (name, diagram) = place (diagram # centerXY) (scaleFactor *^ (positionMap Map.! name))
 
-doGraphLayout :: Gr Name e -> [(Name, Diagram B)] -> (Diagram B -> r) -> [Connection] -> IO r
+doGraphLayout ::
+   (Monoid m, Semigroup m) =>
+     Gr Name e
+     -> [(Name, QDiagram b V2 Double m)]
+     -> (QDiagram b V2 Double m -> r)
+     -> [Connection]
+     -> IO r
 doGraphLayout graph nameDiagramMap connectNodes edges = do
   layoutResult <- layoutGraph' layoutParams GVA.Neato graph
   --  layoutResult <- layoutGraph' layoutParams GVA.Fdp graph
@@ -193,7 +222,10 @@ doGraphLayout graph nameDiagramMap connectNodes edges = do
         -- to name the nodes in order
         (_, dia) = nameDiagramMap !! nodeInt
 
-renderDrawing :: Drawing -> IO (Diagram B)
+renderDrawing ::
+   (Renderable (Path V2 Double) b,
+      Renderable (Text Double) b) =>
+     Drawing -> IO (QDiagram b V2 Double Any)
 renderDrawing (Drawing nameIconMap edges subDrawings) = do
   subDiagramMap <- mapM subDrawingMapper subDrawings
   let diagramMap = makeNamedMap subDiagramMap nameIconMap

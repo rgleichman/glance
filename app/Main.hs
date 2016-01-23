@@ -235,9 +235,9 @@ arrowTestDrawing = Drawing arrowTestIcons arrowTestEdges []
 main1 :: IO ()
 main1 = do
   placedNodes <- renderDrawing factLam1Drawing
-  mainWith (placedNodes # bgFrame 1 (backgroundC colorScheme))
+  mainWith ((placedNodes # bgFrame 1 (backgroundC colorScheme)) :: Diagram B)
 
-main2 = mainWith (apply0NDia 3 # bgFrame 0.1 black)
+main2 = mainWith ((apply0NDia 3 # bgFrame 0.1 black)  :: Diagram B)
 
 main :: IO ()
 main = main1
