@@ -13,7 +13,7 @@ module Rendering (
 ) where
 
 import Diagrams.Prelude
-import Diagrams.TwoD.GraphViz
+import Diagrams.TwoD.GraphViz(mkGraph, getGraph, layoutGraph')
 import Diagrams.Backend.SVG(B)
 
 import qualified Data.GraphViz as GV
@@ -29,23 +29,25 @@ import Data.Typeable(Typeable)
 
 import Icons(colorScheme, Icon(..), iconToDiagram, nameDiagram, defaultLineWidth, ColorStyle(..))
 import Types(Edge(..), Connection, Drawing(..), EdgeEnd(..))
+import Control.Arrow(first)
 
 
 -- | Convert a map of names and icons, to a list of names and diagrams.
--- The subDiagramMap
+-- The first argument is the subdiagram map used for the inside of lambdaIcons
+-- The second argument is the map of icons that should be converted to diagrams.
 makeNamedMap :: IsName name => [(Name, Diagram B)] -> [(name, Icon)] -> [(name, Diagram B)]
 makeNamedMap subDiagramMap =
   map (\(name, icon) -> (name, iconToDiagram icon subDiagramMap # nameDiagram name))
 
 mapFst :: (a -> b) -> [(a, c)] -> [(b, c)]
-mapFst f = map (\(x, y) -> (f x, y))
+mapFst f = map (first f)
 
 toNames :: (IsName a) => [(a, b)] -> [(Name, b)]
 toNames = mapFst toName
 
 noEnds = (EndNone, EndNone)
 
---portToPort :: (IsName a, IsName c) => a -> b -> c -> d -> Edge
+-- Edge constructors --
 portToPort :: (IsName a, IsName b) => a -> Int -> b -> Int -> Edge
 portToPort a b c d = Edge (toName a, Just b, toName c, Just d) noEnds
 
@@ -65,30 +67,45 @@ iconHeadToPort a endHead c d = Edge (toName a, Nothing, toName c, Just d) (EndNo
 
 iconTailToPort a endTail c d = Edge (toName a, Nothing, toName c, Just d) (endTail, EndNone)
 
+-- | Make an inductive Graph from a list of node names, and a list of Connections.
 edgesToGraph :: (Ord v) => [v] -> [(v, t, v , t1)] -> Gr v ()
 edgesToGraph names edges = mkGraph names simpleEdges
   where
     simpleEdges = map (\(a, _, c, _) -> (a, c, ())) edges
 
--- Custom arrow tail for the arg1 result circle.
+
+-- | Custom arrow tail for the arg1 result circle.
 -- The ArrowHT type does not seem to be documented.
-arg1ResHT :: (RealFloat n) => ArrowHT n
-arg1ResHT len _ = (circle (len / 2) # alignR, mempty)
+arg1ResT :: (RealFloat n) => ArrowHT n
+arg1ResT len _ = (circle (len / 2) # alignR, mempty)
+
+-- | Arrow head version of arg1ResT
+arg1ResH :: (RealFloat n) => ArrowHT n
+arg1ResH len _ = (circle (len / 2) # alignL, mempty)
 
 getArrowOpts :: (RealFloat n, Typeable n) => (EdgeEnd, EdgeEnd) -> ArrowOpts n
 getArrowOpts (t, h) = arrowOptions
   where
-    lookupEnd :: (RealFloat n, Typeable n) => EdgeEnd -> ArrowOpts n -> ArrowOpts n
-    lookupEnd EndNone = id
-    lookupEnd EndAp1Arg = (arrowHead .~ arrowheadDart (0.4 @@ turn))
-      . (headTexture .~ solid (backgroundC colorScheme)) . (headStyle %~ (lw thick . lc (apply1C colorScheme) ))
-    lookupEnd EndAp1Result = (arrowTail .~ arg1ResHT) . (tailTexture .~ solid (apply1C colorScheme))
+    ap1ArgTexture = solid (backgroundC colorScheme)
+    ap1ArgStyle = lw thick . lc (apply1C colorScheme)
+    ap1ResultTexture = solid (apply1C colorScheme)
+
+    lookupTail EndNone = id
+    lookupTail EndAp1Arg = (arrowTail .~ dart')
+      . (tailTexture .~ ap1ArgTexture) . (tailStyle %~  ap1ArgStyle)
+    lookupTail EndAp1Result = (arrowTail .~ arg1ResT) . (tailTexture .~ ap1ResultTexture)
+
+    lookupHead EndNone = id
+    lookupHead EndAp1Arg = (arrowHead .~ arrowheadDart (0.4 @@ turn))
+      . (headTexture .~ ap1ArgTexture) . (headStyle %~ ap1ArgStyle)
+    lookupHead EndAp1Result = (arrowHead .~ arg1ResH) . (headTexture .~ ap1ResultTexture)
+
     arrowOptions =
       with & arrowHead .~ noHead
       & arrowTail .~ noTail
-      & lengths .~ normalized 0.04
+      & lengths .~ global 0.75
       & shaftStyle %~ lwG defaultLineWidth . lc (lineC colorScheme)
-      & lookupEnd t & lookupEnd h
+      & lookupTail t & lookupHead h
 
 plainLine = getArrowOpts (EndNone, EndNone)
 
@@ -146,6 +163,7 @@ angleWithMinDist myLocation edges =
 
 -- constant
 scaleFactor = 0.02
+--scaleFactor = 0.04
 
 getFromMapAndScale :: (Fractional a, Functor f, Ord k) => Map.Map k (f a) -> k -> f a
 getFromMapAndScale posMap name = scaleFactor *^ (posMap Map.! name)
@@ -191,6 +209,7 @@ placeNodes layoutResult nameDiagramMap edges = mconcat placedNodes
 doGraphLayout :: Gr Name e -> [(Name, Diagram B)] -> (Diagram B -> r) -> [Connection] -> IO r
 doGraphLayout graph nameDiagramMap connectNodes edges = do
   layoutResult <- layoutGraph' layoutParams GVA.Neato graph
+  --  layoutResult <- layoutGraph' layoutParams GVA.Fdp graph
   return $ placeNodes layoutResult nameDiagramMap edges # connectNodes
   where
     layoutParams :: GV.GraphvizParams Int v e () v

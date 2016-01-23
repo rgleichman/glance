@@ -14,7 +14,6 @@ import Rendering(toNames, portToPort, iconToPort, iconToIcon,
 import Types(Icon(..), Drawing(..), EdgeEnd(..))
 
 -- TODO Now --
--- todo: figure out how to deal with the difference between arrow heads and arrow tails
 -- todo: consider moving portToPort etc. to a new file
 
 -- TODO Later --
@@ -176,6 +175,24 @@ fact1Edges = [
 fact1Drawing = Drawing fact1Icons fact1Edges []
 
 factLam1Drawing = Drawing factLam0Icons factLam0Edges [(fact0Name, fact1Drawing)]
+
+(arr1, arr2, arr3, arr4) = ("arr1", "arr2", "arr3", "arr4")
+
+arrowTestIcons = toNames [
+  (arr1, TextBoxIcon "1"),
+  (arr2, TextBoxIcon "2"),
+  (arr3, TextBoxIcon "3"),
+  (arr4, TextBoxIcon "4")
+  ]
+
+arrowTestEdges = [
+  iconToIconEnds arr1 EndAp1Arg arr2 EndAp1Result,
+  iconToIconEnds arr1 EndAp1Result arr3 EndAp1Arg,
+  iconToIconEnds arr2 EndAp1Result arr3 EndAp1Result,
+  iconToIconEnds arr1 EndAp1Arg arr4 EndAp1Arg
+  ]
+
+arrowTestDrawing = Drawing arrowTestIcons arrowTestEdges []
 
 main1 :: IO ()
 main1 = do
