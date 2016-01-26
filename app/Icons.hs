@@ -22,7 +22,7 @@ import Diagrams.TwoD.Text(Text)
 import Data.Maybe (fromMaybe)
 import Data.Typeable(Typeable)
 
-import Types(Icon(..), Edge(..))
+import Types(Icon(..))
 
 -- COLO(U)RS --
 colorScheme :: (Floating a, Ord a) => ColorStyle a
@@ -121,11 +121,12 @@ makePortDiagrams points =
   atPoints points (map makePort ([0,1..] :: [Int]))
 
 -- CONSTANTS --
+defaultLineWidth :: (Fractional a) => a
 defaultLineWidth = 0.15
 
 -- APPLY0 ICON --
+circleRadius :: (Fractional a) => a
 circleRadius = 0.5
-apply0LineWidth = defaultLineWidth
 
 type GeneralDiagram b = (Transformable b, RealFloat (N b), Typeable (N b), HasStyle b, TrailLike b, V b ~ V2) => b
 
@@ -143,7 +144,7 @@ apply0Triangle = eqTriangle (2 * circleRadius) # rotateBy (-1/12) # fc (apply0C 
 
 apply0Line ::
    (Typeable (N b), HasStyle b, TrailLike b, V b ~ V2) => b
-apply0Line = rect apply0LineWidth (2 * circleRadius) # fc lineCol # lw none
+apply0Line = rect defaultLineWidth (2 * circleRadius) # fc lineCol # lw none
 
 --apply0Dia :: (Juxtaposable a, Semigroup a) => GeneralDiagram a
 apply0Dia ::
@@ -154,13 +155,13 @@ apply0Dia = (resultCircle ||| apply0Line ||| apply0Triangle) <> makePortDiagrams
 
 apply0PortLocations :: Floating a => [P2 a]
 apply0PortLocations = map p2 [
-  (circleRadius + apply0LineWidth + triangleWidth, 0),
+  (circleRadius + defaultLineWidth + triangleWidth, 0),
   (lineCenter,circleRadius),
   (-circleRadius,0),
   (lineCenter,-circleRadius)]
   where
     triangleWidth = circleRadius * sqrt 3
-    lineCenter = circleRadius + (apply0LineWidth / 2.0)
+    lineCenter = circleRadius + (defaultLineWidth / 2.0)
 
 -- apply0N Icon--
 -- | apply0N port locations:
@@ -184,8 +185,11 @@ apply0NDia n = finalDia # centerXY where
   finalDia = topAndBottomLine === allPorts === topAndBottomLine
 
 -- TEXT ICON --
+textBoxFontSize :: (Num a) => a
 textBoxFontSize = 1
+monoLetterWidthToHeightFraction :: (Fractional a) => a
 monoLetterWidthToHeightFraction = 0.6
+textBoxHeightFactor :: (Fractional a) => a
 textBoxHeightFactor = 1.1
 
 textBox ::
@@ -247,6 +251,7 @@ branchIcon :: GeneralDiagram a
 branchIcon = circle 0.3 # fc lineCol # lc lineCol
 
 -- GUARD ICON --
+guardSize :: (Fractional a) => a
 guardSize = 0.7
 
 guardTriangle ::
@@ -282,6 +287,6 @@ guardIcon n = centerXY $ makePort 1 <> alignB (vcat (take n trianglesAndBrackets
     lBrackets = map guardLBracket [3, 5..]
     trianglesAndBrackets =
       zipWith zipper trianglesWithPorts lBrackets
-    zipper tri lBrack = verticalLine === ((lBrack # extrudeRight guardSize) # alignR <> (tri # alignL))
+    zipper thisTriangle lBrack = verticalLine === ((lBrack # extrudeRight guardSize) # alignR <> (thisTriangle # alignL))
       where
         verticalLine = vrule 0.4 # lc lineCol # lwG defaultLineWidth

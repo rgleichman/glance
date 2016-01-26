@@ -14,7 +14,7 @@ import qualified Data.GraphViz.Attributes.Complete as GVA
 --import Data.GraphViz.Commands
 import qualified Data.Map as Map
 import Data.Maybe(fromMaybe, isJust)
-import qualified Debug.Trace
+--import qualified Debug.Trace
 import Data.List(minimumBy)
 import Data.Function(on)
 import Data.Graph.Inductive.PatriciaTree (Gr)
@@ -24,6 +24,7 @@ import Icons(colorScheme, Icon(..), iconToDiagram, nameDiagram, defaultLineWidth
 import Types(Edge(..), Connection, Drawing(..), EdgeEnd(..))
 
 -- CONSTANT
+scaleFactor :: (Fractional a) => a
 scaleFactor = 0.02
 --scaleFactor = 0.04
 
@@ -42,7 +43,7 @@ makeNamedMap subDiagramMap =
 
 -- | Make an inductive Graph from a list of node names, and a list of Connections.
 edgesToGraph :: (Ord v) => [v] -> [(v, t, v , t1)] -> Gr v ()
-edgesToGraph names edges = mkGraph names simpleEdges
+edgesToGraph iconNames edges = mkGraph iconNames simpleEdges
   where
     simpleEdges = map (\(a, _, c, _) -> (a, c, ())) edges
 
@@ -79,9 +80,6 @@ getArrowOpts (t, h) = arrowOptions
       & shaftStyle %~ lwG defaultLineWidth . lc (lineC colorScheme)
       & lookupTail t & lookupHead h
 
-plainLine :: (RealFloat n, Typeable n) => ArrowOpts n
-plainLine = getArrowOpts (EndNone, EndNone)
-
 -- | Given an Edge, return a transformation on Diagrams that will draw a line.
 connectMaybePorts ::
    (RealFloat n, Typeable n, Renderable (Path V2 n) b) =>
@@ -110,8 +108,8 @@ fromMaybeError s = fromMaybe (error s)
 
 -- ROTATING/FLIPPING ICONS --
 
-printSelf :: (Show a) => a -> a
-printSelf a = Debug.Trace.trace (show a ++ "/n") a
+--printSelf :: (Show a) => a -> a
+--printSelf a = Debug.Trace.trace (show a ++ "/n") a
 
 {-# ANN totalLenghtOfLines "HLint: ignore Redundant bracket" #-}
 {-# ANN totalLenghtOfLines "HLint: ignore Move brackets to avoid $" #-}
@@ -151,11 +149,11 @@ connectedPorts :: [Connection] -> Name -> [(Int, Name, Maybe Int)]
 connectedPorts edges name = map edgeToPort $ filter nameInEdge edges
   where
     isPort = isJust
-    nameInEdge (n1, p1, n2, p2) = (name == n1 && isPort p1) || (name == n2 && isPort p2)
-    edgeToPort (n1, p1, n2, p2) =
-      if name == n1
-        then (fromMaybeError "connectedPorts: port is Nothing" p1, n2, p2)
-        else (fromMaybeError "connectedPorts: port is Nothing" p2, n1, p1)
+    nameInEdge (name1, port1, name2, port2) = (name == name1 && isPort port1) || (name == name2 && isPort port2)
+    edgeToPort (name1, port1, name2, port2) =
+      if name == name1
+        then (fromMaybeError "connectedPorts: port is Nothing" port1, name2, port2)
+        else (fromMaybeError "connectedPorts: port is Nothing" port2, name1, port1)
 
 -- | rotateNodes rotates the nodes such that the distance of its connecting lines
 -- are minimized.
@@ -169,13 +167,13 @@ rotateNodes ::
      -> [(Name, QDiagram b V2 Double m)]
 rotateNodes positionMap nameDiagramMap edges = map rotateDiagram nameDiagramMap
   where
-    rotateDiagram (name, dia) = (name, transformedDia)
+    rotateDiagram (name, originalDia) = (name, transformedDia)
       where
         transformedDia = if flippedDist < unflippedDist
           then rotateBy flippedAngle flippedDia
-          else rotateBy unflippedAngle dia
-        flippedDia = reflectX dia
-        (unflippedAngle, unflippedDist) = minAngleForDia dia
+          else rotateBy unflippedAngle originalDia
+        flippedDia = reflectX originalDia
+        (unflippedAngle, unflippedDist) = minAngleForDia originalDia
         (flippedAngle, flippedDist) = minAngleForDia flippedDia
         --minAngleForDia :: QDiagram b V2 Double m -> (Double, Double)
         minAngleForDia dia = minAngle where
@@ -188,6 +186,7 @@ rotateNodes positionMap nameDiagramMap edges = map rotateDiagram nameDiagramMap
 
           getPortPoint :: Int -> P2 Double
           getPortPoint x =
+            -- TODO remove partial function head.
             head $ fromMaybeError "port not found" (lookup (name .> x) ports)
 
           makePortEdge :: (Int, Name, Maybe Int) -> (P2 Double, P2 Double)

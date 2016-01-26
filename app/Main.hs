@@ -4,14 +4,10 @@ module Main where
 import Diagrams.Prelude
 import Diagrams.Backend.SVG.CmdLine
 
-import Data.Maybe (fromMaybe)
-
-import Data.Typeable(Typeable)
-
-import Icons(guardIcon, apply0NDia, colorScheme, ColorStyle(..))
+import Icons(apply0NDia, colorScheme, ColorStyle(..))
 import Rendering(renderDrawing)
 import Util(toNames, portToPort, iconToPort, iconToIcon,
-  iconToIconEnds, iconHeadToPort, iconTailToPort)
+  iconToIconEnds, iconTailToPort)
 import Types(Icon(..), Drawing(..), EdgeEnd(..))
 
 -- TODO Now --
