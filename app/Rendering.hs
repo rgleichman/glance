@@ -127,10 +127,9 @@ totalLenghtOfLines angle myLocation edges = sum $ map edgeDist edges
       -- The squaring here is arbitrary. Distance should be replaced with angle diff.
       (norm $  absPortVec ^-^ iconLocationVec) ** 2
       where
-        -- todo: is there a better way to convert from Points to vectors?
-        relPortVec = r2 $ unp2 relativePortLocation
-        iconLocationVec = r2 $ unp2 iconLocation
-        myLocVec = r2 $ unp2 myLocation
+        P relPortVec = relativePortLocation
+        P iconLocationVec = iconLocation
+        P myLocVec = myLocation
         absPortVec = myLocVec ^+^ (rotateBy angle relPortVec)
 
  -- | For a specific icon, given its location, and a list of pairs of locations
