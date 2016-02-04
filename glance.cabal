@@ -32,8 +32,9 @@ executable glance-exe
                      , graphviz
                      , containers
                      , fgl
+                     , haskell-src-exts
   default-language:    Haskell2010
-  Other-modules: Icons, Rendering, Types, Util
+  Other-modules: Icons, Rendering, Types, Util, Translate
 
 test-suite glance-test
   type:                exitcode-stdio-1.0

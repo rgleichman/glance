@@ -23,6 +23,9 @@ import Data.Typeable(Typeable)
 import Icons(colorScheme, Icon(..), iconToDiagram, nameDiagram, defaultLineWidth, ColorStyle(..))
 import Types(Edge(..), Connection, Drawing(..), EdgeEnd(..))
 
+-- If the inferred types for these functions becomes unweildy,
+-- try using PartialTypeSignitures.
+
 -- CONSTANT
 scaleFactor :: (Fractional a) => a
 scaleFactor = 0.02

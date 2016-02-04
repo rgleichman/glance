@@ -9,8 +9,10 @@ import Rendering(renderDrawing)
 import Util(toNames, portToPort, iconToPort, iconToIcon,
   iconToIconEnds, iconTailToPort)
 import Types(Icon(..), Drawing(..), EdgeEnd(..))
+import Translate(translateString)
 
 -- TODO Now --
+-- Work on Translate.
 
 -- TODO Later --
 -- Add a small black border to lines to help distinguish line crossings.
@@ -234,6 +236,14 @@ main1 = do
   mainWith ((placedNodes # bgFrame 1 (backgroundC colorScheme)) :: Diagram B)
 
 main2 = mainWith ((apply0NDia 3 # bgFrame 0.1 black)  :: Diagram B)
+
+main3 :: IO ()
+main3 = do
+  let
+    (drawing, decl) = translateString "y2 = x1"
+  print decl
+  placedNodes <- renderDrawing drawing
+  mainWith ((placedNodes # bgFrame 1 (backgroundC colorScheme)) :: Diagram B)
 
 main :: IO ()
 main = main1
