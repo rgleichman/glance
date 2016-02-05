@@ -21,7 +21,7 @@ import Data.Graph.Inductive.PatriciaTree (Gr)
 import Data.Typeable(Typeable)
 
 import Icons(colorScheme, Icon(..), iconToDiagram, nameDiagram, defaultLineWidth, ColorStyle(..))
-import Types(Edge(..), Connection, Drawing(..), EdgeEnd(..))
+import Types(Edge(..), Connection, Drawing(..), EdgeEnd(..), NameAndPort(..))
 
 -- If the inferred types for these functions becomes unweildy,
 -- try using PartialTypeSignitures.
@@ -45,10 +45,10 @@ makeNamedMap subDiagramMap =
   map (\(name, icon) -> (name, iconToDiagram icon subDiagramMap # nameDiagram name))
 
 -- | Make an inductive Graph from a list of node names, and a list of Connections.
-edgesToGraph :: (Ord v) => [v] -> [(v, t, v , t1)] -> Gr v ()
+edgesToGraph :: [Name] -> [(NameAndPort, NameAndPort)] -> Gr Name ()
 edgesToGraph iconNames edges = mkGraph iconNames simpleEdges
   where
-    simpleEdges = map (\(a, _, c, _) -> (a, c, ())) edges
+    simpleEdges = map (\(NameAndPort a _, NameAndPort c _) -> (a, c, ())) edges
 
 -- | Custom arrow tail for the arg1 result circle.
 -- The ArrowHT type does not seem to be documented.
@@ -87,16 +87,16 @@ getArrowOpts (t, h) = arrowOptions
 connectMaybePorts ::
    (RealFloat n, Typeable n, Renderable (Path V2 n) b) =>
      Edge -> QDiagram b V2 n Any -> QDiagram b V2 n Any
-connectMaybePorts (Edge (icon0, Just port0, icon1, Just port1) ends) =
+connectMaybePorts (Edge (NameAndPort icon0 (Just port0), NameAndPort icon1 (Just port1)) ends) =
   connect'
   (getArrowOpts ends)
   (icon0 .> port0)
   (icon1 .> port1)
-connectMaybePorts (Edge (icon0, Nothing, icon1, Just port1) ends) =
+connectMaybePorts (Edge (NameAndPort icon0 Nothing, NameAndPort icon1 (Just port1)) ends) =
   connectOutside' (getArrowOpts ends) icon0 (icon1 .> port1)
-connectMaybePorts (Edge (icon0, Just port0, icon1, Nothing) ends) =
+connectMaybePorts (Edge (NameAndPort icon0 (Just port0), NameAndPort icon1 Nothing) ends) =
   connectOutside' (getArrowOpts ends) (icon0 .> port0) icon1
-connectMaybePorts (Edge (icon0, Nothing, icon1, Nothing) ends) =
+connectMaybePorts (Edge (NameAndPort icon0 Nothing, NameAndPort icon1 Nothing) ends) =
   connectOutside' (getArrowOpts ends) icon0 icon1
 
 makeConnections ::
@@ -152,8 +152,8 @@ connectedPorts :: [Connection] -> Name -> [(Int, Name, Maybe Int)]
 connectedPorts edges name = map edgeToPort $ filter nameInEdge edges
   where
     isPort = isJust
-    nameInEdge (name1, port1, name2, port2) = (name == name1 && isPort port1) || (name == name2 && isPort port2)
-    edgeToPort (name1, port1, name2, port2) =
+    nameInEdge (NameAndPort name1 port1, NameAndPort name2 port2) = (name == name1 && isPort port1) || (name == name2 && isPort port2)
+    edgeToPort (NameAndPort name1 port1, NameAndPort name2 port2) =
       if name == name1
         then (fromMaybeError "connectedPorts: port is Nothing" port1, name2, port2)
         else (fromMaybeError "connectedPorts: port is Nothing" port2, name1, port1)

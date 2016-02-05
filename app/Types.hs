@@ -12,15 +12,19 @@ import Diagrams.Prelude(Name)
 -- subdrawing.
 data Icon = Apply0Icon | ResultIcon | BranchIcon | TextBoxIcon String | GuardIcon Int
   | LambdaRegionIcon Int Name | Apply0NIcon Int
+  deriving (Show)
 
-type Connection = (Name, Maybe Int, Name, Maybe Int)
+data NameAndPort = NameAndPort Name (Maybe Int) deriving (Show)
+
+type Connection = (NameAndPort, NameAndPort)
 
 -- | An Edge has an name of the source icon, and its optional port number,
 -- and the name of the destination icon, and its optional port number.
 data Edge = Edge {edgeConnection :: Connection, edgeEnds :: (EdgeEnd, EdgeEnd)}
+  deriving (Show)
 
-data EdgeEnd = EndAp1Result | EndAp1Arg | EndNone
+data EdgeEnd = EndAp1Result | EndAp1Arg | EndNone deriving (Show)
 
 -- | A drawing is a map from names to Icons, a list of edges,
 -- and a map of names to subDrawings
-data Drawing = Drawing [(Name, Icon)] [Edge] [(Name, Drawing)]
+data Drawing = Drawing [(Name, Icon)] [Edge] [(Name, Drawing)] deriving (Show)

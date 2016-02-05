@@ -240,8 +240,9 @@ main2 = mainWith ((apply0NDia 3 # bgFrame 0.1 black)  :: Diagram B)
 main3 :: IO ()
 main3 = do
   let
-    (drawing, decl) = translateString "y2 = x1"
+    (drawing, decl) = translateString "y2 = f x1 x2 x3 x4"
   print decl
+  print drawing
   placedNodes <- renderDrawing drawing
   mainWith ((placedNodes # bgFrame 1 (backgroundC colorScheme)) :: Diagram B)
 
