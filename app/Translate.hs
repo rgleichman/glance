@@ -68,6 +68,7 @@ evalExp :: Exp -> State IDState (IconGraph, NameAndPort)
 evalExp x = case x of
   Var n -> pure $ evalQName n
   App exp1 exp2 -> evalApp exp1 exp2
+  Paren e -> evalExp e
   -- TODO other cases
 
 evalRhs :: Rhs -> (IconGraph, NameAndPort)

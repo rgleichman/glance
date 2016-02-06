@@ -12,7 +12,7 @@ import Types(Icon(..), Drawing(..), EdgeEnd(..))
 import Translate(translateString)
 
 -- TODO Now --
--- Work on Translate.
+-- Increase domain of translate.
 
 -- TODO Later --
 -- Add a small black border to lines to help distinguish line crossings.
@@ -237,14 +237,27 @@ main1 = do
 
 main2 = mainWith ((apply0NDia 3 # bgFrame 0.1 black)  :: Diagram B)
 
-main3 :: IO ()
-main3 = do
+testDecls = [
+  "y2 = f x1 x2 x3 x4",
+  "y = x",
+  "y = f x",
+  "y = f (g x)",
+  "y = f (g x1 x2) x3"
+  ]
+
+translateStringToDrawing :: String -> IO (Diagram B)
+translateStringToDrawing s = do
   let
-    (drawing, decl) = translateString "y2 = f x1 x2 x3 x4"
+    (drawing, decl) = translateString s
   print decl
   print drawing
-  placedNodes <- renderDrawing drawing
-  mainWith ((placedNodes # bgFrame 1 (backgroundC colorScheme)) :: Diagram B)
+  renderDrawing drawing
+
+main3 :: IO ()
+main3 = do
+  drawings <- mapM translateStringToDrawing testDecls
+  let vCattedDrawings = vcat drawings
+  mainWith ((vCattedDrawings # bgFrame 1 (backgroundC colorScheme)) :: Diagram B)
 
 main :: IO ()
 main = main3
