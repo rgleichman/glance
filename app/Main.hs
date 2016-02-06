@@ -247,4 +247,4 @@ main3 = do
   mainWith ((placedNodes # bgFrame 1 (backgroundC colorScheme)) :: Diagram B)
 
 main :: IO ()
-main = main1
+main = main3

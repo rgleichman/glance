@@ -1,8 +1,19 @@
 {-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeFamilies #-}
 
-module Types where
+module Types (
+  Icon(..),
+  NameAndPort(..),
+  Connection(..),
+  Edge(..),
+  EdgeEnd(..),
+  Drawing(..),
+  IDState,
+  initialIdState,
+  getId
+) where
 
 import Diagrams.Prelude(Name)
+import Control.Monad.State(State, state)
 
 -- TYPES --
 -- | A datatype that represents an icon.
@@ -28,3 +39,12 @@ data EdgeEnd = EndAp1Result | EndAp1Arg | EndNone deriving (Show)
 -- | A drawing is a map from names to Icons, a list of edges,
 -- and a map of names to subDrawings
 data Drawing = Drawing [(Name, Icon)] [Edge] [(Name, Drawing)] deriving (Show)
+
+-- | IDState is an Abstract Data Type that is used as a state whose value is a unique id.
+newtype IDState = IDState Int deriving (Eq, Show)
+
+initialIdState :: IDState
+initialIdState = IDState 0
+
+getId :: State IDState Int
+getId = state (\(IDState x) -> (x, IDState (x + 1)))

@@ -33,6 +33,7 @@ executable glance-exe
                      , containers
                      , fgl
                      , haskell-src-exts
+                     , mtl
   default-language:    Haskell2010
   Other-modules: Icons, Rendering, Types, Util, Translate
 

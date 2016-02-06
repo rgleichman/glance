@@ -8,8 +8,10 @@ import Diagrams.Prelude((<>))
 
 import Language.Haskell.Exts(Decl(..), parseDecl,
   Name(..), Pat(..), Rhs(..), Exp(..), QName(..), fromParseResult) --(parseFile, parse, ParseResult, Module)
+import Control.Monad.State(State, evalState)
 
-import Types(Icon, Edge(..), Drawing(..), NameAndPort)
+import Types(Icon, Edge(..), Drawing(..), NameAndPort, IDState,
+  initialIdState, getId)
 import Util(toNames, noEnds, nameAndPort, justName)
 import Icons(Icon(..))
 
@@ -45,32 +47,35 @@ evalQName (UnQual n) = (graph, justName nameString) where
   graph = IconGraph [(DIA.toName nameString, TextBoxIcon nameString)] []
 -- TODO other cases
 
-evalApp :: Int -> (IconGraph, NameAndPort) -> (IconGraph, NameAndPort) -> (IconGraph, NameAndPort)
-evalApp uniqueInt (funGr, funNamePort) (argGr, argNamePort) =
-  (newGraph <> funGr <> argGr, nameAndPort applyIconName 2)
-    where
-      newGraph = IconGraph icons edges
-      -- TODO figure out unique names for the apply icons
-      applyIconString = "app0" ++ show uniqueInt
-      applyIconName = DIA.toName applyIconString
-      icons = [(applyIconName, Apply0Icon)]
-      edges = [
-        Edge (funNamePort, nameAndPort applyIconName 0) noEnds,
-        Edge (argNamePort, nameAndPort applyIconName 1) noEnds
-        ]
+evalApp :: Exp -> Exp -> State IDState (IconGraph, NameAndPort)
+evalApp exp1 exp2 = do -- State Monad
+  (funGr, funNamePort) <- evalExp exp1
+  (argGr, argNamePort) <- evalExp exp2
+  newId <- getId
+  let
+    newGraph = IconGraph icons edges
+    -- TODO figure out unique names for the apply icons
+    applyIconString = "app0" ++ show newId
+    applyIconName = DIA.toName applyIconString
+    icons = [(applyIconName, Apply0Icon)]
+    edges = [
+      Edge (funNamePort, nameAndPort applyIconName 0) noEnds,
+      Edge (argNamePort, nameAndPort applyIconName 1) noEnds
+      ]
+  pure (newGraph <> funGr <> argGr, nameAndPort applyIconName 2)
 
-evalExp :: Int -> Exp -> (IconGraph, NameAndPort)
-evalExp uniqueInt x = case x of
-  Var n -> evalQName n
-  App exp1 exp2 -> evalApp uniqueInt (evalExp (uniqueInt + 1) exp1) (evalExp 0 exp2)
+evalExp :: Exp -> State IDState (IconGraph, NameAndPort)
+evalExp x = case x of
+  Var n -> pure $ evalQName n
+  App exp1 exp2 -> evalApp exp1 exp2
   -- TODO other cases
 
 evalRhs :: Rhs -> (IconGraph, NameAndPort)
-evalRhs (UnGuardedRhs e) = evalExp 0 e
+evalRhs (UnGuardedRhs e) = evalState (evalExp e) initialIdState
 evalRhs (GuardedRhss _) = error "GuardedRhss not implemented"
 
 evalPatBind :: Decl -> IconGraph
-evalPatBind (PatBind _ pat rhs binds) = graph <> rhsGraph where
+evalPatBind (PatBind _ pat rhs _) = graph <> rhsGraph where
   patName = evalPattern pat
   (rhsGraph, rhsNamePort) = evalRhs rhs
   icons = toNames [
