@@ -22,6 +22,7 @@ import Data.Typeable(Typeable)
 
 import Icons(colorScheme, Icon(..), iconToDiagram, nameDiagram, defaultLineWidth, ColorStyle(..))
 import Types(Edge(..), Connection, Drawing(..), EdgeEnd(..), NameAndPort(..))
+import Util(fromMaybeError)
 
 -- If the inferred types for these functions becomes unweildy,
 -- try using PartialTypeSignitures.
@@ -105,9 +106,6 @@ makeConnections ::
 makeConnections edges = applyAll connections
   where
     connections = map connectMaybePorts edges
-
-fromMaybeError :: String -> Maybe a -> a
-fromMaybeError s = fromMaybe (error s)
 
 -- ROTATING/FLIPPING ICONS --
 

@@ -12,7 +12,10 @@ import Types(Icon(..), Drawing(..), EdgeEnd(..))
 import Translate(translateString)
 
 -- TODO Now --
+-- Refactor evalApp.
+-- Unique names for evalMatch.
 -- Increase domain of translate.
+-- Handle duplicate names correctly.
 
 -- TODO Later --
 -- Add a small black border to lines to help distinguish line crossings.
@@ -238,11 +241,15 @@ main1 = do
 main2 = mainWith ((apply0NDia 3 # bgFrame 0.1 black)  :: Diagram B)
 
 testDecls = [
+  "y x1 x2 = f x1 x3 x2",
+  "y x1 x2 = f x1 x2",
+  "y x = f x1 x2",
   "y2 = f x1 x2 x3 x4",
   "y = x",
   "y = f x",
   "y = f (g x)",
-  "y = f (g x1 x2) x3"
+  "y = f (g x1 x2) x3",
+  "y = (f x1 x2) (g x1 x2)"
   ]
 
 translateStringToDrawing :: String -> IO (Diagram B)
@@ -256,7 +263,7 @@ translateStringToDrawing s = do
 main3 :: IO ()
 main3 = do
   drawings <- mapM translateStringToDrawing testDecls
-  let vCattedDrawings = vcat drawings
+  let vCattedDrawings = vcat' (with & sep .~ 0.5) drawings
   mainWith ((vCattedDrawings # bgFrame 1 (backgroundC colorScheme)) :: Diagram B)
 
 main :: IO ()

@@ -10,11 +10,13 @@ module Util (
   toNames,
   noEnds,
   nameAndPort,
-  justName
+  justName,
+  fromMaybeError
 )where
 
 import Control.Arrow(first)
 import Diagrams.Prelude(IsName, toName, Name)
+import Data.Maybe(fromMaybe)
 
 import Types(EdgeEnd(..), Edge(..), NameAndPort(..))
 
@@ -54,3 +56,6 @@ iconToIconEnds a b c d = Edge (justName a, justName c) (b, d)
 
 iconTailToPort :: (IsName a, IsName b) => a -> EdgeEnd -> b -> Int -> Edge
 iconTailToPort a endTail c d = Edge (justName a, nameAndPort c d) (endTail, EndNone)
+
+fromMaybeError :: String -> Maybe a -> a
+fromMaybeError s = fromMaybe (error s)
