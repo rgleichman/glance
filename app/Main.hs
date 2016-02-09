@@ -241,6 +241,10 @@ main1 = do
 main2 = mainWith ((apply0NDia 3 # bgFrame 0.1 black)  :: Diagram B)
 
 testDecls = [
+  "y x = y x",
+  "y x = g y y",
+  "y f x = f x",
+  "y x = x y",
   "y x1 x2 = f x1 x3 x2",
   "y x1 x2 = f x1 x2",
   "y x = f x1 x2",
@@ -257,7 +261,9 @@ translateStringToDrawing s = do
   let
     (drawing, decl) = translateString s
   print decl
+  putStr "\n"
   print drawing
+  putStr "\n\n"
   renderDrawing drawing
 
 main3 :: IO ()

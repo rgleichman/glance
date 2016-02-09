@@ -47,20 +47,20 @@ evalQName (UnQual n) context = result where
 -- TODO other cases
 
 evalApp :: Exp -> Exp -> EvalContext -> State IDState (Either String (IconGraph, NameAndPort))
-evalApp exp1 exp2  s = do -- State Monad
-  funVal <- evalExp exp1 s
-  argVal <- evalExp exp2 s
+evalApp exp1 exp2 c = do -- State Monad
+  funVal <- evalExp exp1 c
+  argVal <- evalExp exp2 c
   newId <- getId
   let
+    getGraph port val = case val of
+      Left s -> (mempty, mempty, [(s, port)])
+      Right (gr, p) -> (gr, [Edge (p, port) noEnds], mempty)
+
     functionPort = nameAndPort applyIconName 0
-    (funGr, funEdges, funBoundVars) = case funVal of
-      Left s' -> (mempty, [], [(s', functionPort)])
-      Right (fGr, funNamePort) -> (fGr, [Edge (funNamePort, functionPort) noEnds], [])
+    (funGr, funEdges, funBoundVars) = getGraph functionPort funVal
     argumentPort = nameAndPort applyIconName 1
-    (argGr, argEdges, argBoundVars) = case argVal of
-      Left s' -> (mempty, [], [(s', argumentPort)])
-      Right (aGr, argNamePort) -> (aGr, [Edge (argNamePort, argumentPort) noEnds], [])
-    newGraph = IconGraph icons (funEdges <> argEdges) [] (funBoundVars <> argBoundVars)
+    (argGr, argEdges, argBoundVars) = getGraph argumentPort argVal
+    newGraph = IconGraph icons (funEdges <> argEdges) mempty (funBoundVars <> argBoundVars)
     applyIconString = "app0" ++ show newId
     applyIconName = DIA.toName applyIconString
     icons = [(applyIconName, Apply0Icon)]
@@ -79,7 +79,8 @@ evalRhs :: Rhs -> EvalContext -> (IconGraph, NameAndPort)
 evalRhs (UnGuardedRhs e) scope = case evalState (evalExp e scope) initialIdState of
   Left _ -> error "rhs result expression is a bound var."
   Right x -> x
-evalRhs (GuardedRhss _) _ = error "GuardedRhss not implemented"
+-- TODO implement other cases.
+--evalRhs (GuardedRhss _) _ = error "GuardedRhss not implemented"
 
 evalPatBind :: Decl -> IconGraph
 evalPatBind (PatBind _ pat rhs _) = graph <> rhsGraph where
@@ -102,9 +103,14 @@ evalMatch :: Match -> IconGraph
 evalMatch (Match _ name patterns _ rhs _) = drawing
   where
     -- TODO unique names for lambdaName and resultName
+    lambdaName = "lam"
     nameString = nameToString name
-    patternStrings = map evalPattern patterns
-    numParameters = length patternStrings
+    lambdaPorts = map (nameAndPort lambdaName) [0,1..]
+    patternStringMap =
+      (nameString, justName lambdaName) : zip (map evalPattern patterns) lambdaPorts
+
+    patternStrings = map fst patternStringMap
+    numParameters = length patterns
     (rhsGraph, rhsResult) = evalRhs rhs patternStrings
     resultName = "res"
     rhsNewIcons = toNames [(resultName, ResultIcon)]
@@ -112,8 +118,6 @@ evalMatch (Match _ name patterns _ rhs _) = drawing
     rhsGraphWithResult = rhsGraph <> IconGraph rhsNewIcons rhsNewEdges [] []
     rhsDrawing = iconGraphToDrawing rhsGraphWithResult
     rhsDrawingName = DIA.toName "rhsDraw"
-    lambdaName = "lam"
-
     icons = toNames [
       (lambdaName, LambdaRegionIcon numParameters rhsDrawingName),
       (nameString, TextBoxIcon nameString)
@@ -123,10 +127,11 @@ evalMatch (Match _ name patterns _ rhs _) = drawing
     qualifyNameAndPort :: String -> NameAndPort -> NameAndPort
     qualifyNameAndPort s (NameAndPort n p) = NameAndPort (s DIA..> n) p
 
-    boundVarsToEdge (s, np) = Edge (source, qualifyNameAndPort lambdaName np) noEnds
+    boundVarsToEdge (s, np) =
+      Edge (source, qualifyNameAndPort lambdaName np) noEnds
       where
-        source = nameAndPort lambdaName
-          (fromMaybeError "boundVar not found" (elemIndex s patternStrings))
+        source = fromMaybeError "evalMatch: bound var not found" $ lookup s patternStringMap
+
     externalEdges = [Edge (justName nameString, justName lambdaName) noEnds]
     internalEdges = boundVarsToEdge <$> filter (\(s, _) -> s `elem` patternStrings) boundVars
     drawing = IconGraph icons (externalEdges <> internalEdges) [(rhsDrawingName, rhsDrawing)] []
