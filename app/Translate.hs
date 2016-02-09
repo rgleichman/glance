@@ -61,8 +61,7 @@ evalApp exp1 exp2 c = do -- State Monad
     argumentPort = nameAndPort applyIconName 1
     (argGr, argEdges, argBoundVars) = getGraph argumentPort argVal
     newGraph = IconGraph icons (funEdges <> argEdges) mempty (funBoundVars <> argBoundVars)
-    applyIconString = "app0" ++ show newId
-    applyIconName = DIA.toName applyIconString
+    applyIconName = DIA.toName $ "app0" ++ show newId
     icons = [(applyIconName, Apply0Icon)]
   pure $ Right (newGraph <> funGr <> argGr, nameAndPort applyIconName 2)
 
