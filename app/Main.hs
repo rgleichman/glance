@@ -12,7 +12,6 @@ import Types(Icon(..), Drawing(..), EdgeEnd(..))
 import Translate(translateString)
 
 -- TODO Now --
--- Make arrows scale variant. They are too big for large diagrams.
 -- Unique names for evalMatch.
 -- Handle duplicate names correctly.
 

@@ -64,7 +64,7 @@ getArrowOpts :: (RealFloat n, Typeable n) => (EdgeEnd, EdgeEnd) -> ArrowOpts n
 getArrowOpts (t, h) = arrowOptions
   where
     ap1ArgTexture = solid (backgroundC colorScheme)
-    ap1ArgStyle = lw thick . lc (apply1C colorScheme)
+    ap1ArgStyle = lwG defaultLineWidth . lc (apply1C colorScheme)
     ap1ResultTexture = solid (apply1C colorScheme)
 
     lookupTail EndNone = id
