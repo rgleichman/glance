@@ -84,8 +84,7 @@ evalExp c x = case x of
 -- | This is used by the rhs for identity (eg. y x = x)
 makeDummyRhs :: String -> (IconGraph, NameAndPort)
 makeDummyRhs s = (graph, port) where
-  -- TODO fix BranchIcon naming such that (s DIA..> s) can be s.
-  graph = IconGraph icons [] [] [(s, NameAndPort (s DIA..> s) Nothing)]
+  graph = IconGraph icons [] [] [(s, justName s)]
   icons = [(DIA.toName s, BranchIcon)]
   port = justName s
 

@@ -21,7 +21,7 @@ import Control.Monad.State(State, state)
 -- The TextBoxIcon's data is the text that appears in the text box.
 -- The LambdaRegionIcon's data is the number of lambda ports, and the name of it's
 -- subdrawing.
-data Icon = Apply0Icon | ResultIcon | BranchIcon | TextBoxIcon String | GuardIcon Int
+data Icon = ResultIcon | BranchIcon | TextBoxIcon String | GuardIcon Int
   | LambdaRegionIcon Int Name | Apply0NIcon Int
   deriving (Show)
 

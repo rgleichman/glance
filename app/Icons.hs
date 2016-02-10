@@ -2,7 +2,7 @@
 module Icons
     (
     Icon(..),
-    apply0Dia,
+    apply0NDia,
     iconToDiagram,
     nameDiagram,
     textBox,
@@ -10,7 +10,6 @@ module Icons
     lambdaRegion,
     resultIcon,
     guardIcon,
-    apply0NDia,
     defaultLineWidth,
     ColorStyle(..),
     colorScheme
@@ -19,10 +18,10 @@ module Icons
 import Diagrams.Prelude
 -- import Diagrams.Backend.SVG(B)
 import Diagrams.TwoD.Text(Text)
-import Data.Maybe (fromMaybe)
 import Data.Typeable(Typeable)
 
 import Types(Icon(..))
+import Util(fromMaybeError)
 
 -- COLO(U)RS --
 colorScheme :: (Floating a, Ord a) => ColorStyle a
@@ -89,7 +88,6 @@ iconToDiagram ::
    (RealFloat n, Typeable n, Renderable (Path V2 n) b,
       Renderable (Text n) b) =>
      Icon -> [(Name, QDiagram b V2 n Any)] -> QDiagram b V2 n Any
-iconToDiagram Apply0Icon _ = apply0Dia
 iconToDiagram (Apply0NIcon n) _ = apply0NDia n
 iconToDiagram ResultIcon _ = resultIcon
 iconToDiagram BranchIcon _ = branchIcon
@@ -98,11 +96,11 @@ iconToDiagram (GuardIcon n) _ = guardIcon n
 iconToDiagram (LambdaRegionIcon n diagramName) nameToSubdiagramMap =
   lambdaRegion n dia
   where
-    dia = fromMaybe (error "iconToDiagram: subdiagram not found") $ lookup diagramName nameToSubdiagramMap
+    dia = fromMaybeError "iconToDiagram: subdiagram not found" $ lookup diagramName nameToSubdiagramMap
 
 -- | Names the diagram and puts all sub-names in the namespace of the top level name.
 nameDiagram :: (Floating n, Ord n, Semigroup m, Metric v, IsName nm) => nm -> QDiagram b v n m -> QDiagram b v n m
-nameDiagram name dia = name .>> (dia # named name)
+nameDiagram name dia = named name (name .>> dia)
 
 -- | Make an port with an integer name. Always use <> to add a ports (not === or |||)
 --- since mempty has no size and will not be placed where you want it.
@@ -176,9 +174,10 @@ apply0NDia ::
 apply0NDia 1 = apply0Dia
 apply0NDia n = finalDia # centerXY where
   seperation = circleRadius * 1.5
+  portCircle = circle (circleRadius * 0.5) # fc lineCol # lw none
   trianglePortsCircle = hcat [
     reflectX apply0Triangle,
-    hcat $ take n $ map (\x -> makePort x <> circle (circleRadius * 0.5) # fc lineCol  <> strutX seperation) [2,3..],
+    hcat $ take n $ map (\x -> makePort x <> portCircle <> strutX seperation) [2,3..],
     makePort 1 <> alignR (circle circleRadius # fc (apply0C colorScheme) # lwG defaultLineWidth # lc (apply0C colorScheme))
     ]
   allPorts = makePort 0 <> alignL trianglePortsCircle
@@ -209,7 +208,7 @@ coloredTextBox ::
      -> AlphaColour Double -> String -> QDiagram b V2 n Any
 coloredTextBox textColor boxColor t =
   text t # fc textColor # font "freemono" # bold # fontSize (local textBoxFontSize)
-  <> rect rectangleWidth (textBoxFontSize * textBoxHeightFactor) # lcA boxColor
+  <> rect rectangleWidth (textBoxFontSize * textBoxHeightFactor) # lcA boxColor # lwG (0.6 * defaultLineWidth)
   where
     rectangleWidth = textBoxFontSize * monoLetterWidthToHeightFraction
       * fromIntegral (length t)

@@ -12,10 +12,9 @@ import Types(Icon(..), Drawing(..), EdgeEnd(..))
 import Translate(translateString)
 
 -- TODO Now --
--- Update Apply0Icon ports in Main
+-- Make arrows scale variant. They are too big for large diagrams.
 -- Unique names for evalMatch.
 -- Handle duplicate names correctly.
--- Fix BranchIcon name being duplicated.
 
 -- TODO Later --
 -- Eliminate BranchIcon for the identity funciton "y x = x"
@@ -29,8 +28,8 @@ import Translate(translateString)
 
 (d0A, d0B, d0Res, d0Foo, d0Bar) = ("A", "B", "res", "foo", "bar")
 d0Icons = toNames
-  [(d0A, Apply0Icon),
-  (d0B, Apply0Icon),
+  [(d0A, Apply0NIcon 1),
+  (d0B, Apply0NIcon 1),
   (d0Res, ResultIcon),
   (d0Foo, TextBoxIcon d0Foo),
   (d0Bar, TextBoxIcon d0Bar)
@@ -38,12 +37,12 @@ d0Icons = toNames
 
 d0Edges =
   [
-  portToPort d0A 0 d0B 2,
+  portToPort d0A 0 d0B 1,
   iconToPort d0Foo d0B 0,
-  iconToPort d0Res d0A 2,
+  iconToPort d0Res d0A 1,
   iconToPort d0Foo d0B 0,
-  iconToPort d0Bar d0B 3,
-  iconToPort d0Bar d0A 3
+  iconToPort d0Bar d0B 2,
+  iconToPort d0Bar d0A 2
   ]
 
 drawing0 = Drawing d0Icons d0Edges []
@@ -108,10 +107,10 @@ fact0Icons = toNames
   (fOne, TextBoxIcon "1"),
   (fEq0, TextBoxIcon "== 0"),
   (fMinus1, TextBoxIcon fMinus1),
-  (fEq0Ap, Apply0Icon),
-  (fMinus1Ap, Apply0Icon),
+  (fEq0Ap, Apply0NIcon 1),
+  (fMinus1Ap, Apply0NIcon 1),
   (fTimes, TextBoxIcon fTimes),
-  (fRecurAp, Apply0Icon),
+  (fRecurAp, Apply0NIcon 1),
   (fTimesAp, Apply0NIcon 2),
   (fArg, BranchIcon),
   (fRes, ResultIcon)
@@ -119,16 +118,16 @@ fact0Icons = toNames
 
 fact0Edges = [
     iconToPort fEq0 fEq0Ap 0,
-    portToPort fEq0Ap 2 fG0 3,
+    portToPort fEq0Ap 1 fG0 3,
     iconToPort fMinus1 fMinus1Ap 0,
     iconToPort fTimes fTimesAp 0,
     iconToPort fOne fG0 2,
-    portToPort fTimesAp 1 fG0 4,
-    portToPort fRecurAp 2 fTimesAp 3,
-    iconToPort fArg fEq0Ap 1,
-    iconToPort fArg fMinus1Ap 1,
-    iconToPort fArg fTimesAp 2,
-    portToPort fMinus1Ap 2 fRecurAp 1,
+    portToPort fTimesAp 2 fG0 4,
+    portToPort fRecurAp 1 fTimesAp 3,
+    iconToPort fArg fEq0Ap 2,
+    iconToPort fArg fMinus1Ap 2,
+    iconToPort fArg fTimesAp 1,
+    portToPort fMinus1Ap 1 fRecurAp 2,
     iconToPort fRes fG0 0
   ]
 
@@ -141,7 +140,7 @@ factLam0Icons = toNames [
   ]
 
 factLam0Edges = [
-  iconToPort ("lam0" .> fArg .> fArg) "lam0" 0,
+  iconToPort ("lam0" .> fArg) "lam0" 0,
   iconToPort "lam0" ("lam0" .> fRecurAp) 0,
   iconToIcon "lam0" "fac"
   ]
@@ -155,7 +154,7 @@ fact1Icons = toNames
   (fEq0, TextBoxIcon "== 0"),
   (fMinus1, TextBoxIcon fMinus1),
   (fTimes, TextBoxIcon fTimes),
-  (fRecurAp, Apply0Icon),
+  (fRecurAp, Apply0NIcon 1),
   (fTimesAp, Apply0NIcon 2),
   (fArg, BranchIcon),
   (fRes, ResultIcon)
@@ -165,11 +164,11 @@ fact1Edges = [
   iconToIconEnds fArg EndNone fEq0 EndAp1Arg,
   iconTailToPort fEq0 EndAp1Result fG0 3,
   iconToIconEnds fArg EndNone fMinus1 EndAp1Arg,
-  iconTailToPort fMinus1 EndAp1Result fRecurAp 1,
+  iconTailToPort fMinus1 EndAp1Result fRecurAp 2,
   iconToPort fTimes fTimesAp 0,
   iconToPort fOne fG0 2,
   portToPort fTimesAp 1 fG0 4,
-  portToPort fRecurAp 2 fTimesAp 3,
+  portToPort fRecurAp 1 fTimesAp 3,
   iconToPort fArg fTimesAp 2,
   iconToPort fRes fG0 0
   ]
@@ -187,7 +186,7 @@ fact2Icons = toNames
   (fEq0, TextBoxIcon "== 0"),
   (fMinus1, TextBoxIcon fMinus1),
   (fTimes, TextBoxIcon fTimes),
-  (fRecurAp, Apply0Icon),
+  (fRecurAp, Apply0NIcon 1),
   (fTimesAp, Apply0NIcon 2),
   --(fArg, BranchIcon),
   (fRes, ResultIcon)
@@ -199,11 +198,11 @@ fact2Edges = [
   iconTailToPort fEq0 EndAp1Result fG0 3,
   --iconToIconEnds fArg EndNone fMinus1 EndAp1Arg,
   iconTailToPort fMinus1 EndAp1Arg fTimesAp 2,
-  iconTailToPort fMinus1 EndAp1Result fRecurAp 1,
+  iconTailToPort fMinus1 EndAp1Result fRecurAp 2,
   iconToPort fTimes fTimesAp 0,
   iconToPort fOne fG0 2,
   portToPort fTimesAp 1 fG0 4,
-  portToPort fRecurAp 2 fTimesAp 3,
+  portToPort fRecurAp 1 fTimesAp 3,
   --iconToPort fArg fTimesAp 2,
   iconToPort fRes fG0 0
   ]
@@ -237,10 +236,30 @@ arrowTestDrawing = Drawing arrowTestIcons arrowTestEdges []
 
 main1 :: IO ()
 main1 = do
-  placedNodes <- renderDrawing factLam1Drawing
+  placedNodes <- renderDrawing factLam0Drawing
   mainWith ((placedNodes # bgFrame 1 (backgroundC colorScheme)) :: Diagram B)
 
 main2 = mainWith ((apply0NDia 3 # bgFrame 0.1 black)  :: Diagram B)
+
+main3 :: IO ()
+main3 = do
+  renderedDiagrams <- mapM renderDrawing allDrawings
+  let vCattedDrawings = vcat' (with & sep .~ 0.5) renderedDiagrams
+  mainWith ((vCattedDrawings # bgFrame 1 (backgroundC colorScheme)) :: Diagram B)
+  where
+    allDrawings = [
+      drawing0,
+      superDrawing,
+      super2Drawing,
+      super3Drawing,
+      fact0Drawing,
+      factLam0Drawing,
+      fact1Drawing,
+      factLam1Drawing,
+      fact2Drawing,
+      factLam2Drawing,
+      arrowTestDrawing
+      ]
 
 testDecls = [
   --"y = (\x -> x)",
@@ -270,11 +289,11 @@ translateStringToDrawing s = do
   putStr "\n\n"
   renderDrawing drawing
 
-main3 :: IO ()
-main3 = do
+main4 :: IO ()
+main4 = do
   drawings <- mapM translateStringToDrawing testDecls
   let vCattedDrawings = vcat' (with & sep .~ 0.5) drawings
   mainWith ((vCattedDrawings # bgFrame 1 (backgroundC colorScheme)) :: Diagram B)
 
 main :: IO ()
-main = main3
+main = main4

@@ -188,7 +188,7 @@ rotateNodes positionMap nameDiagramMap edges = map rotateDiagram nameDiagramMap
           getPortPoint :: Int -> P2 Double
           getPortPoint x =
             -- TODO remove partial function head.
-            head $ fromMaybeError "port not found" (lookup (name .> x) ports)
+            head $ fromMaybeError ("port not found. Port: " ++ show name ++ ".> " ++ show x ++ ". Valid ports: " ++ show ports) (lookup (name .> x) ports)
 
           makePortEdge :: (Int, Name, Maybe Int) -> (P2 Double, P2 Double)
           makePortEdge (portInt, otherIconName, _) =
