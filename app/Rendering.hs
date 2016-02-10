@@ -13,7 +13,7 @@ import qualified Data.GraphViz as GV
 import qualified Data.GraphViz.Attributes.Complete as GVA
 --import Data.GraphViz.Commands
 import qualified Data.Map as Map
-import Data.Maybe(fromMaybe, isJust)
+import Data.Maybe(isJust)
 --import qualified Debug.Trace
 import Data.List(minimumBy)
 import Data.Function(on)

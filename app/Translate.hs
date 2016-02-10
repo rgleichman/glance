@@ -9,7 +9,6 @@ import Diagrams.Prelude((<>))
 import Language.Haskell.Exts(Decl(..), parseDecl,
   Name(..), Pat(..), Rhs(..), Exp(..), QName(..), fromParseResult, Match(..)) --(parseFile, parse, ParseResult, Module)
 import Control.Monad.State(State, evalState)
-import Data.List(elemIndex)
 
 import Types(Icon, Edge(..), Drawing(..), NameAndPort(..), IDState,
   initialIdState, getId)
@@ -46,36 +45,46 @@ evalQName (UnQual n) context = result where
     else Right (graph, justName nameString)
 -- TODO other cases
 
-evalApp :: Exp -> Exp -> EvalContext -> State IDState (Either String (IconGraph, NameAndPort))
-evalApp exp1 exp2 c = do -- State Monad
-  funVal <- evalExp exp1 c
-  argVal <- evalExp exp2 c
+evalApp :: (Exp, [Exp]) -> EvalContext -> State IDState (Either String (IconGraph, NameAndPort))
+evalApp (funExp, argExps) c = do -- State Monad
+  funVal <- evalExp c funExp
+  argVals <- mapM (evalExp c) argExps
   newId <- getId
   let
+    -- TODO this can be refactored to return just a new graph with the added boundVar, or edge.
+    getGraph :: (Monoid str, Monoid gr) => NameAndPort -> Either str (gr, NameAndPort) -> (gr, [Edge], [(str, NameAndPort)])
     getGraph port val = case val of
       Left s -> (mempty, mempty, [(s, port)])
       Right (gr, p) -> (gr, [Edge (p, port) noEnds], mempty)
 
     functionPort = nameAndPort applyIconName 0
     (funGr, funEdges, funBoundVars) = getGraph functionPort funVal
-    argumentPort = nameAndPort applyIconName 1
-    (argGr, argEdges, argBoundVars) = getGraph argumentPort argVal
-    newGraph = IconGraph icons (funEdges <> argEdges) mempty (funBoundVars <> argBoundVars)
+    argumentPorts = map (nameAndPort applyIconName) [2,3..]
+    (argGraphList, argEdgeList, argBoundVarList) = unzip3 $ zipWith getGraph argumentPorts argVals
+    (argGraphs, argEdges, argBoundVars) = (mconcat argGraphList, mconcat argEdgeList, mconcat argBoundVarList)
     applyIconName = DIA.toName $ "app0" ++ show newId
-    icons = [(applyIconName, Apply0Icon)]
-  pure $ Right (newGraph <> funGr <> argGr, nameAndPort applyIconName 2)
+    icons = [(applyIconName, Apply0NIcon (length argExps))]
+    newGraph = IconGraph icons (funEdges <> argEdges) mempty (funBoundVars <> argBoundVars)
+  pure $ Right (newGraph <> funGr <> argGraphs, nameAndPort applyIconName 1)
 
-evalExp :: Exp  -> EvalContext -> State IDState (Either String (IconGraph, NameAndPort))
-evalExp x c = case x of
+-- TODO add test for this function
+simplifyApp :: Exp -> (Exp, [Exp])
+simplifyApp (App exp1 exp2) = (funExp, args <> [exp2])
+  where
+    (funExp, args) = simplifyApp exp1
+simplifyApp e = (e, [])
+
+evalExp :: EvalContext  -> Exp -> State IDState (Either String (IconGraph, NameAndPort))
+evalExp c x = case x of
   Var n -> pure $ evalQName n c
-  App exp1 exp2 -> evalApp exp1 exp2 c
-  Paren e -> evalExp e c
+  e@App{} -> evalApp (simplifyApp e) c
+  Paren e -> evalExp c e
   -- TODO other cases
 
 -- | First argument is the right hand side.
 -- The second arugement is a list of strings that are bound in the environment.
 evalRhs :: Rhs -> EvalContext -> (IconGraph, NameAndPort)
-evalRhs (UnGuardedRhs e) scope = case evalState (evalExp e scope) initialIdState of
+evalRhs (UnGuardedRhs e) scope = case evalState (evalExp scope e) initialIdState of
   Left _ -> error "rhs result expression is a bound var."
   Right x -> x
 -- TODO implement other cases.

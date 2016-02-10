@@ -12,12 +12,13 @@ import Types(Icon(..), Drawing(..), EdgeEnd(..))
 import Translate(translateString)
 
 -- TODO Now --
--- Refactor evalApp.
+-- Update Apply0Icon ports in Main
 -- Unique names for evalMatch.
 -- Increase domain of translate.
 -- Handle duplicate names correctly.
 
 -- TODO Later --
+-- Let lines connect to ports in multiple locations (eg. argument for Apply0Dia)
 -- Add a small black border to lines to help distinguish line crossings.
 -- todo: Find out how to hide unqualified names such that recursive drawings are connected correctly
 -- todo: Find out and fix why connectinos to sub-icons need to be qualified twice (eg. "lam0" .> "arg" .> "arg")

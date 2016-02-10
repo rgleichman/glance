@@ -156,9 +156,10 @@ apply0Dia = (resultCircle ||| apply0Line ||| apply0Triangle) <> makePortDiagrams
 apply0PortLocations :: Floating a => [P2 a]
 apply0PortLocations = map p2 [
   (circleRadius + defaultLineWidth + triangleWidth, 0),
-  (lineCenter,circleRadius),
   (-circleRadius,0),
-  (lineCenter,-circleRadius)]
+  (lineCenter,-circleRadius)
+  --(lineCenter,circleRadius),
+  ]
   where
     triangleWidth = circleRadius * sqrt 3
     lineCenter = circleRadius + (defaultLineWidth / 2.0)
@@ -172,6 +173,7 @@ apply0NDia ::
    (RealFloat n, Typeable n, Monoid m, Semigroup m,
       TrailLike (QDiagram b V2 n m)) =>
      Int -> QDiagram b V2 n m
+apply0NDia 1 = apply0Dia
 apply0NDia n = finalDia # centerXY where
   seperation = circleRadius * 1.5
   trianglePortsCircle = hcat [
