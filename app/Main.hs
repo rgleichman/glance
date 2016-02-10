@@ -14,10 +14,11 @@ import Translate(translateString)
 -- TODO Now --
 -- Update Apply0Icon ports in Main
 -- Unique names for evalMatch.
--- Increase domain of translate.
 -- Handle duplicate names correctly.
+-- Fix BranchIcon name being duplicated.
 
 -- TODO Later --
+-- Eliminate BranchIcon for the identity funciton "y x = x"
 -- Let lines connect to ports in multiple locations (eg. argument for Apply0Dia)
 -- Add a small black border to lines to help distinguish line crossings.
 -- todo: Find out how to hide unqualified names such that recursive drawings are connected correctly
@@ -242,6 +243,8 @@ main1 = do
 main2 = mainWith ((apply0NDia 3 # bgFrame 0.1 black)  :: Diagram B)
 
 testDecls = [
+  --"y = (\x -> x)",
+  "y x = x",
   "y x = y x",
   "y x = g y y",
   "y f x = f x",

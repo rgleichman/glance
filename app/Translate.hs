@@ -81,11 +81,19 @@ evalExp c x = case x of
   Paren e -> evalExp c e
   -- TODO other cases
 
+-- | This is used by the rhs for identity (eg. y x = x)
+makeDummyRhs :: String -> (IconGraph, NameAndPort)
+makeDummyRhs s = (graph, port) where
+  -- TODO fix BranchIcon naming such that (s DIA..> s) can be s.
+  graph = IconGraph icons [] [] [(s, NameAndPort (s DIA..> s) Nothing)]
+  icons = [(DIA.toName s, BranchIcon)]
+  port = justName s
+
 -- | First argument is the right hand side.
 -- The second arugement is a list of strings that are bound in the environment.
 evalRhs :: Rhs -> EvalContext -> (IconGraph, NameAndPort)
 evalRhs (UnGuardedRhs e) scope = case evalState (evalExp scope e) initialIdState of
-  Left _ -> error "rhs result expression is a bound var."
+  Left s -> makeDummyRhs s
   Right x -> x
 -- TODO implement other cases.
 --evalRhs (GuardedRhss _) _ = error "GuardedRhss not implemented"
