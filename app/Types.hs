@@ -47,4 +47,9 @@ initialIdState :: IDState
 initialIdState = IDState 0
 
 getId :: State IDState Int
-getId = state (\(IDState x) -> (x, IDState (x + 1)))
+getId = state incrementer where
+  incrementer (IDState x) = (x, IDState checkedIncrement) where
+    xPlusOne = x + 1
+    checkedIncrement = if xPlusOne > x
+      then xPlusOne
+      else error "getId: the ID state has overflowed."

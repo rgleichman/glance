@@ -45,6 +45,7 @@ evalQName (UnQual n) context = result where
     else Right (graph, justName nameString)
 -- TODO other cases
 
+
 evalApp :: (Exp, [Exp]) -> EvalContext -> State IDState (Either String (IconGraph, NameAndPort))
 evalApp (funExp, argExps) c = do -- State Monad
   funVal <- evalExp c funExp
@@ -74,11 +75,56 @@ simplifyApp (App exp1 exp2) = (funExp, args <> [exp2])
     (funExp, args) = simplifyApp exp1
 simplifyApp e = (e, [])
 
+getUniqueName :: String -> State IDState String
+getUniqueName base = fmap ((base ++). show) getId
+
+-- TODO refactor with evalMatch
+-- TODO use state here
+evalLambda :: EvalContext -> [Pat] -> Exp -> State IDState (IconGraph, NameAndPort)
+evalLambda c patterns e = do
+  lambdaName <- getUniqueName "lam"
+  let
+    lambdaPorts = map (nameAndPort lambdaName) [0,1..]
+    patternStringMap = zip (map evalPattern patterns) lambdaPorts
+    patternStrings = map fst patternStringMap
+    numParameters = length patterns
+    augmentedContext = patternStrings <> c
+  rhsVal <- evalExp augmentedContext e
+  let (rhsGraph, rhsResult) = coerceExpressionResult rhsVal
+  resultName <- getUniqueName "res"
+  let
+    rhsNewIcons = toNames [(resultName, ResultIcon)]
+    rhsNewEdges = [Edge (rhsResult, justName resultName) noEnds]
+    rhsGraphWithResult = rhsGraph <> IconGraph rhsNewIcons rhsNewEdges [] []
+    rhsDrawing = iconGraphToDrawing rhsGraphWithResult
+  rhsDrawingName <- fmap DIA.toName $ getUniqueName "rhsDraw"
+  let
+    icons = toNames [
+      (lambdaName, LambdaRegionIcon numParameters rhsDrawingName)
+      ]
+    (IconGraph _ _ _ boundVars) = rhsGraph
+
+    qualifyNameAndPort :: String -> NameAndPort -> NameAndPort
+    qualifyNameAndPort s (NameAndPort n p) = NameAndPort (s DIA..> n) p
+
+    boundVarsToEdge (s, np) =
+      Edge (source, qualifyNameAndPort lambdaName np) noEnds
+      where
+        source = fromMaybeError "evalMatch: bound var not found" $ lookup s patternStringMap
+
+    internalEdges = boundVarsToEdge <$> filter (\(s, _) -> s `elem` patternStrings) boundVars
+    drawing = IconGraph icons internalEdges [(rhsDrawingName, rhsDrawing)] []
+  return (drawing, justName lambdaName)
+
+
+
+
 evalExp :: EvalContext  -> Exp -> State IDState (Either String (IconGraph, NameAndPort))
 evalExp c x = case x of
   Var n -> pure $ evalQName n c
   e@App{} -> evalApp (simplifyApp e) c
   Paren e -> evalExp c e
+  Lambda _ patterns e -> fmap Right $ evalLambda c patterns e
   -- TODO other cases
 
 -- | This is used by the rhs for identity (eg. y x = x)
@@ -88,12 +134,15 @@ makeDummyRhs s = (graph, port) where
   icons = [(DIA.toName s, BranchIcon)]
   port = justName s
 
+coerceExpressionResult :: Either String (IconGraph, NameAndPort) -> (IconGraph, NameAndPort)
+coerceExpressionResult (Left str) = makeDummyRhs str
+coerceExpressionResult (Right x) = x
+
 -- | First argument is the right hand side.
 -- The second arugement is a list of strings that are bound in the environment.
 evalRhs :: Rhs -> EvalContext -> (IconGraph, NameAndPort)
-evalRhs (UnGuardedRhs e) scope = case evalState (evalExp scope e) initialIdState of
-  Left s -> makeDummyRhs s
-  Right x -> x
+evalRhs (UnGuardedRhs e) scope =
+  coerceExpressionResult $ evalState (evalExp scope e) initialIdState
 -- TODO implement other cases.
 --evalRhs (GuardedRhss _) _ = error "GuardedRhss not implemented"
 

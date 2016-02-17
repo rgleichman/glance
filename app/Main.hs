@@ -12,6 +12,8 @@ import Types(Icon(..), Drawing(..), EdgeEnd(..))
 import Translate(translateString)
 
 -- TODO Now --
+-- Use getUniqueName
+-- Fix no edges for bound vars inside lambads inside functinos.
 -- Unique names for evalMatch.
 -- Handle duplicate names correctly.
 
@@ -261,21 +263,22 @@ main3 = do
       ]
 
 testDecls = [
-  --"y = (\x -> x)",
+  "y x = (\\z -> x)",
+  "y = (\\x -> (\\z -> x))",
   "y x = x",
   "y x = y x",
   "y x = g y y",
   "y f x = f x",
-  "y x = x y",
-  "y x1 x2 = f x1 x3 x2",
-  "y x1 x2 = f x1 x2",
-  "y x = f x1 x2",
-  "y2 = f x1 x2 x3 x4",
-  "y = x",
-  "y = f x",
-  "y = f (g x)",
-  "y = f (g x1 x2) x3",
-  "y = (f x1 x2) (g x1 x2)"
+  "y x = x y"
+  -- "y x1 x2 = f x1 x3 x2",
+  -- "y x1 x2 = f x1 x2",
+  -- "y x = f x1 x2",
+  -- "y2 = f x1 x2 x3 x4",
+  -- "y = x",
+  -- "y = f x",
+  -- "y = f (g x)",
+  -- "y = f (g x1 x2) x3",
+  -- "y = (f x1 x2) (g x1 x2)"
   ]
 
 translateStringToDrawing :: String -> IO (Diagram B)
