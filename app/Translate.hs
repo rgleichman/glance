@@ -26,7 +26,7 @@ instance DIA.Semigroup IconGraph where
     IconGraph (icons1 <> icons2) (edges1 <> edges2) (subDrawings1 <> subDrawings2) (context1 <> context2)
 
 instance Monoid IconGraph where
-  mempty = IconGraph [] [] [] []
+  mempty = IconGraph mempty mempty mempty mempty
   mappend = (<>)
 
 getUniqueName :: String -> State IDState String
@@ -44,7 +44,7 @@ evalPattern p = case p of
 evalQName :: QName -> EvalContext -> Either String (IconGraph, NameAndPort)
 evalQName (UnQual n) context = result where
   nameString = nameToString n
-  graph = IconGraph [(DIA.toName nameString, TextBoxIcon nameString)] [] [] []
+  graph = IconGraph [(DIA.toName nameString, TextBoxIcon nameString)] mempty mempty mempty
   result = if nameString `elem` context
     then Left nameString
     else Right (graph, justName nameString)
@@ -57,26 +57,18 @@ combineExpressions portExpPairs = mconcat $ fmap mkGraph portExpPairs where
     Right (graph, resultPort) -> newGraph <> graph where
       newGraph = IconGraph mempty [Edge (resultPort, port) noEnds] mempty mempty
 
-evalApp :: (Exp, [Exp]) -> EvalContext -> State IDState (Either String (IconGraph, NameAndPort))
+evalApp :: (Exp, [Exp]) -> EvalContext -> State IDState (IconGraph, NameAndPort)
 evalApp (funExp, argExps) c = do
   funVal <- evalExp c funExp
   argVals <- mapM (evalExp c) argExps
   applyIconName <- DIA.toName <$> getUniqueName "app0"
   let
-    -- TODO this can be refactored to return just a new graph with the added boundVar, or edge.
-    getGraph :: (Monoid str, Monoid gr) => NameAndPort -> Either str (gr, NameAndPort) -> (gr, [Edge], [(str, NameAndPort)])
-    getGraph port val = case val of
-      Left s -> (mempty, mempty, [(s, port)])
-      Right (gr, p) -> (gr, [Edge (p, port) noEnds], mempty)
-
-    functionPort = nameAndPort applyIconName 0
-    (funGr, funEdges, funBoundVars) = getGraph functionPort funVal
     argumentPorts = map (nameAndPort applyIconName) [2,3..]
-    (argGraphList, argEdgeList, argBoundVarList) = unzip3 $ zipWith getGraph argumentPorts argVals
-    (argGraphs, argEdges, argBoundVars) = (mconcat argGraphList, mconcat argEdgeList, mconcat argBoundVarList)
+    functionPort = nameAndPort applyIconName 0
+    combinedGraph = combineExpressions $ zip (funVal:argVals) (functionPort:argumentPorts)
     icons = [(applyIconName, Apply0NIcon (length argExps))]
-    newGraph = IconGraph icons (funEdges <> argEdges) mempty (funBoundVars <> argBoundVars)
-  pure $ Right (newGraph <> funGr <> argGraphs, nameAndPort applyIconName 1)
+    newGraph = IconGraph icons mempty mempty mempty
+  pure (newGraph <> combinedGraph, nameAndPort applyIconName 1)
 
 -- TODO add test for this function
 simplifyApp :: Exp -> (Exp, [Exp])
@@ -101,7 +93,7 @@ evalIf c e1 e2 e3 = do
 evalExp :: EvalContext  -> Exp -> State IDState (Either String (IconGraph, NameAndPort))
 evalExp c x = case x of
   Var n -> pure $ evalQName n c
-  e@App{} -> evalApp (simplifyApp e) c
+  e@App{} -> Right <$> evalApp (simplifyApp e) c
   Paren e -> evalExp c e
   Lambda _ patterns e -> Right <$> evalLambda c patterns e
   If e1 e2 e3 -> Right <$> evalIf c e1 e2 e3
@@ -110,7 +102,7 @@ evalExp c x = case x of
 -- | This is used by the rhs for identity (eg. y x = x)
 makeDummyRhs :: String -> (IconGraph, NameAndPort)
 makeDummyRhs s = (graph, port) where
-  graph = IconGraph icons [] [] [(s, justName s)]
+  graph = IconGraph icons mempty mempty [(s, justName s)]
   icons = [(DIA.toName s, BranchIcon)]
   port = justName s
 
@@ -134,7 +126,7 @@ evalPatBind (PatBind _ pat rhs _) = do
   let
     icons = toNames [(uniquePatName, TextBoxIcon patName)]
     edges = [Edge (justName uniquePatName, rhsNamePort) noEnds]
-    graph = IconGraph icons edges [] []
+    graph = IconGraph icons edges mempty mempty
   pure $ graph <> rhsGraph
 
 iconGraphToDrawing :: IconGraph -> Drawing
@@ -154,7 +146,7 @@ makeRhsDrawing :: DIA.IsName a => a -> (IconGraph, NameAndPort) -> Drawing
 makeRhsDrawing resultIconName (rhsGraph, rhsResult)= rhsDrawing where
   rhsNewIcons = toNames [(resultIconName, ResultIcon)]
   rhsNewEdges = [Edge (rhsResult, justName resultIconName) noEnds]
-  rhsGraphWithResult = rhsGraph <> IconGraph rhsNewIcons rhsNewEdges [] []
+  rhsGraphWithResult = rhsGraph <> IconGraph rhsNewIcons rhsNewEdges mempty mempty
   rhsDrawing = iconGraphToDrawing rhsGraphWithResult
 
 qualifyNameAndPort :: String -> NameAndPort -> NameAndPort
@@ -217,7 +209,7 @@ evalMatch (Match _ name patterns _ rhs _) = do
 
 
 evalMatches :: [Match] -> State IDState IconGraph
-evalMatches [] = pure $ IconGraph [] [] [] []
+evalMatches [] = pure mempty
 evalMatches [match] = evalMatch match
 -- TODO turn more than one match into a case expression.
 
