@@ -9,6 +9,7 @@ import Diagrams.Prelude((<>))
 import Language.Haskell.Exts(Decl(..), parseDecl,
   Name(..), Pat(..), Rhs(..), Exp(..), QName(..), fromParseResult, Match(..)) --(parseFile, parse, ParseResult, Module)
 import Control.Monad.State(State, evalState)
+import Data.List(partition)
 
 import Types(Icon, Edge(..), Drawing(..), NameAndPort(..), IDState,
   initialIdState, getId)
@@ -79,7 +80,6 @@ getUniqueName :: String -> State IDState String
 getUniqueName base = fmap ((base ++). show) getId
 
 -- TODO refactor with evalMatch
--- TODO use state here
 evalLambda :: EvalContext -> [Pat] -> Exp -> State IDState (IconGraph, NameAndPort)
 evalLambda c patterns e = do
   lambdaName <- getUniqueName "lam"
@@ -91,32 +91,28 @@ evalLambda c patterns e = do
     augmentedContext = patternStrings <> c
   rhsVal <- evalExp augmentedContext e
   let (rhsGraph, rhsResult) = coerceExpressionResult rhsVal
-  resultName <- getUniqueName "res"
+  resultIconName <- getUniqueName "res"
   let
-    rhsNewIcons = toNames [(resultName, ResultIcon)]
-    rhsNewEdges = [Edge (rhsResult, justName resultName) noEnds]
+    rhsNewIcons = toNames [(resultIconName, ResultIcon)]
+    rhsNewEdges = [Edge (rhsResult, justName resultIconName) noEnds]
     rhsGraphWithResult = rhsGraph <> IconGraph rhsNewIcons rhsNewEdges [] []
     rhsDrawing = iconGraphToDrawing rhsGraphWithResult
-  rhsDrawingName <- fmap DIA.toName $ getUniqueName "rhsDraw"
+  rhsDrawingName <- DIA.toName <$> getUniqueName "rhsDraw"
   let
-    icons = toNames [
-      (lambdaName, LambdaRegionIcon numParameters rhsDrawingName)
-      ]
+    icons = toNames [(lambdaName, LambdaRegionIcon numParameters rhsDrawingName)]
     (IconGraph _ _ _ boundVars) = rhsGraph
 
     qualifyNameAndPort :: String -> NameAndPort -> NameAndPort
     qualifyNameAndPort s (NameAndPort n p) = NameAndPort (s DIA..> n) p
 
-    boundVarsToEdge (s, np) =
-      Edge (source, qualifyNameAndPort lambdaName np) noEnds
-      where
-        source = fromMaybeError "evalMatch: bound var not found" $ lookup s patternStringMap
+    boundVarsToEdge (s, np) = Edge (source, np) noEnds where
+      source = fromMaybeError "evalMatch: bound var not found" $ lookup s patternStringMap
 
-    internalEdges = boundVarsToEdge <$> filter (\(s, _) -> s `elem` patternStrings) boundVars
-    drawing = IconGraph icons internalEdges [(rhsDrawingName, rhsDrawing)] []
-  return (drawing, justName lambdaName)
-
-
+    qualifiedBoundVars = fmap (\(s, np) -> (s, qualifyNameAndPort lambdaName np)) boundVars
+    (matchedBoundVars, unmatchedBoundVars) = partition (\(s, _) -> s `elem` patternStrings) qualifiedBoundVars
+    internalEdges = fmap boundVarsToEdge matchedBoundVars
+    drawing = IconGraph icons internalEdges [(rhsDrawingName, rhsDrawing)] unmatchedBoundVars
+  pure (drawing, justName lambdaName)
 
 
 evalExp :: EvalContext  -> Exp -> State IDState (Either String (IconGraph, NameAndPort))
@@ -124,7 +120,7 @@ evalExp c x = case x of
   Var n -> pure $ evalQName n c
   e@App{} -> evalApp (simplifyApp e) c
   Paren e -> evalExp c e
-  Lambda _ patterns e -> fmap Right $ evalLambda c patterns e
+  Lambda _ patterns e -> Right <$> evalLambda c patterns e
   -- TODO other cases
 
 -- | This is used by the rhs for identity (eg. y x = x)

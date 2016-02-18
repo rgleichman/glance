@@ -20,8 +20,8 @@ import Data.Maybe(fromMaybe)
 
 import Types(EdgeEnd(..), Edge(..), NameAndPort(..))
 
-mapFst :: (a -> b) -> [(a, c)] -> [(b, c)]
-mapFst f = map (first f)
+mapFst :: Functor f => (a -> b) -> f (a, c) -> f (b, c)
+mapFst f = fmap (first f)
 
 toNames :: (IsName a) => [(a, b)] -> [(Name, b)]
 toNames = mapFst toName

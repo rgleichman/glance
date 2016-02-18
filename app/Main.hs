@@ -13,7 +13,6 @@ import Translate(translateString)
 
 -- TODO Now --
 -- Use getUniqueName
--- Fix no edges for bound vars inside lambads inside functinos.
 -- Unique names for evalMatch.
 -- Handle duplicate names correctly.
 
@@ -263,13 +262,17 @@ main3 = do
       ]
 
 testDecls = [
+  "y = (\\x -> (\\x -> (\\x -> x) x) x)",
+  "y = (\\x -> (\\x -> (\\x -> x)))",
+  "y = (\\y -> y)",
+  "y = (\\x1 -> (\\x2 -> (\\x3 -> x1 x2 x3)))",
   "y x = (\\z -> x)",
   "y = (\\x -> (\\z -> x))",
-  "y x = x",
-  "y x = y x",
-  "y x = g y y",
-  "y f x = f x",
-  "y x = x y"
+  "y x = x"
+  -- "y x = y x",
+  -- "y x = g y y",
+  -- "y f x = f x",
+  -- "y x = x y"
   -- "y x1 x2 = f x1 x3 x2",
   -- "y x1 x2 = f x1 x2",
   -- "y x = f x1 x2",
