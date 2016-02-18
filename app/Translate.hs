@@ -49,7 +49,7 @@ evalQName (UnQual n) context = result where
 
 
 evalApp :: (Exp, [Exp]) -> EvalContext -> State IDState (Either String (IconGraph, NameAndPort))
-evalApp (funExp, argExps) c = do -- State Monad
+evalApp (funExp, argExps) c = do
   funVal <- evalExp c funExp
   argVals <- mapM (evalExp c) argExps
   newId <- getId
@@ -101,25 +101,28 @@ coerceExpressionResult (Right x) = x
 
 -- | First argument is the right hand side.
 -- The second arugement is a list of strings that are bound in the environment.
-evalRhs :: Rhs -> EvalContext -> (IconGraph, NameAndPort)
+evalRhs :: Rhs -> EvalContext -> State IDState (IconGraph, NameAndPort)
 evalRhs (UnGuardedRhs e) scope =
-  coerceExpressionResult $ evalState (evalExp scope e) initialIdState
+  coerceExpressionResult <$> evalExp scope e
 -- TODO implement other cases.
 --evalRhs (GuardedRhss _) _ = error "GuardedRhss not implemented"
 
-evalPatBind :: Decl -> IconGraph
-evalPatBind (PatBind _ pat rhs _) = graph <> rhsGraph where
-  patName = evalPattern pat
-  (rhsGraph, rhsNamePort) = evalRhs rhs []
-  icons = toNames [
-    (patName, TextBoxIcon patName)
-    --(rhsName, TextBoxIcon rhsName)
-    ]
-  edges = [
-    -- TODO use port here
-     Edge (justName patName, rhsNamePort) noEnds
-     ]
-  graph = IconGraph icons edges [] []
+evalPatBind :: Decl -> State IDState IconGraph
+evalPatBind (PatBind _ pat rhs _) = evalPatBindHelper <$> evalRhs rhs []
+  where
+    evalPatBindHelper (rhsGraph, rhsNamePort) = graph <> rhsGraph
+      where
+        patName = evalPattern pat
+
+        icons = toNames [
+          (patName, TextBoxIcon patName)
+          --(rhsName, TextBoxIcon rhsName)
+          ]
+        edges = [
+          -- TODO use port here
+           Edge (justName patName, rhsNamePort) noEnds
+           ]
+        graph = IconGraph icons edges [] []
 
 iconGraphToDrawing :: IconGraph -> Drawing
 iconGraphToDrawing (IconGraph icons edges subDrawings _) = Drawing icons edges subDrawings
@@ -174,20 +177,20 @@ evalLambda c patterns e = do
     drawing = IconGraph icons internalEdges [(rhsDrawingName, rhsDrawing)] unmatchedBoundVars
   pure (drawing, justName lambdaName)
 
-evalMatch :: Match -> IconGraph
-evalMatch (Match _ name patterns _ rhs _) = drawing
-  where
-    -- TODO unique names for lambdaName and resultName
-    lambdaName = "lam"
+evalMatch :: Match -> State IDState IconGraph
+evalMatch (Match _ name patterns _ rhs _) = do
+  lambdaName <- getUniqueName "lam"
+  let
     nameString = nameToString name
     extraVars = [(nameString, justName lambdaName)]
     (patternStringMap, patternStrings, numParameters) =
       processPatterns lambdaName patterns extraVars
 
-    rhsVal@(rhsGraph, _) = evalRhs rhs patternStrings
-    resultIconName = "res"
+  rhsVal@(rhsGraph, _) <- evalRhs rhs patternStrings
+  resultIconName <- getUniqueName "res"
+  rhsDrawingName <- DIA.toName <$> getUniqueName "rhsDraw"
+  let
     rhsDrawing = makeRhsDrawing resultIconName rhsVal
-    rhsDrawingName = DIA.toName "rhsDraw"
     icons = toNames [
       (lambdaName, LambdaRegionIcon numParameters rhsDrawingName),
       (nameString, TextBoxIcon nameString)
@@ -197,18 +200,20 @@ evalMatch (Match _ name patterns _ rhs _) = drawing
       makeInternalEdges lambdaName rhsGraph patternStrings patternStringMap
     drawing = IconGraph icons (externalEdges <> internalEdges)
       [(rhsDrawingName, rhsDrawing)] unmatchedBoundVars
+  pure drawing
 
 
-evalMatches :: [Match] -> IconGraph
-evalMatches [] = IconGraph [] [] [] []
+evalMatches :: [Match] -> State IDState IconGraph
+evalMatches [] = pure $ IconGraph [] [] [] []
 evalMatches [match] = evalMatch match
 -- TODO turn more than one match into a case expression.
 
 evalDecl :: Decl -> Drawing
-evalDecl d = iconGraphToDrawing $ case d of
-  pat@PatBind{} -> evalPatBind pat
-  FunBind matches -> evalMatches matches
-  -- TODO other cases
+evalDecl d = iconGraphToDrawing $ evalState evaluatedDecl initialIdState where
+  evaluatedDecl = case d of
+    pat@PatBind{} -> evalPatBind pat
+    FunBind matches -> evalMatches matches
+    -- TODO other cases
 
 translateString :: String -> (Drawing, Decl)
 translateString s = (drawing, decl) where
