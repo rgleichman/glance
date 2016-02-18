@@ -108,21 +108,15 @@ evalRhs (UnGuardedRhs e) scope =
 --evalRhs (GuardedRhss _) _ = error "GuardedRhss not implemented"
 
 evalPatBind :: Decl -> State IDState IconGraph
-evalPatBind (PatBind _ pat rhs _) = evalPatBindHelper <$> evalRhs rhs []
-  where
-    evalPatBindHelper (rhsGraph, rhsNamePort) = graph <> rhsGraph
-      where
-        patName = evalPattern pat
-
-        icons = toNames [
-          (patName, TextBoxIcon patName)
-          --(rhsName, TextBoxIcon rhsName)
-          ]
-        edges = [
-          -- TODO use port here
-           Edge (justName patName, rhsNamePort) noEnds
-           ]
-        graph = IconGraph icons edges [] []
+evalPatBind (PatBind _ pat rhs _) = do
+  let patName = evalPattern pat
+  (rhsGraph, rhsNamePort) <- evalRhs rhs []
+  uniquePatName <- getUniqueName patName
+  let
+    icons = toNames [(uniquePatName, TextBoxIcon patName)]
+    edges = [Edge (justName uniquePatName, rhsNamePort) noEnds]
+    graph = IconGraph icons edges [] []
+  pure $ graph <> rhsGraph
 
 iconGraphToDrawing :: IconGraph -> Drawing
 iconGraphToDrawing (IconGraph icons edges subDrawings _) = Drawing icons edges subDrawings
