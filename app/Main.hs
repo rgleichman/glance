@@ -12,9 +12,7 @@ import Types(Icon(..), Drawing(..), EdgeEnd(..))
 import Translate(translateString)
 
 -- TODO Now --
--- Use getUniqueName
--- Unique names for evalMatch.
--- Handle duplicate names correctly.
+-- Refactor evalApp to use combineExpressions
 
 -- TODO Later --
 -- Eliminate BranchIcon for the identity funciton "y x = x"
@@ -262,6 +260,9 @@ main3 = do
       ]
 
 testDecls = [
+  "y x1 x2 x3 = if f x1 then g x2 else h x3",
+  "y x1 x2 x3 = if x1 then x2 else x3",
+  "y = if b then x else n",
   "y = (\\x -> (\\x -> (\\x -> x) x) x)",
   "y = (\\x -> (\\x -> (\\x -> x)))",
   "y = (\\y -> y)",

@@ -29,6 +29,9 @@ instance Monoid IconGraph where
   mempty = IconGraph [] [] [] []
   mappend = (<>)
 
+getUniqueName :: String -> State IDState String
+getUniqueName base = fmap ((base ++). show) getId
+
 nameToString :: Language.Haskell.Exts.Name -> String
 nameToString (Ident s) = s
 nameToString (Symbol s) = s
@@ -47,12 +50,18 @@ evalQName (UnQual n) context = result where
     else Right (graph, justName nameString)
 -- TODO other cases
 
+combineExpressions :: [(Either String (IconGraph, NameAndPort), NameAndPort)] -> IconGraph
+combineExpressions portExpPairs = mconcat $ fmap mkGraph portExpPairs where
+  mkGraph portExpPair@(e, port) = case e of
+    Left str -> IconGraph mempty mempty mempty [(str, port)]
+    Right (graph, resultPort) -> newGraph <> graph where
+      newGraph = IconGraph mempty [Edge (resultPort, port) noEnds] mempty mempty
 
 evalApp :: (Exp, [Exp]) -> EvalContext -> State IDState (Either String (IconGraph, NameAndPort))
 evalApp (funExp, argExps) c = do
   funVal <- evalExp c funExp
   argVals <- mapM (evalExp c) argExps
-  newId <- getId
+  applyIconName <- DIA.toName <$> getUniqueName "app0"
   let
     -- TODO this can be refactored to return just a new graph with the added boundVar, or edge.
     getGraph :: (Monoid str, Monoid gr) => NameAndPort -> Either str (gr, NameAndPort) -> (gr, [Edge], [(str, NameAndPort)])
@@ -65,7 +74,6 @@ evalApp (funExp, argExps) c = do
     argumentPorts = map (nameAndPort applyIconName) [2,3..]
     (argGraphList, argEdgeList, argBoundVarList) = unzip3 $ zipWith getGraph argumentPorts argVals
     (argGraphs, argEdges, argBoundVars) = (mconcat argGraphList, mconcat argEdgeList, mconcat argBoundVarList)
-    applyIconName = DIA.toName $ "app0" ++ show newId
     icons = [(applyIconName, Apply0NIcon (length argExps))]
     newGraph = IconGraph icons (funEdges <> argEdges) mempty (funBoundVars <> argBoundVars)
   pure $ Right (newGraph <> funGr <> argGraphs, nameAndPort applyIconName 1)
@@ -77,8 +85,18 @@ simplifyApp (App exp1 exp2) = (funExp, args <> [exp2])
     (funExp, args) = simplifyApp exp1
 simplifyApp e = (e, [])
 
-getUniqueName :: String -> State IDState String
-getUniqueName base = fmap ((base ++). show) getId
+evalIf :: EvalContext -> Exp -> Exp -> Exp -> State IDState (IconGraph, NameAndPort)
+evalIf c e1 e2 e3 = do
+  e1Val <- evalExp c e1
+  e2Val <- evalExp c e2
+  e3Val <- evalExp c e3
+  guardName <- DIA.toName <$> getUniqueName "if"
+  let
+    icons = [(guardName, GuardIcon 2)]
+    combinedGraph =
+      combineExpressions $ zip [e1Val, e2Val, e3Val] (map (nameAndPort guardName) [3, 2, 4])
+    newGraph = IconGraph icons mempty mempty mempty <> combinedGraph
+  pure (newGraph, NameAndPort guardName (Just 0))
 
 evalExp :: EvalContext  -> Exp -> State IDState (Either String (IconGraph, NameAndPort))
 evalExp c x = case x of
@@ -86,6 +104,7 @@ evalExp c x = case x of
   e@App{} -> evalApp (simplifyApp e) c
   Paren e -> evalExp c e
   Lambda _ patterns e -> Right <$> evalLambda c patterns e
+  If e1 e2 e3 -> Right <$> evalIf c e1 e2 e3
   -- TODO other cases
 
 -- | This is used by the rhs for identity (eg. y x = x)
