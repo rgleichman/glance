@@ -12,7 +12,7 @@ import Types(Icon(..), Drawing(..), EdgeEnd(..))
 import Translate(translateString)
 
 -- TODO Now --
--- Refactor evalApp to use combineExpressions
+-- otherwise Guard special case
 
 -- TODO Later --
 -- Eliminate BranchIcon for the identity funciton "y x = x"
@@ -260,6 +260,11 @@ main3 = do
       ]
 
 testDecls = [
+  "y x\n\
+  \  | x == 0 = 1",
+  "y x\n\
+  \  | x == 0 = 1\n\
+  \  | otherwise = 2",
   "y = 1 + 2",
   "fact x = if (x == 0) then 1 else (fact x (x - 1))",
   "fact x = if ((==) 0 x) then 1 else (fact x ((-) x 1))",

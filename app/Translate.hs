@@ -6,8 +6,9 @@ module Translate(
 import qualified Diagrams.Prelude as DIA
 import Diagrams.Prelude((<>))
 
-import Language.Haskell.Exts(Decl(..), parseDecl,
-  Name(..), Pat(..), Rhs(..), Exp(..), QName(..), fromParseResult, Match(..), QOp(..)) --(parseFile, parse, ParseResult, Module)
+import Language.Haskell.Exts(Decl(..), parseDecl, Name(..), Pat(..), Rhs(..),
+  Exp(..), QName(..), fromParseResult, Match(..), QOp(..), GuardedRhs(..),
+  Stmt(..))
 import qualified Language.Haskell.Exts as Exts
 import Control.Monad.State(State, evalState)
 import Data.List(partition)
@@ -21,6 +22,7 @@ import Icons(Icon(..))
 data IconGraph = IconGraph [(DIA.Name, Icon)] [Edge] [(DIA.Name, Drawing)] [(String, NameAndPort)]
 
 type EvalContext = [String]
+type ESIGNAP = Either String (IconGraph, NameAndPort)
 
 instance DIA.Semigroup IconGraph where
   (IconGraph icons1 edges1 subDrawings1 context1) <> (IconGraph icons2 edges2 subDrawings2 context2) =
@@ -104,6 +106,31 @@ evalIf c e1 e2 e3 = do
     newGraph = IconGraph icons mempty mempty mempty <> combinedGraph
   pure (newGraph, NameAndPort guardName (Just 0))
 
+evalStmt :: EvalContext -> Stmt -> State IDState ESIGNAP
+evalStmt c (Qualifier e) = evalExp c e
+
+evalStmts :: EvalContext -> [Stmt] -> State IDState ESIGNAP
+evalStmts c [stmt] = evalStmt c stmt
+
+evalGuaredRhs :: EvalContext -> GuardedRhs -> State IDState (ESIGNAP, ESIGNAP)
+evalGuaredRhs c (GuardedRhs _ stmts e) = do
+  expVal <- evalExp c e
+  stmtsVal <- evalStmts c stmts
+  pure (stmtsVal, expVal)
+
+evalGuardedRhss :: EvalContext -> [GuardedRhs] -> State IDState (IconGraph, NameAndPort)
+evalGuardedRhss c rhss = do
+  guardName <- DIA.toName <$> getUniqueName "guard"
+  evaledRhss <- mapM (evalGuaredRhs c) rhss
+  let
+    (bools, exps) = unzip evaledRhss
+    expsWithPorts = zip exps $ map (nameAndPort guardName) [2,4..]
+    boolsWithPorts = zip bools $ map (nameAndPort guardName) [3,5..]
+    combindedGraph = combineExpressions $ expsWithPorts <> boolsWithPorts
+    icons = [(guardName, GuardIcon (length rhss))]
+    newGraph = IconGraph icons mempty mempty mempty <> combindedGraph
+  pure (newGraph, NameAndPort guardName (Just 0))
+
 evalLit :: Exts.Literal -> State IDState (IconGraph, NameAndPort)
 evalLit (Exts.Int x) = do
   let str = show x
@@ -136,8 +163,9 @@ coerceExpressionResult (Right x) = x
 -- | First argument is the right hand side.
 -- The second arugement is a list of strings that are bound in the environment.
 evalRhs :: Rhs -> EvalContext -> State IDState (IconGraph, NameAndPort)
-evalRhs (UnGuardedRhs e) scope =
-  coerceExpressionResult <$> evalExp scope e
+evalRhs (UnGuardedRhs e) c =
+  coerceExpressionResult <$> evalExp c e
+evalRhs (GuardedRhss rhss) c = evalGuardedRhss c rhss
 -- TODO implement other cases.
 --evalRhs (GuardedRhss _) _ = error "GuardedRhss not implemented"
 
