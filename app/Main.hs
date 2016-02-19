@@ -260,7 +260,9 @@ main3 = do
       ]
 
 testDecls = [
-  "fact x = if ((==) 0 x) then 1 else (fact x ((-) 1 x))",
+  "y = 1 + 2",
+  "fact x = if (x == 0) then 1 else (fact x (x - 1))",
+  "fact x = if ((==) 0 x) then 1 else (fact x ((-) x 1))",
   "y x = if x then (if z then q else x) else w",
   "y x1 x2 x3 = if f x1 then g x2 else h x3",
   "y x1 x2 x3 = if x1 then x2 else x3",
@@ -300,7 +302,7 @@ translateStringToDrawing s = do
 main4 :: IO ()
 main4 = do
   drawings <- mapM translateStringToDrawing testDecls
-  let vCattedDrawings = vcat' (with & sep .~ 0.5) drawings
+  let vCattedDrawings = vcat' (with & sep .~ 0.5) $ fmap alignL drawings
   mainWith ((vCattedDrawings # bgFrame 1 (backgroundC colorScheme)) :: Diagram B)
 
 main :: IO ()

@@ -7,7 +7,7 @@ import qualified Diagrams.Prelude as DIA
 import Diagrams.Prelude((<>))
 
 import Language.Haskell.Exts(Decl(..), parseDecl,
-  Name(..), Pat(..), Rhs(..), Exp(..), QName(..), fromParseResult, Match(..)) --(parseFile, parse, ParseResult, Module)
+  Name(..), Pat(..), Rhs(..), Exp(..), QName(..), fromParseResult, Match(..), QOp(..)) --(parseFile, parse, ParseResult, Module)
 import qualified Language.Haskell.Exts as Exts
 import Control.Monad.State(State, evalState)
 import Data.List(partition)
@@ -51,6 +51,9 @@ evalQName (UnQual n) context = result where
     else Right (graph, justName nameString)
 -- TODO other cases
 
+evalQOp (QVarOp n) = evalQName n
+evalQOp (QConOp n) = evalQName n
+
 combineExpressions :: [(Either String (IconGraph, NameAndPort), NameAndPort)] -> IconGraph
 combineExpressions portExpPairs = mconcat $ fmap mkGraph portExpPairs where
   mkGraph portExpPair@(e, port) = case e of
@@ -58,18 +61,28 @@ combineExpressions portExpPairs = mconcat $ fmap mkGraph portExpPairs where
     Right (graph, resultPort) -> newGraph <> graph where
       newGraph = IconGraph mempty [Edge (resultPort, port) noEnds] mempty mempty
 
+makeApplyGraph :: DIA.Name -> Either String (IconGraph, NameAndPort) -> [Either String (IconGraph, NameAndPort)] -> Int -> (IconGraph, NameAndPort)
+makeApplyGraph applyIconName funVal argVals numArgs = (newGraph <> combinedGraph, nameAndPort applyIconName 1)
+  where
+    argumentPorts = map (nameAndPort applyIconName) [2,3..]
+    functionPort = nameAndPort applyIconName 0
+    combinedGraph = combineExpressions $ zip (funVal:argVals) (functionPort:argumentPorts)
+    icons = [(applyIconName, Apply0NIcon numArgs)]
+    newGraph = IconGraph icons mempty mempty mempty
+
 evalApp :: (Exp, [Exp]) -> EvalContext -> State IDState (IconGraph, NameAndPort)
 evalApp (funExp, argExps) c = do
   funVal <- evalExp c funExp
   argVals <- mapM (evalExp c) argExps
   applyIconName <- DIA.toName <$> getUniqueName "app0"
-  let
-    argumentPorts = map (nameAndPort applyIconName) [2,3..]
-    functionPort = nameAndPort applyIconName 0
-    combinedGraph = combineExpressions $ zip (funVal:argVals) (functionPort:argumentPorts)
-    icons = [(applyIconName, Apply0NIcon (length argExps))]
-    newGraph = IconGraph icons mempty mempty mempty
-  pure (newGraph <> combinedGraph, nameAndPort applyIconName 1)
+  pure $ makeApplyGraph applyIconName funVal argVals (length argExps)
+
+evalInfixApp :: EvalContext -> Exp -> QOp -> Exp -> State IDState (IconGraph, NameAndPort)
+evalInfixApp c e1 op e2 = do
+  argVals <- mapM (evalExp c) [e1, e2]
+  applyIconName <- DIA.toName <$> getUniqueName "app0"
+  let funVal = evalQOp op c
+  pure $ makeApplyGraph applyIconName funVal argVals 2
 
 -- TODO add test for this function
 simplifyApp :: Exp -> (Exp, [Exp])
@@ -106,6 +119,7 @@ evalExp c x = case x of
   Lambda _ patterns e -> Right <$> evalLambda c patterns e
   If e1 e2 e3 -> Right <$> evalIf c e1 e2 e3
   Lit l -> Right <$> evalLit l
+  InfixApp e1 op e2 -> Right <$> evalInfixApp c e1 op e2
   -- TODO other cases
 
 -- | This is used by the rhs for identity (eg. y x = x)
