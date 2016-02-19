@@ -12,6 +12,7 @@ import Types(Icon(..), Drawing(..), EdgeEnd(..))
 import Translate(translateString)
 
 -- TODO Now --
+-- Add more literals
 -- otherwise Guard special case
 
 -- TODO Later --
@@ -260,6 +261,7 @@ main3 = do
       ]
 
 testDecls = [
+  "y = f 1 'c' 2.3 \"foobar\"",
   "y x\n\
   \  | x == 0 = 1",
   "y x\n\

@@ -53,12 +53,13 @@ evalQName (UnQual n) context = result where
     else Right (graph, justName nameString)
 -- TODO other cases
 
+evalQOp :: QOp -> EvalContext -> Either String (IconGraph, NameAndPort)
 evalQOp (QVarOp n) = evalQName n
 evalQOp (QConOp n) = evalQName n
 
 combineExpressions :: [(Either String (IconGraph, NameAndPort), NameAndPort)] -> IconGraph
 combineExpressions portExpPairs = mconcat $ fmap mkGraph portExpPairs where
-  mkGraph portExpPair@(e, port) = case e of
+  mkGraph (e, port) = case e of
     Left str -> IconGraph mempty mempty mempty [(str, port)]
     Right (graph, resultPort) -> newGraph <> graph where
       newGraph = IconGraph mempty [Edge (resultPort, port) noEnds] mempty mempty
@@ -131,12 +132,27 @@ evalGuardedRhss c rhss = do
     newGraph = IconGraph icons mempty mempty mempty <> combindedGraph
   pure (newGraph, NameAndPort guardName (Just 0))
 
-evalLit :: Exts.Literal -> State IDState (IconGraph, NameAndPort)
-evalLit (Exts.Int x) = do
+makeLiteral :: (Show x) => x -> State IDState (IconGraph, NameAndPort)
+makeLiteral x = do
   let str = show x
   name <- DIA.toName <$> getUniqueName str
   let graph = IconGraph [(DIA.toName name, TextBoxIcon str)] mempty mempty mempty
   pure (graph, justName name)
+
+evalLit :: Exts.Literal -> State IDState (IconGraph, NameAndPort)
+evalLit (Exts.Int x) = makeLiteral x
+evalLit (Exts.Char x) = makeLiteral x
+evalLit (Exts.String x) = makeLiteral x
+-- TODO: Print the Rational as a floating point.
+evalLit (Exts.Frac x) = makeLiteral x
+-- TODO: Test the unboxed literals
+evalLit (Exts.PrimInt x) = makeLiteral x
+evalLit (Exts.PrimWord x) = makeLiteral x
+evalLit (Exts.PrimFloat x) = makeLiteral x
+evalLit (Exts.PrimDouble x) = makeLiteral x
+evalLit (Exts.PrimChar x) = makeLiteral x
+evalLit (Exts.PrimString x) = makeLiteral x
+
 
 evalExp :: EvalContext  -> Exp -> State IDState (Either String (IconGraph, NameAndPort))
 evalExp c x = case x of
