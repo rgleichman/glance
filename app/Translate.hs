@@ -8,6 +8,7 @@ import Diagrams.Prelude((<>))
 
 import Language.Haskell.Exts(Decl(..), parseDecl,
   Name(..), Pat(..), Rhs(..), Exp(..), QName(..), fromParseResult, Match(..)) --(parseFile, parse, ParseResult, Module)
+import qualified Language.Haskell.Exts as Exts
 import Control.Monad.State(State, evalState)
 import Data.List(partition)
 import qualified Control.Arrow
@@ -90,6 +91,13 @@ evalIf c e1 e2 e3 = do
     newGraph = IconGraph icons mempty mempty mempty <> combinedGraph
   pure (newGraph, NameAndPort guardName (Just 0))
 
+evalLit :: Exts.Literal -> State IDState (IconGraph, NameAndPort)
+evalLit (Exts.Int x) = do
+  let str = show x
+  name <- DIA.toName <$> getUniqueName str
+  let graph = IconGraph [(DIA.toName name, TextBoxIcon str)] mempty mempty mempty
+  pure (graph, justName name)
+
 evalExp :: EvalContext  -> Exp -> State IDState (Either String (IconGraph, NameAndPort))
 evalExp c x = case x of
   Var n -> pure $ evalQName n c
@@ -97,6 +105,7 @@ evalExp c x = case x of
   Paren e -> evalExp c e
   Lambda _ patterns e -> Right <$> evalLambda c patterns e
   If e1 e2 e3 -> Right <$> evalIf c e1 e2 e3
+  Lit l -> Right <$> evalLit l
   -- TODO other cases
 
 -- | This is used by the rhs for identity (eg. y x = x)
@@ -220,6 +229,7 @@ evalDecl d = iconGraphToDrawing $ evalState evaluatedDecl initialIdState where
     FunBind matches -> evalMatches matches
     -- TODO other cases
 
+-- Profiling: about 1.5% of time.
 translateString :: String -> (Drawing, Decl)
 translateString s = (drawing, decl) where
   parseResult = parseDecl s -- :: ParseResult Module

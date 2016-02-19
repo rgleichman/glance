@@ -83,7 +83,7 @@ lineCol :: (Floating a, Ord a) => Colour a
 lineCol = lineC colorScheme
 
 -- FUNCTIONS --
-
+-- Optimization: The apply0NDia's can be memoized.
 iconToDiagram ::
    (RealFloat n, Typeable n, Renderable (Path V2 n) b,
       Renderable (Text n) b) =>

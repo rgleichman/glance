@@ -260,6 +260,8 @@ main3 = do
       ]
 
 testDecls = [
+  "fact x = if ((==) 0 x) then 1 else (fact x ((-) 1 x))",
+  "y x = if x then (if z then q else x) else w",
   "y x1 x2 x3 = if f x1 then g x2 else h x3",
   "y x1 x2 x3 = if x1 then x2 else x3",
   "y = if b then x else n",
@@ -269,20 +271,20 @@ testDecls = [
   "y = (\\x1 -> (\\x2 -> (\\x3 -> x1 x2 x3)))",
   "y x = (\\z -> x)",
   "y = (\\x -> (\\z -> x))",
-  "y x = x"
-  -- "y x = y x",
-  -- "y x = g y y",
-  -- "y f x = f x",
-  -- "y x = x y"
-  -- "y x1 x2 = f x1 x3 x2",
-  -- "y x1 x2 = f x1 x2",
-  -- "y x = f x1 x2",
-  -- "y2 = f x1 x2 x3 x4",
-  -- "y = x",
-  -- "y = f x",
-  -- "y = f (g x)",
-  -- "y = f (g x1 x2) x3",
-  -- "y = (f x1 x2) (g x1 x2)"
+  "y x = x",
+  "y x = y x",
+  "y x = g y y",
+  "y f x = f x",
+  "y x = x y",
+  "y x1 x2 = f x1 x3 x2",
+  "y x1 x2 = f x1 x2",
+  "y x = f x1 x2",
+  "y2 = f x1 x2 x3 x4",
+  "y = x",
+  "y = f x",
+  "y = f (g x)",
+  "y = f (g x1 x2) x3",
+  "y = (f x1 x2) (g x1 x2)"
   ]
 
 translateStringToDrawing :: String -> IO (Diagram B)
