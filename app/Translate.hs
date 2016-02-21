@@ -180,12 +180,17 @@ printSelf :: (Show a) => a -> a
 printSelf a = Debug.Trace.trace (show a ++ "\n\n") a
 
 -- | Recursivly find the matching reference in a list of bindings.
--- TODO: Don't infinitly loop here if there is a cycle.
+-- TODO: Might want to present some indication if there is a reference cycle.
 lookupReference :: [(String, Reference)] -> Reference -> Reference
 lookupReference _ ref@(Right p) = ref
-lookupReference bindings ref@(Left s) = case lookup s bindings of
-  Just r -> lookupReference bindings r
-  Nothing -> ref
+lookupReference bindings ref@(Left originalS) = lookupHelper ref where
+  lookupHelper ref@(Right p) = ref
+  lookupHelper ref@(Left s)= case lookup s bindings of
+    Just r -> failIfCycle r $ lookupHelper r
+    Nothing -> ref
+    where
+      failIfCycle r@(Left newStr) res = if newStr == originalS then r else res
+      failIfCycle _ res = res
 
 deleteBindings :: IconGraph -> IconGraph
 deleteBindings (IconGraph a b c d _) = IconGraph a b c d mempty

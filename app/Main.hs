@@ -12,6 +12,7 @@ import Types(Icon(..), Drawing(..), EdgeEnd(..))
 import Translate(translateString)
 
 -- TODO Now --
+-- Fix recursive binds outside of a let.
 -- otherwise Guard special case
 
 -- TODO Later --
@@ -260,7 +261,13 @@ main3 = do
       ]
 
 letTests = [
-  -- TODO: this will cause Translate to loop "y = let x = x in x",
+  "y = let {a = b; b = a; d = f a} in d",
+  "y = let {a = b; b = a} in a",
+  "y = let x = x in x",
+  "y = let {fibs = cons 0 (cons 1 (zipWith (+) fibs (tail fibs)))} in fibs",
+  "fibs = cons 0 (cons 1 (zipWith (+) fibs (tail fibs)))",
+  "y = let x = f x in x",
+  "y = f y",
   "y = let {a = f b; b = g a} in b",
   "y = let {a = 48; b = a + 3} in b",
   "y = let {b = a; a = 84} in f b",
@@ -307,8 +314,8 @@ otherTests = [
   ]
 
 testDecls = mconcat [
-  letTests,
-  otherTests
+  letTests
+  ,otherTests
   ]
 
 translateStringToDrawing :: String -> IO (Diagram B)
