@@ -20,12 +20,12 @@ import Types(Icon, Edge(..), Drawing(..), NameAndPort(..), IDState,
 import Util(toNames, noEnds, nameAndPort, justName, fromMaybeError)
 import Icons(Icon(..))
 
--- type Reference = Either String NameAndPort
+type Reference = Either String NameAndPort
 data IconGraph = IconGraph [(DIA.Name, Icon)] [Edge] [(DIA.Name, Drawing)] [(String, NameAndPort)]
   deriving (Show)
 
 type EvalContext = [String]
-type ESIGNAP = Either String (IconGraph, NameAndPort)
+type GraphAndRef = (IconGraph, Reference)
 
 instance DIA.Semigroup IconGraph where
   (IconGraph icons1 edges1 subDrawings1 context1) <> (IconGraph icons2 edges2 subDrawings2 context2) =
@@ -47,27 +47,26 @@ evalPattern p = case p of
   PVar n -> nameToString n
   -- TODO other cases
 
-evalQName :: QName -> EvalContext -> Either String (IconGraph, NameAndPort)
+evalQName :: QName -> EvalContext -> (IconGraph, Reference)
 evalQName (UnQual n) context = result where
   nameString = nameToString n
   graph = IconGraph [(DIA.toName nameString, TextBoxIcon nameString)] mempty mempty mempty
   result = if nameString `elem` context
-    then Left nameString
-    else Right (graph, justName nameString)
+    then (mempty, Left nameString)
+    else (graph, Right $ justName nameString)
 -- TODO other cases
 
-evalQOp :: QOp -> EvalContext -> Either String (IconGraph, NameAndPort)
+evalQOp :: QOp -> EvalContext -> (IconGraph, Reference)
 evalQOp (QVarOp n) = evalQName n
 evalQOp (QConOp n) = evalQName n
 
-combineExpressions :: [(Either String (IconGraph, NameAndPort), NameAndPort)] -> IconGraph
+combineExpressions :: [((IconGraph, Reference), NameAndPort)] -> IconGraph
 combineExpressions portExpPairs = mconcat $ fmap mkGraph portExpPairs where
-  mkGraph (e, port) = case e of
+  mkGraph ((graph, ref), port) = graph <> case ref of
     Left str -> IconGraph mempty mempty mempty [(str, port)]
-    Right (graph, resultPort) -> newGraph <> graph where
-      newGraph = IconGraph mempty [Edge (resultPort, port) noEnds] mempty mempty
+    Right resultPort -> IconGraph mempty [Edge (resultPort, port) noEnds] mempty mempty
 
-makeApplyGraph :: DIA.Name -> Either String (IconGraph, NameAndPort) -> [Either String (IconGraph, NameAndPort)] -> Int -> (IconGraph, NameAndPort)
+makeApplyGraph :: DIA.Name -> (IconGraph, Reference) -> [(IconGraph, Reference)] -> Int -> (IconGraph, NameAndPort)
 makeApplyGraph applyIconName funVal argVals numArgs = (newGraph <> combinedGraph, nameAndPort applyIconName 1)
   where
     argumentPorts = map (nameAndPort applyIconName) [2,3..]
@@ -110,13 +109,13 @@ evalIf c e1 e2 e3 = do
     newGraph = IconGraph icons mempty mempty mempty <> combinedGraph
   pure (newGraph, NameAndPort guardName (Just 0))
 
-evalStmt :: EvalContext -> Stmt -> State IDState ESIGNAP
+evalStmt :: EvalContext -> Stmt -> State IDState GraphAndRef
 evalStmt c (Qualifier e) = evalExp c e
 
-evalStmts :: EvalContext -> [Stmt] -> State IDState ESIGNAP
+evalStmts :: EvalContext -> [Stmt] -> State IDState GraphAndRef
 evalStmts c [stmt] = evalStmt c stmt
 
-evalGuaredRhs :: EvalContext -> GuardedRhs -> State IDState (ESIGNAP, ESIGNAP)
+evalGuaredRhs :: EvalContext -> GuardedRhs -> State IDState (GraphAndRef, GraphAndRef)
 evalGuaredRhs c (GuardedRhs _ stmts e) = do
   expVal <- evalExp c e
   stmtsVal <- evalStmts c stmts
@@ -184,15 +183,15 @@ evalLet c bs e = do
   let (expGraph, expResult) = expVal
   pure $ printSelf (expGraph <> bindGraph, expResult)
 
-evalExp :: EvalContext  -> Exp -> State IDState (Either String (IconGraph, NameAndPort))
+evalExp :: EvalContext  -> Exp -> State IDState (IconGraph, Reference)
 evalExp c x = case x of
   Var n -> pure $ evalQName n c
-  Lit l -> Right <$> evalLit l
-  InfixApp e1 op e2 -> Right <$> evalInfixApp c e1 op e2
-  e@App{} -> Right <$> evalApp (simplifyApp e) c
-  Lambda _ patterns e -> Right <$> evalLambda c patterns e
-  Let bs e -> Right <$> evalLet c bs e
-  If e1 e2 e3 -> Right <$> evalIf c e1 e2 e3
+  Lit l -> fmap Right <$> evalLit l
+  InfixApp e1 op e2 -> fmap Right <$> evalInfixApp c e1 op e2
+  e@App{} -> fmap Right <$> evalApp (simplifyApp e) c
+  Lambda _ patterns e -> fmap Right <$> evalLambda c patterns e
+  Let bs e -> fmap Right <$> evalLet c bs e
+  If e1 e2 e3 -> fmap Right <$> evalIf c e1 e2 e3
   Paren e -> evalExp c e
   -- TODO other cases
 
@@ -203,16 +202,16 @@ makeDummyRhs s = (graph, port) where
   icons = [(DIA.toName s, BranchIcon)]
   port = justName s
 
-coerceExpressionResult :: Either String (IconGraph, NameAndPort) -> (IconGraph, NameAndPort)
-coerceExpressionResult (Left str) = makeDummyRhs str
-coerceExpressionResult (Right x) = x
+coerceExpressionResult :: (IconGraph, Reference) -> (IconGraph, NameAndPort)
+coerceExpressionResult (_, Left str) = makeDummyRhs str
+coerceExpressionResult (g, Right x) = (g, x)
 
 -- | First argument is the right hand side.
 -- The second arugement is a list of strings that are bound in the environment.
-evalRhs :: Rhs -> EvalContext -> State IDState ESIGNAP
+evalRhs :: Rhs -> EvalContext -> State IDState (IconGraph, Reference)
 evalRhs (UnGuardedRhs e) c = evalExp c e
 --  coerceExpressionResult <$> evalExp c e
-evalRhs (GuardedRhss rhss) c = Right <$> evalGuardedRhss c rhss
+evalRhs (GuardedRhss rhss) c = fmap Right <$> evalGuardedRhss c rhss
 -- TODO implement other cases.
 --evalRhs (GuardedRhss _) _ = error "GuardedRhss not implemented"
 
@@ -223,11 +222,12 @@ evalPatBind c (PatBind _ pat rhs _) = do
   rhsVal <- evalRhs rhs c
   uniquePatName <- getUniqueName patName
   let
-    gr = case rhsVal of
+    (rhsGraph, rhsRef) = rhsVal
+    gr = case rhsRef of
       -- TODO: Add bindings here.
       --(Left str) -> IconGraph mempty mempty mempty [(patName, Left str)]
-      (Left _) -> IconGraph mempty mempty mempty mempty
-      (Right (rhsGraph, rhsNamePort)) -> graph <> rhsGraph
+      (Left _) -> mempty
+      (Right rhsNamePort) -> graph
         where
           icons = toNames [(uniquePatName, TextBoxIcon patName)]
           edges = [Edge (justName uniquePatName, rhsNamePort) noEnds]
@@ -237,7 +237,7 @@ evalPatBind c (PatBind _ pat rhs _) = do
             then mempty
             else IconGraph icons edges mempty mempty
           --pure $ graph <> rhsGraph
-  pure gr
+  pure (gr <> rhsGraph)
 
 iconGraphToDrawing :: IconGraph -> Drawing
 iconGraphToDrawing (IconGraph icons edges subDrawings _) = Drawing icons edges subDrawings
