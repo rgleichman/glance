@@ -259,12 +259,18 @@ main3 = do
       arrowTestDrawing
       ]
 
-testDecls = [
+letTests = [
+  -- TODO: this will cause Translate to loop "y = let x = x in x",
+  "y = let {a = f b; b = g a} in b",
+  "y = let {a = 48; b = a + 3} in b",
   "y = let {b = a; a = 84} in f b",
   "y = let {x = 1} in f x",
   "y = let z = 2 in z",
   "y = let {z = 3; z2 = z} in z2",
-  "y x = let z = x in z",
+  "y x = let z = x in z"
+  ]
+
+otherTests = [
   "y = f 1 'c' 2.3 \"foobar\"",
   "y x\n\
   \  | x == 0 = 1",
@@ -298,6 +304,11 @@ testDecls = [
   "y = f (g x)",
   "y = f (g x1 x2) x3",
   "y = (f x1 x2) (g x1 x2)"
+  ]
+
+testDecls = mconcat [
+  letTests,
+  otherTests
   ]
 
 translateStringToDrawing :: String -> IO (Diagram B)

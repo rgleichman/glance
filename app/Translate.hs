@@ -180,6 +180,7 @@ printSelf :: (Show a) => a -> a
 printSelf a = Debug.Trace.trace (show a ++ "\n\n") a
 
 -- | Recursivly find the matching reference in a list of bindings.
+-- TODO: Don't infinitly loop here if there is a cycle.
 lookupReference :: [(String, Reference)] -> Reference -> Reference
 lookupReference _ ref@(Right p) = ref
 lookupReference bindings ref@(Left s) = case lookup s bindings of
@@ -198,16 +199,17 @@ makeEdgesFromBindings bindings sinks = edges where
       _ -> []
     Nothing -> []
 
+-- TODO: This should remove the sinks that have been matched and turned into edges.
 evalLet :: EvalContext -> Binds -> Exp -> State IDState (IconGraph, Reference)
 evalLet c bs e = do
   (bindGraph, bindContext) <- evalBinds c bs
   expVal <- evalExp bindContext e
   let
     (expGraph, expResult) = expVal
-    (IconGraph _ _ _ _ bindings) = bindGraph
+    (IconGraph _ _ _ bindingsSinks bindings) = bindGraph
     bindGraphWithoutBindings = deleteBindings bindGraph
     (IconGraph _ _ _ expSinks _) = expGraph
-    newEdges = makeEdgesFromBindings bindings expSinks
+    newEdges = makeEdgesFromBindings bindings (expSinks <> bindingsSinks)
     newEdgeGraph = iconGraphFromIconsEdges mempty newEdges
   pure $ printSelf (newEdgeGraph <> expGraph <> bindGraphWithoutBindings, lookupReference bindings expResult)
 
