@@ -168,26 +168,35 @@ getBoundVarName (PatBind _ pat _ _) = evalPattern pat
 getBoundVarName (FunBind [Match _ name _ _ _ _]) = nameToString name
 
 --TODO: This needs to add all the extra edges.
-evalBinds :: EvalContext -> Binds -> State IDState ([(String, IconGraph)], EvalContext)
+evalBinds :: EvalContext -> Binds -> State IDState (IconGraph, EvalContext)
 evalBinds c (BDecls decls) = do
   let
     boundNames = fmap getBoundVarName decls
     augmentedContext = boundNames <> c
-  evaledDecls <- mapM (evalDecl augmentedContext) decls
-  pure (zip boundNames evaledDecls, augmentedContext)
+  evaledDecl <- mconcat <$> mapM (evalDecl augmentedContext) decls
+  pure (evaledDecl, augmentedContext)
 
 printSelf :: (Show a) => a -> a
 printSelf a = Debug.Trace.trace (show a ++ "\n\n") a
 
-evalLet :: EvalContext -> Binds -> Exp -> State IDState (IconGraph, NameAndPort)
+lookupReference :: [(String, Reference)] -> Reference -> Reference
+lookupReference _ ref@(Right p) = ref
+lookupReference bindings ref@(Left s) = case lookup s bindings of
+  Just r -> lookupReference bindings r
+  Nothing -> ref
+
+deleteBindings :: IconGraph -> IconGraph
+deleteBindings (IconGraph a b c d _) = IconGraph a b c d mempty
+
+evalLet :: EvalContext -> Binds -> Exp -> State IDState (IconGraph, Reference)
 evalLet c bs e = do
-  (bindNamesAndGraphs, bindContext) <- evalBinds c bs
+  (bindGraph, bindContext) <- evalBinds c bs
+  expVal <- evalExp bindContext e
   let
-    (bindNames, bindGraphs) = unzip bindNamesAndGraphs
-    bindGraph = mconcat bindGraphs
-  expVal <- coerceExpressionResult <$> evalExp bindContext e
-  let (expGraph, expResult) = expVal
-  pure $ printSelf (expGraph <> bindGraph, expResult)
+    (expGraph, expResult) = expVal
+    (IconGraph _ _ _ _ bindings) = bindGraph
+    bindGraphWithoutBindings = deleteBindings bindGraph
+  pure $ printSelf (expGraph <> bindGraphWithoutBindings, lookupReference bindings expResult)
 
 evalExp :: EvalContext  -> Exp -> State IDState (IconGraph, Reference)
 evalExp c x = case x of
@@ -196,7 +205,7 @@ evalExp c x = case x of
   InfixApp e1 op e2 -> fmap Right <$> evalInfixApp c e1 op e2
   e@App{} -> fmap Right <$> evalApp (simplifyApp e) c
   Lambda _ patterns e -> fmap Right <$> evalLambda c patterns e
-  Let bs e -> fmap Right <$> evalLet c bs e
+  Let bs e -> evalLet c bs e
   If e1 e2 e3 -> fmap Right <$> evalIf c e1 e2 e3
   Paren e -> evalExp c e
 
@@ -219,12 +228,10 @@ evalRhs (GuardedRhss rhss) c = fmap Right <$> evalGuardedRhss c rhss
 
 evalPatBind :: EvalContext -> Decl -> State IDState IconGraph
 evalPatBind c (PatBind _ pat rhs _) = do
-  let patName = evalPattern pat
-  --(rhsGraph, rhsNamePort) <- evalRhs rhs c
-  rhsVal <- evalRhs rhs c
-  uniquePatName <- getUniqueName patName
+  -- TODO replace do with fmap
+  (rhsGraph, rhsRef) <- evalRhs rhs c
   let
-    (rhsGraph, rhsRef) = rhsVal
+    patName = evalPattern pat
     bindings = [(patName, rhsRef)]
     gr = IconGraph mempty mempty mempty mempty bindings
   pure (gr <> rhsGraph)
