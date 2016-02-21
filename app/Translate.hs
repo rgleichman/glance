@@ -8,18 +8,21 @@ import Diagrams.Prelude((<>))
 
 import Language.Haskell.Exts(Decl(..), parseDecl, Name(..), Pat(..), Rhs(..),
   Exp(..), QName(..), fromParseResult, Match(..), QOp(..), GuardedRhs(..),
-  Stmt(..))
+  Stmt(..), Binds(..))
 import qualified Language.Haskell.Exts as Exts
 import Control.Monad.State(State, evalState)
 import Data.List(partition)
 import qualified Control.Arrow
+import Debug.Trace
 
 import Types(Icon, Edge(..), Drawing(..), NameAndPort(..), IDState,
   initialIdState, getId)
 import Util(toNames, noEnds, nameAndPort, justName, fromMaybeError)
 import Icons(Icon(..))
 
+-- type Reference = Either String NameAndPort
 data IconGraph = IconGraph [(DIA.Name, Icon)] [Edge] [(DIA.Name, Drawing)] [(String, NameAndPort)]
+  deriving (Show)
 
 type EvalContext = [String]
 type ESIGNAP = Either String (IconGraph, NameAndPort)
@@ -153,16 +156,44 @@ evalLit (Exts.PrimDouble x) = makeLiteral x
 evalLit (Exts.PrimChar x) = makeLiteral x
 evalLit (Exts.PrimString x) = makeLiteral x
 
+-- TODO doing this extra pass here with getBoundVarName suggests that the code should be converted
+-- into an intermediate form before conversion to an IconGraph
+getBoundVarName :: Decl -> String
+getBoundVarName (PatBind _ pat _ _) = evalPattern pat
+getBoundVarName (FunBind [Match _ name _ _ _ _]) = nameToString name
+
+--TODO: This needs to add all the extra edges.
+evalBinds :: EvalContext -> Binds -> State IDState ([(String, IconGraph)], EvalContext)
+evalBinds c (BDecls decls) = do
+  let
+    boundNames = fmap getBoundVarName decls
+    augmentedContext = boundNames <> c
+  evaledDecls <- mapM (evalDecl augmentedContext) decls
+  pure (zip boundNames evaledDecls, augmentedContext)
+
+printSelf :: (Show a) => a -> a
+printSelf a = Debug.Trace.trace (show a ++ "\n\n") a
+
+evalLet :: EvalContext -> Binds -> Exp -> State IDState (IconGraph, NameAndPort)
+evalLet c bs e = do
+  (bindNamesAndGraphs, bindContext) <- evalBinds c bs
+  let
+    (bindNames, bindGraphs) = unzip bindNamesAndGraphs
+    bindGraph = mconcat bindGraphs
+  expVal <- coerceExpressionResult <$> evalExp bindContext e
+  let (expGraph, expResult) = expVal
+  pure $ printSelf (expGraph <> bindGraph, expResult)
 
 evalExp :: EvalContext  -> Exp -> State IDState (Either String (IconGraph, NameAndPort))
 evalExp c x = case x of
   Var n -> pure $ evalQName n c
-  e@App{} -> Right <$> evalApp (simplifyApp e) c
-  Paren e -> evalExp c e
-  Lambda _ patterns e -> Right <$> evalLambda c patterns e
-  If e1 e2 e3 -> Right <$> evalIf c e1 e2 e3
   Lit l -> Right <$> evalLit l
   InfixApp e1 op e2 -> Right <$> evalInfixApp c e1 op e2
+  e@App{} -> Right <$> evalApp (simplifyApp e) c
+  Lambda _ patterns e -> Right <$> evalLambda c patterns e
+  Let bs e -> Right <$> evalLet c bs e
+  If e1 e2 e3 -> Right <$> evalIf c e1 e2 e3
+  Paren e -> evalExp c e
   -- TODO other cases
 
 -- | This is used by the rhs for identity (eg. y x = x)
@@ -178,23 +209,35 @@ coerceExpressionResult (Right x) = x
 
 -- | First argument is the right hand side.
 -- The second arugement is a list of strings that are bound in the environment.
-evalRhs :: Rhs -> EvalContext -> State IDState (IconGraph, NameAndPort)
-evalRhs (UnGuardedRhs e) c =
-  coerceExpressionResult <$> evalExp c e
-evalRhs (GuardedRhss rhss) c = evalGuardedRhss c rhss
+evalRhs :: Rhs -> EvalContext -> State IDState ESIGNAP
+evalRhs (UnGuardedRhs e) c = evalExp c e
+--  coerceExpressionResult <$> evalExp c e
+evalRhs (GuardedRhss rhss) c = Right <$> evalGuardedRhss c rhss
 -- TODO implement other cases.
 --evalRhs (GuardedRhss _) _ = error "GuardedRhss not implemented"
 
-evalPatBind :: Decl -> State IDState IconGraph
-evalPatBind (PatBind _ pat rhs _) = do
+evalPatBind :: EvalContext -> Decl -> State IDState IconGraph
+evalPatBind c (PatBind _ pat rhs _) = do
   let patName = evalPattern pat
-  (rhsGraph, rhsNamePort) <- evalRhs rhs []
+  --(rhsGraph, rhsNamePort) <- evalRhs rhs c
+  rhsVal <- evalRhs rhs c
   uniquePatName <- getUniqueName patName
   let
-    icons = toNames [(uniquePatName, TextBoxIcon patName)]
-    edges = [Edge (justName uniquePatName, rhsNamePort) noEnds]
-    graph = IconGraph icons edges mempty mempty
-  pure $ graph <> rhsGraph
+    gr = case rhsVal of
+      -- TODO: Add bindings here.
+      --(Left str) -> IconGraph mempty mempty mempty [(patName, Left str)]
+      (Left _) -> IconGraph mempty mempty mempty mempty
+      (Right (rhsGraph, rhsNamePort)) -> graph <> rhsGraph
+        where
+          icons = toNames [(uniquePatName, TextBoxIcon patName)]
+          edges = [Edge (justName uniquePatName, rhsNamePort) noEnds]
+          graph = if patName `elem` c
+            -- todo: add Bindings
+            --then IconGraph mempty mempty mempty [(patName, Right rhsNamePort)]
+            then mempty
+            else IconGraph icons edges mempty mempty
+          --pure $ graph <> rhsGraph
+  pure gr
 
 iconGraphToDrawing :: IconGraph -> Drawing
 iconGraphToDrawing (IconGraph icons edges subDrawings _) = Drawing icons edges subDrawings
@@ -223,6 +266,15 @@ boundVarsToEdge :: Eq a => [(a, NameAndPort)] -> (a, NameAndPort) -> Edge
 boundVarsToEdge patternStringMap (s, np) = Edge (source, np) noEnds where
   source = fromMaybeError "boundVarsToEdge: bound var not found" $ lookup s patternStringMap
 
+--TODO: I think this will loop on recursive references (eg. ("a", Left "a"))
+-- simplifyReferences :: [(String, Reference)] -> [(String, Reference)] -> [(String, NameAndPort)]
+-- simplifyReferences extraBounds ls = map lookupReference ls where
+--   augmentedLs = extraBounds <> ls
+--   lookupReference (str, Right n@(NameAndPort _ _)) = (str, n)
+--   lookupReference v@(str, Left n) = case lookup n augmentedLs of
+--     Just x -> lookupReference (str, x)
+--     Nothing -> error $ "Could not find reference. ls =" ++ show ls ++ "\nv=" ++ show v
+
 makeInternalEdges :: Foldable t => String -> IconGraph -> t String -> [(String, NameAndPort)] -> ([Edge], [(String, NameAndPort)])
 makeInternalEdges lambdaName rhsGraph patternStrings patternStringMap = (internalEdges, unmatchedBoundVars) where
   (IconGraph _ _ _ boundVars) = rhsGraph
@@ -241,6 +293,7 @@ evalLambda c patterns e = do
   resultIconName <- getUniqueName "res"
   rhsDrawingName <- DIA.toName <$> getUniqueName "rhsDraw"
   let
+    -- TODO remove coerceExpressionResult here
     rhsCoercedVal@(rhsGraph, _) = coerceExpressionResult rhsVal
     rhsDrawing = makeRhsDrawing resultIconName rhsCoercedVal
     icons = toNames [(lambdaName, LambdaRegionIcon numParameters rhsDrawingName)]
@@ -249,16 +302,16 @@ evalLambda c patterns e = do
     drawing = IconGraph icons internalEdges [(rhsDrawingName, rhsDrawing)] unmatchedBoundVars
   pure (drawing, justName lambdaName)
 
-evalMatch :: Match -> State IDState IconGraph
-evalMatch (Match _ name patterns _ rhs _) = do
+evalMatch :: EvalContext -> Match -> State IDState IconGraph
+evalMatch c (Match _ name patterns _ rhs _) = do
   lambdaName <- getUniqueName "lam"
   let
     nameString = nameToString name
     extraVars = [(nameString, justName lambdaName)]
     (patternStringMap, patternStrings, numParameters) =
       processPatterns lambdaName patterns extraVars
-
-  rhsVal@(rhsGraph, _) <- evalRhs rhs patternStrings
+  -- TODO remove coerceExpressionResult here
+  rhsVal@(rhsGraph, _) <- coerceExpressionResult <$> evalRhs rhs (patternStrings <> c)
   resultIconName <- getUniqueName "res"
   rhsDrawingName <- DIA.toName <$> getUniqueName "rhsDraw"
   let
@@ -275,21 +328,26 @@ evalMatch (Match _ name patterns _ rhs _) = do
   pure drawing
 
 
-evalMatches :: [Match] -> State IDState IconGraph
-evalMatches [] = pure mempty
-evalMatches [match] = evalMatch match
+evalMatches :: EvalContext -> [Match] -> State IDState IconGraph
+evalMatches c [] = pure mempty
+evalMatches c [match] = evalMatch c match
 -- TODO turn more than one match into a case expression.
 
-evalDecl :: Decl -> Drawing
-evalDecl d = iconGraphToDrawing $ evalState evaluatedDecl initialIdState where
+-- TODO: Use the context in evalPatBind and evalMatches
+evalDecl :: EvalContext -> Decl -> State IDState IconGraph
+evalDecl c d = evaluatedDecl where
   evaluatedDecl = case d of
-    pat@PatBind{} -> evalPatBind pat
-    FunBind matches -> evalMatches matches
+    pat@PatBind{} -> evalPatBind c pat
+    FunBind matches -> evalMatches c matches
     -- TODO other cases
+
+drawingFromDecl :: Decl -> Drawing
+drawingFromDecl d = iconGraphToDrawing $ evalState evaluatedDecl initialIdState
+  where evaluatedDecl = evalDecl mempty d
 
 -- Profiling: about 1.5% of time.
 translateString :: String -> (Drawing, Decl)
 translateString s = (drawing, decl) where
   parseResult = parseDecl s -- :: ParseResult Module
   decl = fromParseResult parseResult
-  drawing = evalDecl decl
+  drawing = drawingFromDecl decl
