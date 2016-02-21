@@ -246,15 +246,18 @@ evalRhs :: Rhs -> EvalContext -> State IDState (IconGraph, Reference)
 evalRhs (UnGuardedRhs e) c = evalExp c e
 evalRhs (GuardedRhss rhss) c = fmap Right <$> evalGuardedRhss c rhss
 
+--TODO Remove sinks that were matched
 evalPatBind :: EvalContext -> Decl -> State IDState IconGraph
 evalPatBind c (PatBind _ pat rhs _) = do
+  let patName = evalPattern pat
   -- TODO replace do with fmap
-  (rhsGraph, rhsRef) <- evalRhs rhs c
+  (rhsGraph@(IconGraph _ _ _ sinks _), rhsRef) <- evalRhs rhs (patName : c)
   let
-    patName = evalPattern pat
     bindings = [(patName, rhsRef)]
     gr = IconGraph mempty mempty mempty mempty bindings
-  pure (gr <> rhsGraph)
+    newEdges = makeEdgesFromBindings bindings sinks
+    newEdgeGraph = iconGraphFromIconsEdges mempty newEdges
+  pure (newEdgeGraph <> gr <> rhsGraph)
 
 iconGraphToDrawing :: IconGraph -> Drawing
 iconGraphToDrawing (IconGraph icons edges subDrawings _ _) = Drawing icons edges subDrawings

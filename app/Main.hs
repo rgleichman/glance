@@ -12,7 +12,8 @@ import Types(Icon(..), Drawing(..), EdgeEnd(..))
 import Translate(translateString)
 
 -- TODO Now --
--- Fix recursive binds outside of a let.
+-- Write and use a function that takes an IconGraph, makes edges for sinks, and removes sinks that were matched.
+-- Tests a let inside a let
 -- otherwise Guard special case
 
 -- TODO Later --
