@@ -14,6 +14,7 @@ import Control.Monad.State(State, evalState)
 import Data.List(partition)
 import qualified Control.Arrow
 import Debug.Trace
+import Data.Either(partitionEithers)
 
 import Types(Icon, Edge(..), Drawing(..), NameAndPort(..), IDState,
   initialIdState, getId)
@@ -161,13 +162,11 @@ evalLit (Exts.PrimDouble x) = makeLiteral x
 evalLit (Exts.PrimChar x) = makeLiteral x
 evalLit (Exts.PrimString x) = makeLiteral x
 
--- TODO doing this extra pass here with getBoundVarName suggests that the code should be converted
--- into an intermediate form before conversion to an IconGraph
 getBoundVarName :: Decl -> String
 getBoundVarName (PatBind _ pat _ _) = evalPattern pat
 getBoundVarName (FunBind [Match _ name _ _ _ _]) = nameToString name
 
---TODO: This needs to add all the extra edges.
+--TODO: Should this call makeEdges?
 evalBinds :: EvalContext -> Binds -> State IDState (IconGraph, EvalContext)
 evalBinds c (BDecls decls) = do
   let
@@ -182,12 +181,12 @@ printSelf a = Debug.Trace.trace (show a ++ "\n\n") a
 -- | Recursivly find the matching reference in a list of bindings.
 -- TODO: Might want to present some indication if there is a reference cycle.
 lookupReference :: [(String, Reference)] -> Reference -> Reference
-lookupReference _ ref@(Right p) = ref
+lookupReference _ ref@(Right _) = ref
 lookupReference bindings ref@(Left originalS) = lookupHelper ref where
-  lookupHelper ref@(Right p) = ref
-  lookupHelper ref@(Left s)= case lookup s bindings of
+  lookupHelper newRef@(Right _) = newRef
+  lookupHelper newRef@(Left s)= case lookup s bindings of
     Just r -> failIfCycle r $ lookupHelper r
-    Nothing -> ref
+    Nothing -> newRef
     where
       failIfCycle r@(Left newStr) res = if newStr == originalS then r else res
       failIfCycle _ res = res
@@ -195,14 +194,18 @@ lookupReference bindings ref@(Left originalS) = lookupHelper ref where
 deleteBindings :: IconGraph -> IconGraph
 deleteBindings (IconGraph a b c d _) = IconGraph a b c d mempty
 
-makeEdgesFromBindings :: [(String, Reference)] -> [(String, NameAndPort)] -> [Edge]
-makeEdgesFromBindings bindings sinks = edges where
-  edges = mconcat $ fmap makeEdge sinks
-  makeEdge (s, destPort) = case lookup s bindings of
+makeEdges :: IconGraph -> IconGraph
+makeEdges (IconGraph icons edges c sinks bindings) = newGraph where
+  (newSinks, newEdges) = partitionEithers $ fmap renameOrMakeEdge sinks
+  newGraph = IconGraph icons (newEdges <> edges) c newSinks bindings
+
+  renameOrMakeEdge :: (String, NameAndPort) -> Either (String, NameAndPort) Edge
+  renameOrMakeEdge orig@(s, destPort) = case lookup s bindings of
     Just ref -> case lookupReference bindings ref of
-      (Right sourcePort) -> [Edge (sourcePort, destPort) noEnds]
-      _ -> []
-    Nothing -> []
+      (Right sourcePort) -> Right $ Edge (sourcePort, destPort) noEnds
+      (Left newStr) -> Left (newStr, destPort)
+    Nothing -> Left orig
+
 
 -- TODO: This should remove the sinks that have been matched and turned into edges.
 evalLet :: EvalContext -> Binds -> Exp -> State IDState (IconGraph, Reference)
@@ -211,12 +214,9 @@ evalLet c bs e = do
   expVal <- evalExp bindContext e
   let
     (expGraph, expResult) = expVal
-    (IconGraph _ _ _ bindingsSinks bindings) = bindGraph
-    bindGraphWithoutBindings = deleteBindings bindGraph
-    (IconGraph _ _ _ expSinks _) = expGraph
-    newEdges = makeEdgesFromBindings bindings (expSinks <> bindingsSinks)
-    newEdgeGraph = iconGraphFromIconsEdges mempty newEdges
-  pure $ printSelf (newEdgeGraph <> expGraph <> bindGraphWithoutBindings, lookupReference bindings expResult)
+    newGraph = deleteBindings . makeEdges $ expGraph <> bindGraph
+    (IconGraph _ _ _ _ bindings) = bindGraph
+  pure $ printSelf (newGraph, lookupReference bindings expResult)
 
 evalExp :: EvalContext  -> Exp -> State IDState (IconGraph, Reference)
 evalExp c x = case x of
@@ -246,18 +246,16 @@ evalRhs :: Rhs -> EvalContext -> State IDState (IconGraph, Reference)
 evalRhs (UnGuardedRhs e) c = evalExp c e
 evalRhs (GuardedRhss rhss) c = fmap Right <$> evalGuardedRhss c rhss
 
---TODO Remove sinks that were matched
+-- Todo: incorporate the binds by using a generalize version of evalLet that takes
+-- as argument either evalRhs or evalExp
 evalPatBind :: EvalContext -> Decl -> State IDState IconGraph
-evalPatBind c (PatBind _ pat rhs _) = do
-  let patName = evalPattern pat
-  -- TODO replace do with fmap
-  (rhsGraph@(IconGraph _ _ _ sinks _), rhsRef) <- evalRhs rhs (patName : c)
-  let
-    bindings = [(patName, rhsRef)]
-    gr = IconGraph mempty mempty mempty mempty bindings
-    newEdges = makeEdgesFromBindings bindings sinks
-    newEdgeGraph = iconGraphFromIconsEdges mempty newEdges
-  pure (newEdgeGraph <> gr <> rhsGraph)
+evalPatBind c (PatBind _ pat rhs whereBinds) = helper <$> evalRhs rhs (patName : c)
+  where
+    patName = evalPattern pat
+    helper (rhsGraph, rhsRef) = makeEdges (gr <> rhsGraph)
+      where
+        bindings = [(patName, rhsRef)]
+        gr = IconGraph mempty mempty mempty mempty bindings
 
 iconGraphToDrawing :: IconGraph -> Drawing
 iconGraphToDrawing (IconGraph icons edges subDrawings _ _) = Drawing icons edges subDrawings
@@ -350,7 +348,7 @@ evalMatch c (Match _ name patterns _ rhs _) = do
 
 
 evalMatches :: EvalContext -> [Match] -> State IDState IconGraph
-evalMatches c [] = pure mempty
+evalMatches _ [] = pure mempty
 evalMatches c [match] = evalMatch c match
 -- TODO turn more than one match into a case expression.
 
