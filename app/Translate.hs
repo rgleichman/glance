@@ -21,19 +21,27 @@ import Util(toNames, noEnds, nameAndPort, justName, fromMaybeError)
 import Icons(Icon(..))
 
 type Reference = Either String NameAndPort
-data IconGraph = IconGraph [(DIA.Name, Icon)] [Edge] [(DIA.Name, Drawing)] [(String, NameAndPort)]
+-- | An IconGraph is a normal Drawing (Icons, Edges, and sub Drawings) with two additional fields:
+-- unconected sink ports (varible usage), and unconnected source ports (varible definition).
+data IconGraph = IconGraph [(DIA.Name, Icon)] [Edge] [(DIA.Name, Drawing)] [(String, NameAndPort)] [(String, Reference)]
   deriving (Show)
 
 type EvalContext = [String]
 type GraphAndRef = (IconGraph, Reference)
 
 instance DIA.Semigroup IconGraph where
-  (IconGraph icons1 edges1 subDrawings1 context1) <> (IconGraph icons2 edges2 subDrawings2 context2) =
-    IconGraph (icons1 <> icons2) (edges1 <> edges2) (subDrawings1 <> subDrawings2) (context1 <> context2)
+  (IconGraph icons1 edges1 subDrawings1 sinks1 sources1) <> (IconGraph icons2 edges2 subDrawings2 sinks2 sources2) =
+    IconGraph (icons1 <> icons2) (edges1 <> edges2) (subDrawings1 <> subDrawings2) (sinks1 <> sinks2) (sources1 <> sources2)
 
 instance Monoid IconGraph where
-  mempty = IconGraph mempty mempty mempty mempty
+  mempty = IconGraph mempty mempty mempty mempty mempty
   mappend = (<>)
+
+iconGraphFromIcons :: [(DIA.Name, Icon)] -> IconGraph
+iconGraphFromIcons icons = IconGraph icons mempty mempty mempty mempty
+
+iconGraphFromIconsEdges :: [(DIA.Name, Icon)] -> [Edge] -> IconGraph
+iconGraphFromIconsEdges icons edges = IconGraph icons edges mempty mempty mempty
 
 getUniqueName :: String -> State IDState String
 getUniqueName base = fmap ((base ++). show) getId
@@ -50,7 +58,7 @@ evalPattern p = case p of
 evalQName :: QName -> EvalContext -> (IconGraph, Reference)
 evalQName (UnQual n) context = result where
   nameString = nameToString n
-  graph = IconGraph [(DIA.toName nameString, TextBoxIcon nameString)] mempty mempty mempty
+  graph = iconGraphFromIcons [(DIA.toName nameString, TextBoxIcon nameString)]
   result = if nameString `elem` context
     then (mempty, Left nameString)
     else (graph, Right $ justName nameString)
@@ -63,8 +71,8 @@ evalQOp (QConOp n) = evalQName n
 combineExpressions :: [((IconGraph, Reference), NameAndPort)] -> IconGraph
 combineExpressions portExpPairs = mconcat $ fmap mkGraph portExpPairs where
   mkGraph ((graph, ref), port) = graph <> case ref of
-    Left str -> IconGraph mempty mempty mempty [(str, port)]
-    Right resultPort -> IconGraph mempty [Edge (resultPort, port) noEnds] mempty mempty
+    Left str -> IconGraph mempty mempty mempty [(str, port)] mempty
+    Right resultPort -> IconGraph mempty [Edge (resultPort, port) noEnds] mempty mempty mempty
 
 makeApplyGraph :: DIA.Name -> (IconGraph, Reference) -> [(IconGraph, Reference)] -> Int -> (IconGraph, NameAndPort)
 makeApplyGraph applyIconName funVal argVals numArgs = (newGraph <> combinedGraph, nameAndPort applyIconName 1)
@@ -73,7 +81,7 @@ makeApplyGraph applyIconName funVal argVals numArgs = (newGraph <> combinedGraph
     functionPort = nameAndPort applyIconName 0
     combinedGraph = combineExpressions $ zip (funVal:argVals) (functionPort:argumentPorts)
     icons = [(applyIconName, Apply0NIcon numArgs)]
-    newGraph = IconGraph icons mempty mempty mempty
+    newGraph = iconGraphFromIcons icons
 
 evalApp :: (Exp, [Exp]) -> EvalContext -> State IDState (IconGraph, NameAndPort)
 evalApp (funExp, argExps) c = do
@@ -106,7 +114,7 @@ evalIf c e1 e2 e3 = do
     icons = [(guardName, GuardIcon 2)]
     combinedGraph =
       combineExpressions $ zip [e1Val, e2Val, e3Val] (map (nameAndPort guardName) [3, 2, 4])
-    newGraph = IconGraph icons mempty mempty mempty <> combinedGraph
+    newGraph = iconGraphFromIcons icons <> combinedGraph
   pure (newGraph, NameAndPort guardName (Just 0))
 
 evalStmt :: EvalContext -> Stmt -> State IDState GraphAndRef
@@ -131,14 +139,14 @@ evalGuardedRhss c rhss = do
     boolsWithPorts = zip bools $ map (nameAndPort guardName) [3,5..]
     combindedGraph = combineExpressions $ expsWithPorts <> boolsWithPorts
     icons = [(guardName, GuardIcon (length rhss))]
-    newGraph = IconGraph icons mempty mempty mempty <> combindedGraph
+    newGraph = iconGraphFromIcons icons <> combindedGraph
   pure (newGraph, NameAndPort guardName (Just 0))
 
 makeLiteral :: (Show x) => x -> State IDState (IconGraph, NameAndPort)
 makeLiteral x = do
   let str = show x
   name <- DIA.toName <$> getUniqueName str
-  let graph = IconGraph [(DIA.toName name, TextBoxIcon str)] mempty mempty mempty
+  let graph = iconGraphFromIcons [(DIA.toName name, TextBoxIcon str)]
   pure (graph, justName name)
 
 evalLit :: Exts.Literal -> State IDState (IconGraph, NameAndPort)
@@ -198,7 +206,7 @@ evalExp c x = case x of
 -- | This is used by the rhs for identity (eg. y x = x)
 makeDummyRhs :: String -> (IconGraph, NameAndPort)
 makeDummyRhs s = (graph, port) where
-  graph = IconGraph icons mempty mempty [(s, justName s)]
+  graph = IconGraph icons mempty mempty [(s, justName s)] mempty
   icons = [(DIA.toName s, BranchIcon)]
   port = justName s
 
@@ -235,12 +243,12 @@ evalPatBind c (PatBind _ pat rhs _) = do
             -- todo: add Bindings
             --then IconGraph mempty mempty mempty [(patName, Right rhsNamePort)]
             then mempty
-            else IconGraph icons edges mempty mempty
+            else iconGraphFromIconsEdges icons edges
           --pure $ graph <> rhsGraph
   pure (gr <> rhsGraph)
 
 iconGraphToDrawing :: IconGraph -> Drawing
-iconGraphToDrawing (IconGraph icons edges subDrawings _) = Drawing icons edges subDrawings
+iconGraphToDrawing (IconGraph icons edges subDrawings _ _) = Drawing icons edges subDrawings
 
 --processPatterns :: DIA.IsName a => a -> [Pat] -> ([(String, NameAndPort)], [String], Int)
 processPatterns :: DIA.IsName a  => a -> [Pat] -> [(String, NameAndPort)] -> ([(String, NameAndPort)], [String], Int)
@@ -256,7 +264,7 @@ makeRhsDrawing :: DIA.IsName a => a -> (IconGraph, NameAndPort) -> Drawing
 makeRhsDrawing resultIconName (rhsGraph, rhsResult)= rhsDrawing where
   rhsNewIcons = toNames [(resultIconName, ResultIcon)]
   rhsNewEdges = [Edge (rhsResult, justName resultIconName) noEnds]
-  rhsGraphWithResult = rhsGraph <> IconGraph rhsNewIcons rhsNewEdges mempty mempty
+  rhsGraphWithResult = rhsGraph <> iconGraphFromIconsEdges rhsNewIcons rhsNewEdges
   rhsDrawing = iconGraphToDrawing rhsGraphWithResult
 
 qualifyNameAndPort :: String -> NameAndPort -> NameAndPort
@@ -277,7 +285,7 @@ boundVarsToEdge patternStringMap (s, np) = Edge (source, np) noEnds where
 
 makeInternalEdges :: Foldable t => String -> IconGraph -> t String -> [(String, NameAndPort)] -> ([Edge], [(String, NameAndPort)])
 makeInternalEdges lambdaName rhsGraph patternStrings patternStringMap = (internalEdges, unmatchedBoundVars) where
-  (IconGraph _ _ _ boundVars) = rhsGraph
+  (IconGraph _ _ _ boundVars _) = rhsGraph
   qualifiedBoundVars =
     fmap (Control.Arrow.second (qualifyNameAndPort lambdaName)) boundVars
   (matchedBoundVars, unmatchedBoundVars) = partition (\(s, _) -> s `elem` patternStrings) qualifiedBoundVars
@@ -299,7 +307,7 @@ evalLambda c patterns e = do
     icons = toNames [(lambdaName, LambdaRegionIcon numParameters rhsDrawingName)]
     (internalEdges, unmatchedBoundVars) =
       makeInternalEdges lambdaName rhsGraph patternStrings patternStringMap
-    drawing = IconGraph icons internalEdges [(rhsDrawingName, rhsDrawing)] unmatchedBoundVars
+    drawing = IconGraph icons internalEdges [(rhsDrawingName, rhsDrawing)] unmatchedBoundVars mempty
   pure (drawing, justName lambdaName)
 
 evalMatch :: EvalContext -> Match -> State IDState IconGraph
@@ -324,7 +332,7 @@ evalMatch c (Match _ name patterns _ rhs _) = do
     (internalEdges, unmatchedBoundVars) =
       makeInternalEdges lambdaName rhsGraph patternStrings patternStringMap
     drawing = IconGraph icons (externalEdges <> internalEdges)
-      [(rhsDrawingName, rhsDrawing)] unmatchedBoundVars
+      [(rhsDrawingName, rhsDrawing)] unmatchedBoundVars mempty
   pure drawing
 
 
