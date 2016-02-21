@@ -12,7 +12,6 @@ import Types(Icon(..), Drawing(..), EdgeEnd(..))
 import Translate(translateString)
 
 -- TODO Now --
--- Add more literals
 -- otherwise Guard special case
 
 -- TODO Later --

@@ -53,7 +53,6 @@ nameToString (Symbol s) = s
 evalPattern :: Pat -> String
 evalPattern p = case p of
   PVar n -> nameToString n
-  -- TODO other cases
 
 evalQName :: QName -> EvalContext -> (IconGraph, Reference)
 evalQName (UnQual n) context = result where
@@ -62,7 +61,6 @@ evalQName (UnQual n) context = result where
   result = if nameString `elem` context
     then (mempty, Left nameString)
     else (graph, Right $ justName nameString)
--- TODO other cases
 
 evalQOp :: QOp -> EvalContext -> (IconGraph, Reference)
 evalQOp (QVarOp n) = evalQName n
@@ -201,7 +199,6 @@ evalExp c x = case x of
   Let bs e -> fmap Right <$> evalLet c bs e
   If e1 e2 e3 -> fmap Right <$> evalIf c e1 e2 e3
   Paren e -> evalExp c e
-  -- TODO other cases
 
 -- | This is used by the rhs for identity (eg. y x = x)
 makeDummyRhs :: String -> (IconGraph, NameAndPort)
@@ -218,10 +215,7 @@ coerceExpressionResult (g, Right x) = (g, x)
 -- The second arugement is a list of strings that are bound in the environment.
 evalRhs :: Rhs -> EvalContext -> State IDState (IconGraph, Reference)
 evalRhs (UnGuardedRhs e) c = evalExp c e
---  coerceExpressionResult <$> evalExp c e
 evalRhs (GuardedRhss rhss) c = fmap Right <$> evalGuardedRhss c rhss
--- TODO implement other cases.
---evalRhs (GuardedRhss _) _ = error "GuardedRhss not implemented"
 
 evalPatBind :: EvalContext -> Decl -> State IDState IconGraph
 evalPatBind c (PatBind _ pat rhs _) = do
@@ -231,20 +225,8 @@ evalPatBind c (PatBind _ pat rhs _) = do
   uniquePatName <- getUniqueName patName
   let
     (rhsGraph, rhsRef) = rhsVal
-    gr = case rhsRef of
-      -- TODO: Add bindings here.
-      --(Left str) -> IconGraph mempty mempty mempty [(patName, Left str)]
-      (Left _) -> mempty
-      (Right rhsNamePort) -> graph
-        where
-          icons = toNames [(uniquePatName, TextBoxIcon patName)]
-          edges = [Edge (justName uniquePatName, rhsNamePort) noEnds]
-          graph = if patName `elem` c
-            -- todo: add Bindings
-            --then IconGraph mempty mempty mempty [(patName, Right rhsNamePort)]
-            then mempty
-            else iconGraphFromIconsEdges icons edges
-          --pure $ graph <> rhsGraph
+    bindings = [(patName, rhsRef)]
+    gr = IconGraph mempty mempty mempty mempty bindings
   pure (gr <> rhsGraph)
 
 iconGraphToDrawing :: IconGraph -> Drawing
@@ -310,6 +292,7 @@ evalLambda c patterns e = do
     drawing = IconGraph icons internalEdges [(rhsDrawingName, rhsDrawing)] unmatchedBoundVars mempty
   pure (drawing, justName lambdaName)
 
+-- TODO handle inner function definitions.
 evalMatch :: EvalContext -> Match -> State IDState IconGraph
 evalMatch c (Match _ name patterns _ rhs _) = do
   lambdaName <- getUniqueName "lam"
@@ -347,11 +330,24 @@ evalDecl c d = evaluatedDecl where
   evaluatedDecl = case d of
     pat@PatBind{} -> evalPatBind c pat
     FunBind matches -> evalMatches c matches
-    -- TODO other cases
+
+showTopLevelBinds :: IconGraph -> State IDState IconGraph
+showTopLevelBinds gr@(IconGraph _ _ _ _ binds) = do
+  let
+    addBind (_, Left _) = pure mempty
+    addBind (patName, Right port) = do
+      uniquePatName <- getUniqueName patName
+      let
+        icons = toNames [(uniquePatName, TextBoxIcon patName)]
+        edges = [Edge (justName uniquePatName, port) noEnds]
+        edgeGraph = iconGraphFromIconsEdges icons edges
+      pure edgeGraph
+  newGraph <- mconcat <$> mapM addBind binds
+  pure $ newGraph <> gr
 
 drawingFromDecl :: Decl -> Drawing
 drawingFromDecl d = iconGraphToDrawing $ evalState evaluatedDecl initialIdState
-  where evaluatedDecl = evalDecl mempty d
+  where evaluatedDecl = evalDecl mempty d >>= showTopLevelBinds
 
 -- Profiling: about 1.5% of time.
 translateString :: String -> (Drawing, Decl)
