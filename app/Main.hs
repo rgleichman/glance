@@ -260,8 +260,10 @@ main3 = do
       ]
 
 testDecls = [
-  "y = let z = 1 in z",
-  "y = let {z = 1; z2 = z} in z2",
+  "y = let {b = a; a = 84} in f b",
+  "y = let {x = 1} in f x",
+  "y = let z = 2 in z",
+  "y = let {z = 3; z2 = z} in z2",
   "y x = let z = x in z",
   "y = f 1 'c' 2.3 \"foobar\"",
   "y x\n\

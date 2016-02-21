@@ -179,6 +179,7 @@ evalBinds c (BDecls decls) = do
 printSelf :: (Show a) => a -> a
 printSelf a = Debug.Trace.trace (show a ++ "\n\n") a
 
+-- | Recursivly find the matching reference in a list of bindings.
 lookupReference :: [(String, Reference)] -> Reference -> Reference
 lookupReference _ ref@(Right p) = ref
 lookupReference bindings ref@(Left s) = case lookup s bindings of
@@ -188,6 +189,15 @@ lookupReference bindings ref@(Left s) = case lookup s bindings of
 deleteBindings :: IconGraph -> IconGraph
 deleteBindings (IconGraph a b c d _) = IconGraph a b c d mempty
 
+makeEdgesFromBindings :: [(String, Reference)] -> [(String, NameAndPort)] -> [Edge]
+makeEdgesFromBindings bindings sinks = edges where
+  edges = mconcat $ fmap makeEdge sinks
+  makeEdge (s, destPort) = case lookup s bindings of
+    Just ref -> case lookupReference bindings ref of
+      (Right sourcePort) -> [Edge (sourcePort, destPort) noEnds]
+      _ -> []
+    Nothing -> []
+
 evalLet :: EvalContext -> Binds -> Exp -> State IDState (IconGraph, Reference)
 evalLet c bs e = do
   (bindGraph, bindContext) <- evalBinds c bs
@@ -196,7 +206,10 @@ evalLet c bs e = do
     (expGraph, expResult) = expVal
     (IconGraph _ _ _ _ bindings) = bindGraph
     bindGraphWithoutBindings = deleteBindings bindGraph
-  pure $ printSelf (expGraph <> bindGraphWithoutBindings, lookupReference bindings expResult)
+    (IconGraph _ _ _ expSinks _) = expGraph
+    newEdges = makeEdgesFromBindings bindings expSinks
+    newEdgeGraph = iconGraphFromIconsEdges mempty newEdges
+  pure $ printSelf (newEdgeGraph <> expGraph <> bindGraphWithoutBindings, lookupReference bindings expResult)
 
 evalExp :: EvalContext  -> Exp -> State IDState (IconGraph, Reference)
 evalExp c x = case x of
