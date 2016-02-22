@@ -51,9 +51,13 @@ nameToString :: Language.Haskell.Exts.Name -> String
 nameToString (Ident s) = s
 nameToString (Symbol s) = s
 
-evalPattern :: Pat -> String
+-- evalPApp :: QName -> [Pat] -> String
+-- evalPApp name patterns = _
+
+evalPattern :: Pat -> GraphAndRef
 evalPattern p = case p of
-  PVar n -> nameToString n
+  PVar n -> (mempty, Left $ nameToString n)
+  --PApp name patterns -> evalPApp name patterns
 
 evalQName :: QName -> EvalContext -> (IconGraph, Reference)
 evalQName (UnQual n) context = result where
@@ -162,15 +166,19 @@ evalLit (Exts.PrimDouble x) = makeLiteral x
 evalLit (Exts.PrimChar x) = makeLiteral x
 evalLit (Exts.PrimString x) = makeLiteral x
 
-getBoundVarName :: Decl -> String
-getBoundVarName (PatBind _ pat _ _) = evalPattern pat
-getBoundVarName (FunBind [Match _ name _ _ _ _]) = nameToString name
+namesInPattern :: GraphAndRef -> [String]
+namesInPattern (gr, Left str) = [str]
+-- TODO: this case getBoundNamesFromPattern (gr, Right p) = _
+
+getBoundVarName :: Decl -> [String]
+getBoundVarName (PatBind _ pat _ _) = namesInPattern $ evalPattern pat
+getBoundVarName (FunBind [Match _ name _ _ _ _]) = [nameToString name]
 
 --TODO: Should this call makeEdges?
 evalBinds :: EvalContext -> Binds -> State IDState (IconGraph, EvalContext)
 evalBinds c (BDecls decls) = do
   let
-    boundNames = fmap getBoundVarName decls
+    boundNames = concatMap getBoundVarName decls
     augmentedContext = boundNames <> c
   evaledDecl <- mconcat <$> mapM (evalDecl augmentedContext) decls
   pure (evaledDecl, augmentedContext)
@@ -251,14 +259,17 @@ evalPatBind :: EvalContext -> Decl -> State IDState IconGraph
 evalPatBind c (PatBind _ pat rhs maybeWhereBinds) = helper <$> evaledRhs
   where
     patName = evalPattern pat
-    rhsContext = patName : c
+    patternNames = namesInPattern $ evalPattern pat
+    rhsContext = patternNames <> c
     evaledRhs = case maybeWhereBinds of
       Nothing -> evalRhs rhs rhsContext
       Just b -> evalGeneralLet (evalRhs rhs) rhsContext b
 
     helper (rhsGraph, rhsRef) = makeEdges (gr <> rhsGraph)
       where
-        bindings = [(patName, rhsRef)]
+        bindings = case patName of
+          (_, Left s) -> [(s, rhsRef)]
+          -- TODO (_ -> _) case. If the patName is not a ref, than add those bindings.
         gr = IconGraph mempty mempty mempty mempty bindings
 
 
@@ -271,7 +282,8 @@ processPatterns lambdaName patterns extraVars =
   (patternStringMap, patternStrings, numParameters)
     where
       lambdaPorts = map (nameAndPort lambdaName) [0,1..]
-      patternStringMap = extraVars <> zip (map evalPattern patterns) lambdaPorts
+      -- TODO this is wrong and must be rewritten for more complex patterns. (perhaps use makeEdges)
+      patternStringMap = extraVars <> zip (map (head . namesInPattern . evalPattern) patterns) lambdaPorts
       patternStrings = map fst patternStringMap
       numParameters = length patterns
 

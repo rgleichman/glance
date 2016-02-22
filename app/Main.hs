@@ -261,6 +261,10 @@ main3 = do
       arrowTestDrawing
       ]
 
+patternTests = [
+  "Foo x y = Foo x y"
+  ]
+
 letTests = [
   "y = x where x = f 3 y",
   "y x1 = let {x2 = x1; x3 = x2; x4 = f x3} in x4",
@@ -320,6 +324,7 @@ otherTests = [
   ]
 
 testDecls = mconcat [
+  --patternTests
   letTests
   ,otherTests
   ]
