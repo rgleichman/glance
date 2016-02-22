@@ -12,11 +12,11 @@ import Types(Icon(..), Drawing(..), EdgeEnd(..))
 import Translate(translateString)
 
 -- TODO Now --
--- Handle where bindings
+-- Destructuring pattern binds
 
 -- TODO Later --
 -- Eliminate BranchIcon for the identity funciton "y x = x"
--- Use refactor evalLabmbda and evalMatch to use makeEdges
+-- Refactor evalLabmbda and evalMatch to use makeEdges
 -- otherwise Guard special case
 -- Let lines connect to ports in multiple locations (eg. argument for Apply0Dia)
 -- Add a small black border to lines to help distinguish line crossings.
@@ -262,7 +262,7 @@ main3 = do
       ]
 
 letTests = [
-  "y = x where x = f 3",
+  "y = x where x = f 3 y",
   "y x1 = let {x2 = x1; x3 = x2; x4 = f x3} in x4",
   "y x1 = let x2 = f x1 in x2 x1",
   "y x = let x = 3 in x",

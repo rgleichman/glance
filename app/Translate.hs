@@ -206,17 +206,18 @@ makeEdges (IconGraph icons edges c sinks bindings) = newGraph where
       (Left newStr) -> Left (newStr, destPort)
     Nothing -> Left orig
 
-
--- TODO: This should remove the sinks that have been matched and turned into edges.
-evalLet :: EvalContext -> Binds -> Exp -> State IDState (IconGraph, Reference)
-evalLet c bs e = do
+evalGeneralLet :: (EvalContext -> State IDState (IconGraph, Reference)) -> EvalContext -> Binds -> State IDState (IconGraph, Reference)
+evalGeneralLet expOrRhsEvaler c bs = do
   (bindGraph, bindContext) <- evalBinds c bs
-  expVal <- evalExp bindContext e
+  expVal <- expOrRhsEvaler bindContext
   let
     (expGraph, expResult) = expVal
     newGraph = deleteBindings . makeEdges $ expGraph <> bindGraph
     (IconGraph _ _ _ _ bindings) = bindGraph
   pure $ printSelf (newGraph, lookupReference bindings expResult)
+
+evalLet :: EvalContext -> Binds -> Exp -> State IDState (IconGraph, Reference)
+evalLet context binds e = evalGeneralLet (`evalExp` e) context binds
 
 evalExp :: EvalContext  -> Exp -> State IDState (IconGraph, Reference)
 evalExp c x = case x of
@@ -246,16 +247,20 @@ evalRhs :: Rhs -> EvalContext -> State IDState (IconGraph, Reference)
 evalRhs (UnGuardedRhs e) c = evalExp c e
 evalRhs (GuardedRhss rhss) c = fmap Right <$> evalGuardedRhss c rhss
 
--- Todo: incorporate the binds by using a generalize version of evalLet that takes
--- as argument either evalRhs or evalExp
 evalPatBind :: EvalContext -> Decl -> State IDState IconGraph
-evalPatBind c (PatBind _ pat rhs whereBinds) = helper <$> evalRhs rhs (patName : c)
+evalPatBind c (PatBind _ pat rhs maybeWhereBinds) = helper <$> evaledRhs
   where
     patName = evalPattern pat
+    rhsContext = patName : c
+    evaledRhs = case maybeWhereBinds of
+      Nothing -> evalRhs rhs rhsContext
+      Just b -> evalGeneralLet (evalRhs rhs) rhsContext b
+
     helper (rhsGraph, rhsRef) = makeEdges (gr <> rhsGraph)
       where
         bindings = [(patName, rhsRef)]
         gr = IconGraph mempty mempty mempty mempty bindings
+
 
 iconGraphToDrawing :: IconGraph -> Drawing
 iconGraphToDrawing (IconGraph icons edges subDrawings _ _) = Drawing icons edges subDrawings
