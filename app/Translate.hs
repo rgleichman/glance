@@ -51,13 +51,23 @@ nameToString :: Language.Haskell.Exts.Name -> String
 nameToString (Ident s) = s
 nameToString (Symbol s) = s
 
--- evalPApp :: QName -> [Pat] -> String
--- evalPApp name patterns = _
+evalPApp :: QName -> [Pat] -> State IDState (IconGraph, NameAndPort)
+evalPApp name patterns = do
+  patName <- DIA.toName <$> getUniqueName "pat"
+  let
+    context = mempty
+  evaledPatterns <- mapM evalPattern patterns
+  let
+    constructorName = evalQName name context
+    gr = makeApplyGraph True patName constructorName evaledPatterns (length evaledPatterns)
+  pure gr
 
-evalPattern :: Pat -> GraphAndRef
+
+evalPattern :: Pat -> State IDState GraphAndRef
 evalPattern p = case p of
-  PVar n -> (mempty, Left $ nameToString n)
-  --PApp name patterns -> evalPApp name patterns
+  PVar n -> pure (mempty, Left $ nameToString n)
+  PApp name patterns -> fmap Right <$> evalPApp name patterns
+  PParen pat -> evalPattern pat
 
 evalQName :: QName -> EvalContext -> (IconGraph, Reference)
 evalQName (UnQual n) context = result where
@@ -71,18 +81,20 @@ evalQOp :: QOp -> EvalContext -> (IconGraph, Reference)
 evalQOp (QVarOp n) = evalQName n
 evalQOp (QConOp n) = evalQName n
 
-combineExpressions :: [((IconGraph, Reference), NameAndPort)] -> IconGraph
-combineExpressions portExpPairs = mconcat $ fmap mkGraph portExpPairs where
+combineExpressions :: Bool -> [((IconGraph, Reference), NameAndPort)] -> IconGraph
+combineExpressions inPattern portExpPairs = mconcat $ fmap mkGraph portExpPairs where
   mkGraph ((graph, ref), port) = graph <> case ref of
-    Left str -> IconGraph mempty mempty mempty [(str, port)] mempty
+    Left str -> if inPattern
+      then IconGraph mempty mempty mempty mempty [(str, Right port)]
+      else IconGraph mempty mempty mempty [(str, port)] mempty
     Right resultPort -> IconGraph mempty [Edge (resultPort, port) noEnds] mempty mempty mempty
 
-makeApplyGraph :: DIA.Name -> (IconGraph, Reference) -> [(IconGraph, Reference)] -> Int -> (IconGraph, NameAndPort)
-makeApplyGraph applyIconName funVal argVals numArgs = (newGraph <> combinedGraph, nameAndPort applyIconName 1)
+makeApplyGraph :: Bool -> DIA.Name -> (IconGraph, Reference) -> [(IconGraph, Reference)] -> Int -> (IconGraph, NameAndPort)
+makeApplyGraph inPattern applyIconName funVal argVals numArgs = (newGraph <> combinedGraph, nameAndPort applyIconName 1)
   where
     argumentPorts = map (nameAndPort applyIconName) [2,3..]
     functionPort = nameAndPort applyIconName 0
-    combinedGraph = combineExpressions $ zip (funVal:argVals) (functionPort:argumentPorts)
+    combinedGraph = combineExpressions inPattern $ zip (funVal:argVals) (functionPort:argumentPorts)
     icons = [(applyIconName, Apply0NIcon numArgs)]
     newGraph = iconGraphFromIcons icons
 
@@ -91,14 +103,14 @@ evalApp (funExp, argExps) c = do
   funVal <- evalExp c funExp
   argVals <- mapM (evalExp c) argExps
   applyIconName <- DIA.toName <$> getUniqueName "app0"
-  pure $ makeApplyGraph applyIconName funVal argVals (length argExps)
+  pure $ makeApplyGraph False applyIconName funVal argVals (length argExps)
 
 evalInfixApp :: EvalContext -> Exp -> QOp -> Exp -> State IDState (IconGraph, NameAndPort)
 evalInfixApp c e1 op e2 = do
   argVals <- mapM (evalExp c) [e1, e2]
   applyIconName <- DIA.toName <$> getUniqueName "app0"
   let funVal = evalQOp op c
-  pure $ makeApplyGraph applyIconName funVal argVals 2
+  pure $ makeApplyGraph False applyIconName funVal argVals 2
 
 -- TODO add test for this function
 simplifyApp :: Exp -> (Exp, [Exp])
@@ -116,7 +128,7 @@ evalIf c e1 e2 e3 = do
   let
     icons = [(guardName, GuardIcon 2)]
     combinedGraph =
-      combineExpressions $ zip [e1Val, e2Val, e3Val] (map (nameAndPort guardName) [3, 2, 4])
+      combineExpressions False $ zip [e1Val, e2Val, e3Val] (map (nameAndPort guardName) [3, 2, 4])
     newGraph = iconGraphFromIcons icons <> combinedGraph
   pure (newGraph, NameAndPort guardName (Just 0))
 
@@ -140,7 +152,7 @@ evalGuardedRhss c rhss = do
     (bools, exps) = unzip evaledRhss
     expsWithPorts = zip exps $ map (nameAndPort guardName) [2,4..]
     boolsWithPorts = zip bools $ map (nameAndPort guardName) [3,5..]
-    combindedGraph = combineExpressions $ expsWithPorts <> boolsWithPorts
+    combindedGraph = combineExpressions False $ expsWithPorts <> boolsWithPorts
     icons = [(guardName, GuardIcon (length rhss))]
     newGraph = iconGraphFromIcons icons <> combindedGraph
   pure (newGraph, NameAndPort guardName (Just 0))
@@ -167,11 +179,12 @@ evalLit (Exts.PrimChar x) = makeLiteral x
 evalLit (Exts.PrimString x) = makeLiteral x
 
 namesInPattern :: GraphAndRef -> [String]
-namesInPattern (gr, Left str) = [str]
--- TODO: this case getBoundNamesFromPattern (gr, Right p) = _
+namesInPattern (_, Left str) = [str]
+namesInPattern (IconGraph _ _ _ _ bindings, Right _) = fmap fst bindings
 
 getBoundVarName :: Decl -> [String]
-getBoundVarName (PatBind _ pat _ _) = namesInPattern $ evalPattern pat
+-- TODO Should evalState be used here?
+getBoundVarName (PatBind _ pat _ _) = namesInPattern $ evalState (evalPattern pat) initialIdState
 getBoundVarName (FunBind [Match _ name _ _ _ _]) = [nameToString name]
 
 --TODO: Should this call makeEdges?
@@ -230,6 +243,7 @@ evalLet context binds e = evalGeneralLet (`evalExp` e) context binds
 evalExp :: EvalContext  -> Exp -> State IDState (IconGraph, Reference)
 evalExp c x = case x of
   Var n -> pure $ evalQName n c
+  Con n -> pure $ evalQName n c
   Lit l -> fmap Right <$> evalLit l
   InfixApp e1 op e2 -> fmap Right <$> evalInfixApp c e1 op e2
   e@App{} -> fmap Right <$> evalApp (simplifyApp e) c
@@ -256,22 +270,24 @@ evalRhs (UnGuardedRhs e) c = evalExp c e
 evalRhs (GuardedRhss rhss) c = fmap Right <$> evalGuardedRhss c rhss
 
 evalPatBind :: EvalContext -> Decl -> State IDState IconGraph
-evalPatBind c (PatBind _ pat rhs maybeWhereBinds) = helper <$> evaledRhs
-  where
-    patName = evalPattern pat
-    patternNames = namesInPattern $ evalPattern pat
+evalPatBind c (PatBind _ pat rhs maybeWhereBinds) = do
+  patternNames <- printSelf . namesInPattern <$> evalPattern pat
+  let
     rhsContext = patternNames <> c
-    evaledRhs = case maybeWhereBinds of
-      Nothing -> evalRhs rhs rhsContext
-      Just b -> evalGeneralLet (evalRhs rhs) rhsContext b
+  (rhsGraph, rhsRef) <- case maybeWhereBinds of
+    Nothing -> evalRhs rhs rhsContext
+    Just b -> evalGeneralLet (evalRhs rhs) rhsContext b
 
-    helper (rhsGraph, rhsRef) = makeEdges (gr <> rhsGraph)
-      where
-        bindings = case patName of
-          (_, Left s) -> [(s, rhsRef)]
-          -- TODO (_ -> _) case. If the patName is not a ref, than add those bindings.
-        gr = IconGraph mempty mempty mempty mempty bindings
-
+  (patGraph, patRef) <- evalPattern pat
+  let
+    (newEdges, newSinks, bindings) = case patRef of
+      (Left s) -> (mempty, mempty, [(s, rhsRef)])
+      (Right patPort) -> case rhsRef of
+        (Left rhsStr) -> (mempty, [(rhsStr, patPort)], mempty)
+        -- TODO: This edge should be special to indicate that one side is a pattern.
+        (Right rhsPort) -> ([Edge (rhsPort, patPort) noEnds], mempty, mempty)
+    gr = IconGraph mempty newEdges mempty newSinks bindings
+  pure .printSelf. makeEdges $ (gr <> rhsGraph <> patGraph)
 
 iconGraphToDrawing :: IconGraph -> Drawing
 iconGraphToDrawing (IconGraph icons edges subDrawings _ _) = Drawing icons edges subDrawings
@@ -283,7 +299,7 @@ processPatterns lambdaName patterns extraVars =
     where
       lambdaPorts = map (nameAndPort lambdaName) [0,1..]
       -- TODO this is wrong and must be rewritten for more complex patterns. (perhaps use makeEdges)
-      patternStringMap = extraVars <> zip (map (head . namesInPattern . evalPattern) patterns) lambdaPorts
+      patternStringMap = extraVars <> zip (map (head . namesInPattern. (`evalState` initialIdState) .evalPattern) patterns) lambdaPorts
       patternStrings = map fst patternStringMap
       numParameters = length patterns
 

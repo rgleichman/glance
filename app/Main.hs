@@ -13,6 +13,7 @@ import Translate(translateString)
 
 -- TODO Now --
 -- Destructuring pattern binds
+-- Add mode extra part to EvalContext that tells evalQName to make a binding instead of a sink.
 
 -- TODO Later --
 -- Eliminate BranchIcon for the identity funciton "y x = x"
@@ -262,7 +263,14 @@ main3 = do
       ]
 
 patternTests = [
-  "Foo x y = Foo x y"
+  "y (F x) = x",
+  "y = (\\(F x) -> x)",
+  "y = let {g = 3; F x y = h g} in x y",
+  "y = let {g = 3; F x y = g} in x y",
+  "y = let F x y = g in x y",
+  "F x = g x",
+  "Foo (Bar x) (Baz y) = f 1 2 x y",
+  "Foo x y = f 1 y x"
   ]
 
 letTests = [
@@ -324,8 +332,8 @@ otherTests = [
   ]
 
 testDecls = mconcat [
-  --patternTests
-  letTests
+  patternTests
+  ,letTests
   ,otherTests
   ]
 
