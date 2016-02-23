@@ -260,7 +260,7 @@ main3 = do
       ]
 
 caseTests = [
-
+  --"y = case x of {0 -> 1; 2 -> 3}"
   ]
 
 patternTests = [
@@ -345,7 +345,7 @@ otherTests = [
 
 testDecls = mconcat [
   caseTests
-  lambdaTests
+  ,lambdaTests
   ,patternTests
   ,letTests
   ,otherTests
