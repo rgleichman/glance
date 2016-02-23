@@ -12,8 +12,10 @@ import Types(Icon(..), Drawing(..), EdgeEnd(..))
 import Translate(translateString)
 
 -- TODO Now --
+-- Refactor evalMatch to use a simplified version of makeEdges (makeEdgesCore)
+-- - that does not use IconGraph as the data structure.
+-- Rewrite and refactor evalLambda to use the new evalMatch
 -- Destructuring pattern binds
--- Add mode extra part to EvalContext that tells evalQName to make a binding instead of a sink.
 
 -- TODO Later --
 -- Eliminate BranchIcon for the identity funciton "y x = x"
@@ -263,6 +265,8 @@ main3 = do
       ]
 
 patternTests = [
+  "y = let {z = (\\x -> y x)} in z",
+  "y = let {z x = y x} in z ",
   "y (F x) = x",
   "y = (\\(F x) -> x)",
   "y = let {g = 3; F x y = h g} in x y",

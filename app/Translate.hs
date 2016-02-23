@@ -355,12 +355,13 @@ evalLambda c patterns e = do
 
 makePatternEdges :: String -> GraphAndRef -> NameAndPort -> Either IconGraph (String, Reference)
 makePatternEdges lambdaName (_, Right patPort) lamPort =
-  Left $ IconGraph mempty [Edge (lamPort, qualifyNameAndPort lambdaName patPort) noEnds] mempty mempty mempty
--- TODO case where pattern is a String
+  Left $ iconGraphFromIconsEdges mempty
+    [Edge (lamPort, qualifyNameAndPort lambdaName patPort) noEnds]
 makePatternEdges _ (_, Left str) lamPort = Right (str, Right lamPort)
 -- TODO handle inner function definitions.
-evalMatch :: EvalContext -> Match -> State IDState IconGraph
-evalMatch c (Match _ name patterns _ rhs _) = do
+
+evalMatch' :: EvalContext -> Match -> State IDState IconGraph
+evalMatch' c (Match _ name patterns _ rhs _) = do
   lambdaName <- getUniqueName "lam"
   let
     nameString = nameToString name
@@ -380,43 +381,44 @@ evalMatch c (Match _ name patterns _ rhs _) = do
     --externalEdges = [Edge (justName nameString, justName lambdaName) noEnds]
     (internalEdges, unmatchedBoundVars) =
       makeInternalEdges lambdaName rhsGraph patternStrings patternStringMap
-    drawing = IconGraph icons (internalEdges)
-      [(rhsDrawingName, rhsDrawing)] unmatchedBoundVars [(nameString, Right $ justName lambdaName)]
+    drawing = IconGraph icons internalEdges [(rhsDrawingName, rhsDrawing)]
+      unmatchedBoundVars [(nameString, Right $ justName lambdaName)]
   pure drawing
 
 
--- -- TODO handle inner function definitions.
--- -- TODO: Make sure that any remaining sinks are qualified.
--- evalMatch :: EvalContext -> Match -> State IDState IconGraph
--- evalMatch c (Match _ name patterns _ rhs _) = do
---   lambdaName <- getUniqueName "lam"
---   patternVals <- mapM evalPattern patterns
---   let
---     patternStrings = concatMap namesInPattern patternVals
---     rhsContext = nameString : patternStrings <> c
---     lambdaPorts = map (nameAndPort lambdaName) [0,1..]
---     patternGraph = mconcat $ map fst patternVals
---     nameString = nameToString name
---     (patternEdgeGraphs, rawNewBinds) = partitionEithers $ zipWith (makePatternEdges lambdaName) patternVals lambdaPorts
---     patternEdgeGraph = mconcat patternEdgeGraphs
---     newBinds = (nameString, Right $ justName lambdaName): rawNewBinds
---     numParameters = length patterns
---   -- TODO remove coerceExpressionResult here
---   (rhsRawGraph, rhsResult) <- coerceExpressionResult <$> evalRhs rhs rhsContext
---   resultIconName <- getUniqueName "res"
---   rhsDrawingName <- DIA.toName <$> getUniqueName "rhsDraw"
---   let
---     rhsAndPatternGraph@(IconGraph _ _ _ sinks _) = makeEdges $ patternGraph <> rhsRawGraph
---     qualifiedSinks = fmap (fmap (qualifyNameAndPort lambdaName)) sinks
---     (IconGraph _ internalEdges _ newSinks _) = makeEdges (IconGraph mempty mempty mempty qualifiedSinks newBinds)
---     rhsDrawing = makeRhsDrawing resultIconName (rhsAndPatternGraph, rhsResult)
---     icons = toNames [
---       (lambdaName, LambdaRegionIcon numParameters rhsDrawingName),
---       (nameString, TextBoxIcon nameString)
---       ]
---     externalEdges = [Edge (justName nameString, justName lambdaName) noEnds]
---     finalGraph = IconGraph icons (internalEdges <> externalEdges) [(rhsDrawingName, rhsDrawing)] newSinks mempty
---   pure $ patternEdgeGraph <> finalGraph
+-- TODO handle inner function definitions.
+-- TODO: Make sure that any remaining sinks are qualified.
+evalMatch :: EvalContext -> Match -> State IDState IconGraph
+evalMatch c (Match _ name patterns _ rhs _) = do
+  lambdaName <- getUniqueName "lam"
+  patternVals <- mapM evalPattern patterns
+  let
+    matchFunNameString = nameToString name
+    patternStrings = concatMap namesInPattern patternVals
+    rhsContext = matchFunNameString : patternStrings <> c
+    lambdaPorts = map (nameAndPort lambdaName) [0,1..]
+    patternGraph = mconcat $ map fst patternVals
+
+    (patternEdgeGraphs, rawNewBinds) =
+      partitionEithers $ zipWith (makePatternEdges lambdaName) patternVals lambdaPorts
+    patternEdgeGraph = mconcat patternEdgeGraphs
+
+    lambdaNameRef = Right $ justName lambdaName
+    newBinds = (matchFunNameString, lambdaNameRef): rawNewBinds
+    numParameters = length patterns
+  -- TODO remove coerceExpressionResult here
+  (rhsRawGraph, rhsResult) <- coerceExpressionResult <$> evalRhs rhs rhsContext
+  resultIconName <- getUniqueName "res"
+  rhsDrawingName <- DIA.toName <$> getUniqueName "rhsDraw"
+  let
+    rhsAndPatternGraph@(IconGraph _ _ _ sinks _) = makeEdges $ patternGraph <> rhsRawGraph
+    qualifiedSinks = fmap (fmap (qualifyNameAndPort lambdaName)) sinks
+    (IconGraph _ internalEdges _ newSinks _) = makeEdges (IconGraph mempty mempty mempty qualifiedSinks newBinds)
+    rhsDrawing = makeRhsDrawing resultIconName (rhsAndPatternGraph, rhsResult)
+    icons = toNames [(lambdaName, LambdaRegionIcon numParameters rhsDrawingName)]
+    finalGraph = IconGraph icons internalEdges [(rhsDrawingName, rhsDrawing)]
+      newSinks [(matchFunNameString, lambdaNameRef)]
+  pure $ patternEdgeGraph <> finalGraph
 
 
 evalMatches :: EvalContext -> [Match] -> State IDState IconGraph
