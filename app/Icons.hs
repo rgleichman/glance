@@ -189,7 +189,7 @@ apply0NDia n = finalDia # centerXY where
 textBoxFontSize :: (Num a) => a
 textBoxFontSize = 1
 monoLetterWidthToHeightFraction :: (Fractional a) => a
-monoLetterWidthToHeightFraction = 0.6
+monoLetterWidthToHeightFraction = 0.61
 textBoxHeightFactor :: (Fractional a) => a
 textBoxHeightFactor = 1.1
 

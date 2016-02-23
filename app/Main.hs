@@ -4,7 +4,7 @@ module Main where
 import Diagrams.Prelude
 import Diagrams.Backend.SVG.CmdLine
 
-import Icons(apply0NDia, colorScheme, ColorStyle(..))
+import Icons(apply0NDia, textBox, colorScheme, ColorStyle(..))
 import Rendering(renderDrawing)
 import Util(toNames, portToPort, iconToPort, iconToIcon,
   iconToIconEnds, iconTailToPort)
@@ -12,14 +12,9 @@ import Types(Icon(..), Drawing(..), EdgeEnd(..))
 import Translate(translateString)
 
 -- TODO Now --
--- Refactor evalMatch to use a simplified version of makeEdges (makeEdgesCore)
--- - that does not use IconGraph as the data structure.
--- Rewrite and refactor evalLambda to use the new evalMatch
--- Destructuring pattern binds
 
 -- TODO Later --
 -- Eliminate BranchIcon for the identity funciton "y x = x"
--- Refactor evalLabmbda and evalMatch to use makeEdges
 -- otherwise Guard special case
 -- Let lines connect to ports in multiple locations (eg. argument for Apply0Dia)
 -- Add a small black border to lines to help distinguish line crossings.
@@ -264,9 +259,11 @@ main3 = do
       arrowTestDrawing
       ]
 
+caseTests = [
+
+  ]
+
 patternTests = [
-  "y = let {z = (\\x -> y x)} in z",
-  "y = let {z x = y x} in z ",
   "y (F x) = x",
   "y = (\\(F x) -> x)",
   "y = let {g = 3; F x y = h g} in x y",
@@ -277,7 +274,18 @@ patternTests = [
   "Foo x y = f 1 y x"
   ]
 
+lambdaTests = [
+  "{y 0 = 1; y 1= 0}",
+  "y (-1) = 2",
+  "y 1 = 0",
+  "{y (F x) = x; y (G x) = x}",
+  "y x = z 3 where z = f x y",
+  "y x = z where z = f x y"
+  ]
+
 letTests = [
+  "y = let {z = (\\x -> y x)} in z",
+  "y = let {z x = y x} in z ",
   "y = x where x = f 3 y",
   "y x1 = let {x2 = x1; x3 = x2; x4 = f x3} in x4",
   "y x1 = let x2 = f x1 in x2 x1",
@@ -336,7 +344,9 @@ otherTests = [
   ]
 
 testDecls = mconcat [
-  patternTests
+  caseTests
+  lambdaTests
+  ,patternTests
   ,letTests
   ,otherTests
   ]
@@ -354,7 +364,9 @@ translateStringToDrawing s = do
 main4 :: IO ()
 main4 = do
   drawings <- mapM translateStringToDrawing testDecls
-  let vCattedDrawings = vcat' (with & sep .~ 0.5) $ fmap alignL drawings
+  let
+    textDrawings = fmap (alignL . textBox) testDecls
+    vCattedDrawings = vcat' (with & sep .~ 1) $ zipWith (===) (fmap alignL drawings) textDrawings
   mainWith ((vCattedDrawings # bgFrame 1 (backgroundC colorScheme)) :: Diagram B)
 
 main :: IO ()
