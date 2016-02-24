@@ -14,8 +14,9 @@ import Translate(translateString, drawingFromDecl, drawingsFromModule)
 
 
 -- TODO Now --
--- Fix patterns in case with no Pattern apply arguments.
 -- Test reference lookup in case rhs.
+-- Use special colors for lines/boxes/text in patterns.
+-- Convert match to a PatBind with a lambda and a let.
 
 -- TODO Later --
 -- Eliminate BranchIcon for the identity funciton "y x = x"

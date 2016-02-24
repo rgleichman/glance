@@ -59,7 +59,12 @@ nameToString :: Language.Haskell.Exts.Name -> String
 nameToString (Ident s) = s
 nameToString (Symbol s) = s
 
+qNameToString :: QName -> String
+qNameToString (Qual mn name) = nameToString name
+qNameToString (UnQual name) = nameToString name
+
 evalPApp :: QName -> [Pat] -> State IDState (IconGraph, NameAndPort)
+evalPApp name [] = makeBox $ qNameToString name
 evalPApp name patterns = do
   patName <- DIA.toName <$> getUniqueName "pat"
   let
