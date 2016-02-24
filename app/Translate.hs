@@ -83,6 +83,7 @@ evalPattern p = case p of
   -- TODO special tuple handling.
   PTuple box patterns -> fmap Right <$> evalPApp (Exts.UnQual $ Ident "(,)") patterns
   PParen pat -> evalPattern pat
+  PWildCard -> fmap Right <$> makeBox "_"
 
 evalQName :: QName -> EvalContext -> (IconGraph, Reference)
 evalQName (UnQual n) context = result where
@@ -91,6 +92,8 @@ evalQName (UnQual n) context = result where
   result = if nameString `elem` context
     then (mempty, Left nameString)
     else (graph, Right $ justName nameString)
+-- TODO remove initialIdState
+evalQName (Special Exts.UnitCon) _ = Right <$> evalState (makeBox "()") initialIdState
 
 evalQOp :: QOp -> EvalContext -> (IconGraph, Reference)
 evalQOp (QVarOp n) = evalQName n
@@ -227,6 +230,7 @@ getBoundVarName :: Decl -> [String]
 -- TODO Should evalState be used here?
 getBoundVarName (PatBind _ pat _ _) = namesInPattern $ evalState (evalPattern pat) initialIdState
 getBoundVarName (FunBind [Match _ name _ _ _ _]) = [nameToString name]
+getBoundVarName (FunBind (Match _ name _ _ _ _:_)) = [nameToString name]
 
 --TODO: Should this call makeEdges?
 evalBinds :: EvalContext -> Binds -> State IDState (IconGraph, EvalContext)
@@ -290,7 +294,7 @@ evalPatAndRhs c pat rhs maybeWhereBinds = do
   patternNames <- namesInPattern <$> evalPattern pat
   let rhsContext = patternNames <> c
   -- TODO: remove coerceExpressionResult
-  (rhsGraph, rhsRef) <- coerceExpressionResult <$> rhsWithBinds maybeWhereBinds rhs rhsContext
+  (rhsGraph, rhsRef) <- rhsWithBinds maybeWhereBinds rhs rhsContext >>= coerceExpressionResult
   (patGraph, patRef) <- evalPattern pat
   caseIconName <- DIA.toName <$> getUniqueName "case"
   let
@@ -354,15 +358,18 @@ evalExp c x = case x of
   Paren e -> evalExp c e
 
 -- | This is used by the rhs for identity (eg. y x = x)
-makeDummyRhs :: String -> (IconGraph, NameAndPort)
-makeDummyRhs s = (graph, port) where
-  graph = IconGraph icons mempty mempty [(s, justName s)] mempty
-  icons = [(DIA.toName s, BranchIcon)]
-  port = justName s
+makeDummyRhs :: String -> State IDState (IconGraph, NameAndPort)
+makeDummyRhs s = do
+  iconName <- getUniqueName s
+  let
+    graph = IconGraph icons mempty mempty [(s, port)] mempty
+    icons = [(DIA.toName iconName, BranchIcon)]
+    port = justName iconName
+  pure (graph, port)
 
-coerceExpressionResult :: (IconGraph, Reference) -> (IconGraph, NameAndPort)
+coerceExpressionResult :: (IconGraph, Reference) -> State IDState (IconGraph, NameAndPort)
 coerceExpressionResult (_, Left str) = makeDummyRhs str
-coerceExpressionResult (g, Right x) = (g, x)
+coerceExpressionResult (g, Right x) = pure (g, x)
 
 -- | First argument is the right hand side.
 -- The second arugement is a list of strings that are bound in the environment.
@@ -427,7 +434,7 @@ generalEvalLambda context patterns rhsEvalFun = do
     newBinds = rawNewBinds
     numParameters = length patterns
   -- TODO remove coerceExpressionResult here
-  (rhsRawGraph, rhsResult) <- coerceExpressionResult <$> rhsEvalFun rhsContext
+  (rhsRawGraph, rhsResult) <- rhsEvalFun rhsContext >>= coerceExpressionResult
   resultIconName <- getUniqueName "res"
   rhsDrawingName <- DIA.toName <$> getUniqueName "rhsDraw"
   let
@@ -454,9 +461,30 @@ evalMatch c (Match _ name patterns _ rhs maybeWhereBinds) = do
     newBinding = IconGraph mempty mempty mempty mempty [(matchFunNameString, Right lambdaPort)]
   pure $ makeEdges (newBinding <> lambdaGraph)
 
+-- TODO If only one pattern don't tuple and untuple.
+-- Warning: [] not matched.
+matchesToCase :: [Match] -> State IDState Match
+matchesToCase [match] = pure match
+matchesToCase matches@(Match srcLoc funName pats mType _ _:_) = do
+  tempStrings <- replicateM (length pats) (getUniqueName "_tempvar")
+  let
+    tempPats = fmap (PVar . Ident) tempStrings
+    tempVars = fmap (Var . UnQual . Ident) tempStrings
+    tuple = Tuple Exts.Boxed tempVars
+    alts = fmap matchToAlt matches
+    caseExp = Case tuple alts
+    rhs = UnGuardedRhs caseExp
+    match = Match srcLoc funName tempPats mType rhs Nothing
+
+    matchToAlt :: Match -> Alt
+    matchToAlt (Match srcLoc _ pats _ rhs binds) = Alt srcLoc tuplePat rhs binds where
+      tuplePat = PTuple Exts.Boxed pats
+  pure match
+
 evalMatches :: EvalContext -> [Match] -> State IDState IconGraph
 evalMatches _ [] = pure mempty
-evalMatches c matches = mconcat <$> mapM (evalMatch c) matches
+evalMatches c matches = matchesToCase matches >>= evalMatch c
+  --mconcat <$> mapM (evalMatch c) matches
 -- TODO turn more than one match into a case expression.
 
 -- TODO: Use the context in evalPatBind and evalMatches

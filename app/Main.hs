@@ -14,6 +14,8 @@ import Translate(translateString, drawingFromDecl, drawingsFromModule)
 
 
 -- TODO Now --
+-- Fix patterns in case with no Pattern apply arguments.
+-- Test reference lookup in case rhs.
 
 -- TODO Later --
 -- Eliminate BranchIcon for the identity funciton "y x = x"
@@ -261,6 +263,8 @@ main3 = do
       arrowTestDrawing
       ]
 specialTests = [
+  "lookupTail EndAp1Arg = (arrowTail .~ dart')",
+  "y = x .~ y",
   "initialIdState = IDState 0",
   "y = f x",
   "yyy = fff xxx",
@@ -268,6 +272,7 @@ specialTests = [
   ]
 
 tupleTests = [
+  "y = ()",
   "(x, y) = (1,2)"
   ]
 
@@ -275,7 +280,9 @@ caseTests = [
   "y = case x of {0 -> 1; 2 -> 3}",
   "y = case f x of {0 -> 1; 2 -> 3}",
   "y = case x of {Foo a -> a}",
-  "y = case x of {Foo a -> f a; Bar a -> f a}"
+  "y = case x of {Foo a -> f a; Bar a -> f a}",
+  "y = case x of {F x -> x; G x -> x}",
+  "y = case x of {F -> 0; G -> 1}"
   ]
 
 patternTests = [
@@ -402,7 +409,7 @@ main5 = do
     drawings = drawingsFromModule parsedModule
   print parsedModule
   print "\n\n"
-  print drawings
+  --print drawings
 
   diagrams <- mapM renderDrawing drawings
   let
