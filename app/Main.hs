@@ -260,7 +260,10 @@ main3 = do
       ]
 
 caseTests = [
-  --"y = case x of {0 -> 1; 2 -> 3}"
+  "y = case x of {0 -> 1; 2 -> 3}",
+  "y = case f x of {0 -> 1; 2 -> 3}",
+  "y = case x of {Foo a -> a}",
+  "y = case x of {Foo a -> f a; Bar a -> f a}"
   ]
 
 patternTests = [

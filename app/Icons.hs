@@ -1,4 +1,4 @@
-{-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeFamilies, RankNTypes #-}
+{-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeFamilies, RankNTypes, PartialTypeSignatures #-}
 module Icons
     (
     Icon(..),
@@ -10,6 +10,7 @@ module Icons
     lambdaRegion,
     resultIcon,
     guardIcon,
+    caseIcon,
     defaultLineWidth,
     ColorStyle(..),
     colorScheme
@@ -36,7 +37,8 @@ data ColorStyle a = ColorStyle {
   apply1C :: Colour a,
   boolC :: Colour a,
   lamArgResC :: Colour a,
-  regionPerimC :: Colour a
+  regionPerimC :: Colour a,
+  caseRhsC :: Colour a
 }
 
 colorOnBlackScheme :: (Floating a, Ord a) => ColorStyle a
@@ -49,7 +51,8 @@ colorOnBlackScheme = ColorStyle {
   apply1C = cyan,
   boolC = orange,
   lamArgResC = lime,
-  regionPerimC = white
+  regionPerimC = white,
+  caseRhsC = yellow
 }
 
 whiteOnBlackScheme :: (Floating a, Ord a) => ColorStyle a
@@ -62,7 +65,8 @@ whiteOnBlackScheme = ColorStyle {
   apply1C = white,
   boolC = white,
   lamArgResC = white,
-  regionPerimC = white
+  regionPerimC = white,
+  caseRhsC = white
 }
 
 -- Use this to test that all of the colors use the colorScheme
@@ -76,7 +80,8 @@ randomColorScheme = ColorStyle {
   apply1C = green,
   boolC = lightpink,
   lamArgResC = red,
-  regionPerimC = cyan
+  regionPerimC = cyan,
+  caseRhsC = red
 }
 
 lineCol :: (Floating a, Ord a) => Colour a
@@ -93,6 +98,8 @@ iconToDiagram ResultIcon _ = resultIcon
 iconToDiagram BranchIcon _ = branchIcon
 iconToDiagram (TextBoxIcon s) _ = textBox s
 iconToDiagram (GuardIcon n) _ = guardIcon n
+iconToDiagram (CaseIcon n) _ = caseIcon n
+iconToDiagram CaseResultIcon _ = caseResult
 iconToDiagram (LambdaRegionIcon n diagramName) nameToSubdiagramMap =
   lambdaRegion n dia
   where
@@ -249,7 +256,7 @@ resultIcon = unitSquare # lw none # fc (lamArgResC colorScheme)
 
 -- BRANCH ICON --
 branchIcon :: GeneralDiagram a
-branchIcon = circle 0.3 # fc lineCol # lc lineCol
+branchIcon = circle circleRadius # fc lineCol # lc lineCol # lw none
 
 -- GUARD ICON --
 guardSize :: (Fractional a) => a
@@ -278,6 +285,25 @@ guardLBracket x = ell # alignT # alignL <> makePort x
 -- Port 1: Bottom result port
 -- Ports 3,5...: The left ports for the booleans
 -- Ports 2,4...: The right ports for the values
+generalGuardIcon ::
+  (RealFloat n, Typeable n, Renderable (Path V2 n) b) =>
+  (Int -> QDiagram b V2 n Any) -> Int -> QDiagram b V2 n Any
+generalGuardIcon lBracket n = centerXY $ makePort 1 <> alignB (vcat (take n trianglesAndBrackets # alignT) <> makePort 0)
+  where
+    --guardTriangles = vsep 0.4 (take n (map guardTriangle [0,1..]))
+    trianglesWithPorts = map guardTriangle [2,4..]
+    lBrackets = map lBracket [3, 5..]
+    trianglesAndBrackets =
+      zipWith zipper trianglesWithPorts lBrackets
+    zipper thisTriangle lBrack = verticalLine === ((lBrack # extrudeRight guardSize) # alignR <> (thisTriangle # alignL))
+      where
+        verticalLine = vrule 0.4 # lc lineCol # lwG defaultLineWidth
+
+-- | The ports of the guard icon are as follows:
+-- Port 0: Top result port
+-- Port 1: Bottom result port
+-- Ports 3,5...: The left ports for the booleans
+-- Ports 2,4...: The right ports for the values
 guardIcon ::
    (RealFloat n, Typeable n, Renderable (Path V2 n) b) =>
      Int -> QDiagram b V2 n Any
@@ -291,3 +317,22 @@ guardIcon n = centerXY $ makePort 1 <> alignB (vcat (take n trianglesAndBrackets
     zipper thisTriangle lBrack = verticalLine === ((lBrack # extrudeRight guardSize) # alignR <> (thisTriangle # alignL))
       where
         verticalLine = vrule 0.4 # lc lineCol # lwG defaultLineWidth
+
+caseResult :: (RealFloat n,
+           Typeable n,
+           Renderable (Path V2 n) b) => QDiagram b V2 n Any
+caseResult = (circle circleRadius # fc caseCColor # lc caseCColor # lw none) where
+  caseCColor = caseRhsC colorScheme
+
+caseC :: (RealFloat n,
+           Typeable n,
+           Renderable (Path V2 n) b) => Int -> QDiagram b V2 n Any
+caseC n = caseResult <> makePort n where
+
+
+-- TODO Fix the line spacing.
+-- TODO Add a caseC at the bottom for the result.
+caseIcon ::(RealFloat n,
+           Typeable n,
+           Renderable (Path V2 n) b) => Int -> QDiagram b V2 n Any
+caseIcon = generalGuardIcon caseC

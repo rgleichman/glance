@@ -8,21 +8,28 @@ import Diagrams.Prelude((<>))
 
 import Language.Haskell.Exts(Decl(..), parseDecl, Name(..), Pat(..), Rhs(..),
   Exp(..), QName(..), fromParseResult, Match(..), QOp(..), GuardedRhs(..),
-  Stmt(..), Binds(..))
+  Stmt(..), Binds(..), Alt(..))
 import qualified Language.Haskell.Exts as Exts
 import Control.Monad.State(State, evalState)
 import Debug.Trace
-import Data.Either(partitionEithers)
+import Data.Either(partitionEithers, rights)
+import Data.List(unzip4, partition)
+import Control.Monad(replicateM)
 
 import Types(Icon, Edge(..), Drawing(..), NameAndPort(..), IDState,
   initialIdState, getId)
-import Util(toNames, noEnds, nameAndPort, justName)
+import Util(toNames, noEnds, nameAndPort, justName, mapFst)
 import Icons(Icon(..))
 
 type Reference = Either String NameAndPort
 -- | An IconGraph is a normal Drawing (Icons, Edges, and sub Drawings) with two additional fields:
 -- unconected sink ports (varible usage), and unconnected source ports (varible definition).
-data IconGraph = IconGraph [(DIA.Name, Icon)] [Edge] [(DIA.Name, Drawing)] [(String, NameAndPort)] [(String, Reference)]
+data IconGraph = IconGraph {
+  igIcons :: [(DIA.Name, Icon)],
+  igEdges :: [Edge],
+  igSubDrawings :: [(DIA.Name, Drawing)],
+  igSinks :: [(String, NameAndPort)],
+  igBindings :: [(String, Reference)]}
   deriving (Show)
 
 type EvalContext = [String]
@@ -85,7 +92,16 @@ evalQOp :: QOp -> EvalContext -> (IconGraph, Reference)
 evalQOp (QVarOp n) = evalQName n
 evalQOp (QConOp n) = evalQName n
 
-combineExpressions :: Bool -> [((IconGraph, Reference), NameAndPort)] -> IconGraph
+-- TODO: Refactor with combineExpressions
+edgesForRefPortList :: Bool -> [(Reference, NameAndPort)] -> IconGraph
+edgesForRefPortList inPattern portExpPairs = mconcat $ fmap mkGraph portExpPairs where
+  mkGraph (ref, port) = case ref of
+    Left str -> if inPattern
+      then IconGraph mempty mempty mempty mempty [(str, Right port)]
+      else IconGraph mempty mempty mempty [(str, port)] mempty
+    Right resultPort -> IconGraph mempty [Edge (resultPort, port) noEnds] mempty mempty mempty
+
+combineExpressions :: Bool -> [(GraphAndRef, NameAndPort)] -> IconGraph
 combineExpressions inPattern portExpPairs = mconcat $ fmap mkGraph portExpPairs where
   mkGraph ((graph, ref), port) = graph <> case ref of
     Left str -> if inPattern
@@ -264,6 +280,77 @@ evalGeneralLet expOrRhsEvaler c bs = do
 evalLet :: EvalContext -> Binds -> Exp -> State IDState (IconGraph, Reference)
 evalLet context binds e = evalGeneralLet (`evalExp` e) context binds
 
+-- TODO: Refactor this with evalPatBind
+evalPatAndRhs :: EvalContext -> Pat -> Rhs -> Maybe Binds -> State IDState (Bool, IconGraph, Reference, NameAndPort)
+evalPatAndRhs c pat rhs maybeWhereBinds = do
+  patternNames <- namesInPattern <$> evalPattern pat
+  let rhsContext = patternNames <> c
+  -- TODO: remove coerceExpressionResult
+  (rhsGraph, rhsRef) <- coerceExpressionResult <$> rhsWithBinds maybeWhereBinds rhs rhsContext
+  (patGraph, patRef) <- evalPattern pat
+  caseIconName <- DIA.toName <$> getUniqueName "case"
+  --TODO Should any of this stuff be included?
+  -- (newEdges, newSinks, bindings) = case patRef of
+  --   (Left s) -> (mempty, mempty, [(s, rhsRef)])
+  --   (Right patPort) -> case rhsRef of
+  --     (Left rhsStr) -> (mempty, [(rhsStr, patPort)], mempty)
+  --     -- TODO: This edge should be special to indicate that one side is a pattern.
+  --     (Right rhsPort) -> ([Edge (rhsPort, patPort) noEnds], mempty, mempty)
+  -- gr = IconGraph mempty newEdges mempty newSinks bindings
+  let
+    grWithEdges = makeEdges (rhsGraph <> patGraph)
+    -- The pattern and rhs are conneted if makeEdges added extra edges.
+    patRhsAreConnected =
+      length (igEdges grWithEdges) > (length (igEdges rhsGraph) + length (igEdges patGraph))
+  pure (patRhsAreConnected, deleteBindings grWithEdges, patRef, rhsRef)
+
+-- returns (combined graph, pattern reference, rhs reference)
+evalAlt :: EvalContext -> Exts.Alt -> State IDState (Bool, IconGraph, Reference, NameAndPort)
+evalAlt c (Exts.Alt s pat rhs maybeBinds) = evalPatAndRhs c pat rhs maybeBinds
+
+-- evalGuardedRhss' :: EvalContext -> [GuardedRhs] -> State IDState (IconGraph, NameAndPort)
+-- evalGuardedRhss' c rhss = do
+--   guardName <- DIA.toName <$> getUniqueName "guard"
+--   evaledRhss <- mapM (evalGuaredRhs c) rhss
+--   let
+--     (bools, exps) = unzip evaledRhss
+--     expsWithPorts = zip exps $ map (nameAndPort guardName) [2,4..]
+--     boolsWithPorts = zip bools $ map (nameAndPort guardName) [3,5..]
+--     combindedGraph = combineExpressions False $ expsWithPorts <> boolsWithPorts
+--     icons = [(guardName, GuardIcon (length rhss))]
+--     newGraph = iconGraphFromIcons icons <> combindedGraph
+--   pure (newGraph, NameAndPort guardName (Just 0))
+
+-- TODO: Add case result icon, and connect it.
+evalCase :: EvalContext -> Exp -> [Alt] -> State IDState (IconGraph, NameAndPort)
+evalCase c e alts = do
+  evaledAlts <- mapM (evalAlt c) alts
+  (expGraph, expRef) <- evalExp c e
+  caseIconName <- getUniqueName "case"
+  let
+    (patRhsConnected, altGraphs, patRefs, rhsRefs) = unzip4 evaledAlts
+    combindedAltGraph = mconcat altGraphs
+    numAlts = length alts
+    icons = toNames [(caseIconName, CaseIcon numAlts)]
+    edges = mempty
+    caseGraph = iconGraphFromIconsEdges icons edges
+    expEdge = (expRef, nameAndPort caseIconName 0)
+    patEdges = zip patRefs $ map (nameAndPort caseIconName ) [2,4..]
+    rhsEdges = zip patRhsConnected $ zip rhsRefs $ map (nameAndPort caseIconName) [3,5..]
+    (connectedRhss, unConnectedRhss) = partition fst rhsEdges
+  resultIconNames <- replicateM numAlts (getUniqueName "caseResult")
+  let
+    makeCaseResult resultIconName rhsPort = iconGraphFromIconsEdges rhsNewIcons rhsNewEdges
+      where
+        rhsNewIcons = toNames [(resultIconName, CaseResultIcon)]
+        rhsNewEdges = [Edge (rhsPort, justName resultIconName) noEnds]
+    caseResultGraphs = mconcat $ zipWith makeCaseResult resultIconNames (fmap (fst . snd) connectedRhss)
+    filteredRhsEdges = mapFst Right $ fmap snd unConnectedRhss
+    caseEdgeGraph = edgesForRefPortList False $ expEdge : (patEdges <> filteredRhsEdges)
+    finalGraph = caseResultGraphs <> expGraph <> caseEdgeGraph <> caseGraph <> combindedAltGraph
+  -- TODO finish funciton
+  pure (finalGraph, nameAndPort caseIconName 1)
+
 evalExp :: EvalContext  -> Exp -> State IDState (IconGraph, Reference)
 evalExp c x = case x of
   Var n -> pure $ evalQName n c
@@ -274,6 +361,7 @@ evalExp c x = case x of
   Lambda _ patterns e -> fmap Right <$> evalLambda c patterns e
   Let bs e -> evalLet c bs e
   If e1 e2 e3 -> fmap Right <$> evalIf c e1 e2 e3
+  Case e alts -> fmap Right <$> evalCase c e alts
   Paren e -> evalExp c e
 
 -- | This is used by the rhs for identity (eg. y x = x)

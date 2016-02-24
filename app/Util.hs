@@ -11,7 +11,8 @@ module Util (
   noEnds,
   nameAndPort,
   justName,
-  fromMaybeError
+  fromMaybeError,
+  mapFst
 )where
 
 import Control.Arrow(first)
