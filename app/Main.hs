@@ -3,13 +3,15 @@ module Main where
 
 import Diagrams.Prelude
 import Diagrams.Backend.SVG.CmdLine
+import qualified Language.Haskell.Exts as Exts
 
 import Icons(apply0NDia, textBox, colorScheme, ColorStyle(..))
 import Rendering(renderDrawing)
 import Util(toNames, portToPort, iconToPort, iconToIcon,
   iconToIconEnds, iconTailToPort)
 import Types(Icon(..), Drawing(..), EdgeEnd(..))
-import Translate(translateString)
+import Translate(translateString, drawingFromDecl, drawingsFromModule)
+
 
 -- TODO Now --
 
@@ -258,6 +260,16 @@ main3 = do
       factLam2Drawing,
       arrowTestDrawing
       ]
+specialTests = [
+  "initialIdState = IDState 0",
+  "y = f x",
+  "yyy = fff xxx",
+  "yyyyy = fffff xxxxx"
+  ]
+
+tupleTests = [
+  "(x, y) = (1,2)"
+  ]
 
 caseTests = [
   "y = case x of {0 -> 1; 2 -> 3}",
@@ -267,6 +279,7 @@ caseTests = [
   ]
 
 patternTests = [
+  "Foo _ x = 3",
   "y (F x) = x",
   "y = (\\(F x) -> x)",
   "y = let {g = 3; F x y = h g} in x y",
@@ -347,7 +360,9 @@ otherTests = [
   ]
 
 testDecls = mconcat [
-  caseTests
+  specialTests
+  ,tupleTests
+  ,caseTests
   ,lambdaTests
   ,patternTests
   ,letTests
@@ -371,6 +386,29 @@ main4 = do
     textDrawings = fmap (alignL . textBox) testDecls
     vCattedDrawings = vcat' (with & sep .~ 1) $ zipWith (===) (fmap alignL drawings) textDrawings
   mainWith ((vCattedDrawings # bgFrame 1 (backgroundC colorScheme)) :: Diagram B)
+
+testFiles = [
+  "./app/Main.hs",
+  "./test/test_translate.hs"
+  ]
+
+main5 :: IO ()
+main5 = do
+  parseResult <- Exts.parseFileWithExts [Exts.EnableExtension Exts.MultiParamTypeClasses, Exts.EnableExtension Exts.FlexibleContexts]
+    "./test/test_translate.hs"
+    --"./app/Icons.hs"
+  let
+    parsedModule = Exts.fromParseResult parseResult
+    drawings = drawingsFromModule parsedModule
+  print parsedModule
+  print "\n\n"
+  print drawings
+
+  diagrams <- mapM renderDrawing drawings
+  let
+    vCattedDrawings = vcat' (with & sep .~ 1) $ fmap alignL diagrams
+  mainWith ((vCattedDrawings # bgFrame 1 (backgroundC colorScheme)) :: Diagram B)
+
 
 main :: IO ()
 main = main4

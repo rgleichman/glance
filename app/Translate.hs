@@ -1,6 +1,8 @@
 {-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeFamilies #-}
 module Translate(
-  translateString
+  translateString,
+  drawingFromDecl,
+  drawingsFromModule
 ) where
 
 import qualified Diagrams.Prelude as DIA
@@ -8,7 +10,7 @@ import Diagrams.Prelude((<>))
 
 import Language.Haskell.Exts(Decl(..), parseDecl, Name(..), Pat(..), Rhs(..),
   Exp(..), QName(..), fromParseResult, Match(..), QOp(..), GuardedRhs(..),
-  Stmt(..), Binds(..), Alt(..))
+  Stmt(..), Binds(..), Alt(..), Module(..))
 import qualified Language.Haskell.Exts as Exts
 import Control.Monad.State(State, evalState)
 import Debug.Trace
@@ -78,6 +80,8 @@ evalPattern p = case p of
   PVar n -> pure (mempty, Left $ nameToString n)
   PLit s l -> fmap Right <$> evalPLit s l
   PApp name patterns -> fmap Right <$> evalPApp name patterns
+  -- TODO special tuple handling.
+  PTuple box patterns -> fmap Right <$> evalPApp (Exts.UnQual $ Ident "(,)") patterns
   PParen pat -> evalPattern pat
 
 evalQName :: QName -> EvalContext -> (IconGraph, Reference)
@@ -289,14 +293,6 @@ evalPatAndRhs c pat rhs maybeWhereBinds = do
   (rhsGraph, rhsRef) <- coerceExpressionResult <$> rhsWithBinds maybeWhereBinds rhs rhsContext
   (patGraph, patRef) <- evalPattern pat
   caseIconName <- DIA.toName <$> getUniqueName "case"
-  --TODO Should any of this stuff be included?
-  -- (newEdges, newSinks, bindings) = case patRef of
-  --   (Left s) -> (mempty, mempty, [(s, rhsRef)])
-  --   (Right patPort) -> case rhsRef of
-  --     (Left rhsStr) -> (mempty, [(rhsStr, patPort)], mempty)
-  --     -- TODO: This edge should be special to indicate that one side is a pattern.
-  --     (Right rhsPort) -> ([Edge (rhsPort, patPort) noEnds], mempty, mempty)
-  -- gr = IconGraph mempty newEdges mempty newSinks bindings
   let
     grWithEdges = makeEdges (rhsGraph <> patGraph)
     -- The pattern and rhs are conneted if makeEdges added extra edges.
@@ -308,20 +304,6 @@ evalPatAndRhs c pat rhs maybeWhereBinds = do
 evalAlt :: EvalContext -> Exts.Alt -> State IDState (Bool, IconGraph, Reference, NameAndPort)
 evalAlt c (Exts.Alt s pat rhs maybeBinds) = evalPatAndRhs c pat rhs maybeBinds
 
--- evalGuardedRhss' :: EvalContext -> [GuardedRhs] -> State IDState (IconGraph, NameAndPort)
--- evalGuardedRhss' c rhss = do
---   guardName <- DIA.toName <$> getUniqueName "guard"
---   evaledRhss <- mapM (evalGuaredRhs c) rhss
---   let
---     (bools, exps) = unzip evaledRhss
---     expsWithPorts = zip exps $ map (nameAndPort guardName) [2,4..]
---     boolsWithPorts = zip bools $ map (nameAndPort guardName) [3,5..]
---     combindedGraph = combineExpressions False $ expsWithPorts <> boolsWithPorts
---     icons = [(guardName, GuardIcon (length rhss))]
---     newGraph = iconGraphFromIcons icons <> combindedGraph
---   pure (newGraph, NameAndPort guardName (Just 0))
-
--- TODO: Add case result icon, and connect it.
 evalCase :: EvalContext -> Exp -> [Alt] -> State IDState (IconGraph, NameAndPort)
 evalCase c e alts = do
   evaledAlts <- mapM (evalAlt c) alts
@@ -332,8 +314,7 @@ evalCase c e alts = do
     combindedAltGraph = mconcat altGraphs
     numAlts = length alts
     icons = toNames [(caseIconName, CaseIcon numAlts)]
-    edges = mempty
-    caseGraph = iconGraphFromIconsEdges icons edges
+    caseGraph = iconGraphFromIcons icons
     expEdge = (expRef, nameAndPort caseIconName 0)
     patEdges = zip patRefs $ map (nameAndPort caseIconName ) [2,4..]
     rhsEdges = zip patRhsConnected $ zip rhsRefs $ map (nameAndPort caseIconName) [3,5..]
@@ -348,8 +329,14 @@ evalCase c e alts = do
     filteredRhsEdges = mapFst Right $ fmap snd unConnectedRhss
     caseEdgeGraph = edgesForRefPortList False $ expEdge : (patEdges <> filteredRhsEdges)
     finalGraph = caseResultGraphs <> expGraph <> caseEdgeGraph <> caseGraph <> combindedAltGraph
-  -- TODO finish funciton
   pure (finalGraph, nameAndPort caseIconName 1)
+
+evalTuple :: EvalContext -> [Exp] -> State IDState (IconGraph, NameAndPort)
+evalTuple c exps = do
+  argVals <- mapM (evalExp c) exps
+  funVal <- makeBox "(,)"
+  applyIconName <- DIA.toName <$> getUniqueName "tupleApp"
+  pure $ makeApplyGraph False applyIconName (fmap Right funVal) argVals (length exps)
 
 evalExp :: EvalContext  -> Exp -> State IDState (IconGraph, Reference)
 evalExp c x = case x of
@@ -362,6 +349,8 @@ evalExp c x = case x of
   Let bs e -> evalLet c bs e
   If e1 e2 e3 -> fmap Right <$> evalIf c e1 e2 e3
   Case e alts -> fmap Right <$> evalCase c e alts
+  -- TODO special tuple symbol
+  Tuple _ exps -> fmap Right <$> evalTuple c exps
   Paren e -> evalExp c e
 
 -- | This is used by the rhs for identity (eg. y x = x)
@@ -476,6 +465,8 @@ evalDecl c d = evaluatedDecl where
   evaluatedDecl = case d of
     pat@PatBind{} -> evalPatBind c pat
     FunBind matches -> evalMatches c matches
+    --TODO: Add other cases here
+    _ -> pure mempty
 
 showTopLevelBinds :: IconGraph -> State IDState IconGraph
 showTopLevelBinds gr@(IconGraph _ _ _ _ binds) = do
@@ -501,3 +492,6 @@ translateString s = (drawing, decl) where
   parseResult = parseDecl s -- :: ParseResult Module
   decl = fromParseResult parseResult
   drawing = drawingFromDecl decl
+
+drawingsFromModule :: Module -> [Drawing]
+drawingsFromModule (Module _ _ _ _ _ _ decls) = fmap drawingFromDecl decls

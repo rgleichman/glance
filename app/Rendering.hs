@@ -29,8 +29,17 @@ import Util(fromMaybeError)
 
 -- CONSTANT
 scaleFactor :: (Fractional a) => a
-scaleFactor = 0.02
+
+-- For Neato
+scaleFactor = 0.05
+
+-- For Fdp
+--scaleFactor = 0.05
+
 --scaleFactor = 0.04
+
+drawingToGraphvizScaleFactor :: Double
+drawingToGraphvizScaleFactor = 0.4
 
 -- CONVERTING Edges AND Icons TO DIAGRAMS --
 
@@ -228,7 +237,7 @@ doGraphLayout graph nameDiagramMap edges = do
     layoutParams :: GV.GraphvizParams Int v e () v
     layoutParams = GV.defaultParams{
       GV.globalAttributes =
-        [ GV.NodeAttrs [GVA.Shape GVA.Circle]
+        [ GV.NodeAttrs [GVA.Shape GVA.BoxShape]
         , GV.GraphAttrs [GVA.Overlap GVA.ScaleXYOverlaps, GVA.Splines GVA.LineEdges]
         ],
       GV.fmtEdge = const [GV.arrowTo GV.noArrow],
@@ -238,9 +247,11 @@ doGraphLayout graph nameDiagramMap edges = do
     nodeAttribute (nodeInt, _) =
       -- todo: Potential bug. GVA.Width and GVA.Height have a minimum of 0.01
       -- throw an error if the width or height are less than 0.01
-      [GVA.Width shapeDimensions, GVA.Height shapeDimensions]
+      [GVA.Width diaWidth, GVA.Height diaHeight]
       where
-        shapeDimensions = max (width dia) (height dia)
+        --shapeDimensions = drawingToGraphvizScaleFactor * max (width dia) (height dia)
+        diaWidth = drawingToGraphvizScaleFactor * (width dia)
+        diaHeight = drawingToGraphvizScaleFactor * (height dia)
         --todo: Hack! Using (!!) here relies upon the implementation of Diagrams.TwoD.GraphViz.mkGraph
         -- to name the nodes in order
         (_, dia) = nameDiagramMap !! nodeInt
