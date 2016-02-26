@@ -54,10 +54,11 @@ colorOnBlackScheme = ColorStyle {
   lamArgResC = lime,
   regionPerimC = white,
   caseRhsC = slightlyGreenYellow,
-  patternC = magenta
+  patternC = lightMagenta
 }
   where
     slightlyGreenYellow = sRGB24 212 255 0
+    lightMagenta = sRGB24 255 94 255
 
 whiteOnBlackScheme :: (Floating a, Ord a) => ColorStyle a
 whiteOnBlackScheme = ColorStyle {

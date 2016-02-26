@@ -5,6 +5,7 @@ module Types (
   NameAndPort(..),
   Connection(..),
   Edge(..),
+  EdgeOption(..),
   EdgeEnd(..),
   Drawing(..),
   IDState,
@@ -29,9 +30,11 @@ data NameAndPort = NameAndPort Name (Maybe Int) deriving (Show)
 
 type Connection = (NameAndPort, NameAndPort)
 
+data EdgeOption = EdgeInPattern deriving (Show, Eq)
+
 -- | An Edge has an name of the source icon, and its optional port number,
 -- and the name of the destination icon, and its optional port number.
-data Edge = Edge {edgeConnection :: Connection, edgeEnds :: (EdgeEnd, EdgeEnd)}
+data Edge = Edge {edgeOptions::[EdgeOption], edgeEnds :: (EdgeEnd, EdgeEnd), edgeConnection :: Connection}
   deriving (Show)
 
 data EdgeEnd = EndAp1Result | EndAp1Arg | EndNone deriving (Show)

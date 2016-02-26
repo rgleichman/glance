@@ -21,7 +21,7 @@ import Data.Graph.Inductive.PatriciaTree (Gr)
 import Data.Typeable(Typeable)
 
 import Icons(colorScheme, Icon(..), iconToDiagram, nameDiagram, defaultLineWidth, ColorStyle(..))
-import Types(Edge(..), Connection, Drawing(..), EdgeEnd(..), NameAndPort(..))
+import Types(Edge(..), EdgeOption(..), Connection, Drawing(..), EdgeEnd(..), NameAndPort(..))
 import Util(fromMaybeError)
 
 -- If the inferred types for these functions becomes unweildy,
@@ -69,9 +69,10 @@ arg1ResT len _ = (circle (len / 2) # alignR, mempty)
 arg1ResH :: (RealFloat n) => ArrowHT n
 arg1ResH len _ = (circle (len / 2) # alignL, mempty)
 
-getArrowOpts :: (RealFloat n, Typeable n) => (EdgeEnd, EdgeEnd) -> ArrowOpts n
-getArrowOpts (t, h) = arrowOptions
+getArrowOpts :: (RealFloat n, Typeable n) => (EdgeEnd, EdgeEnd) -> [EdgeOption]-> ArrowOpts n
+getArrowOpts (t, h) opts = arrowOptions
   where
+    shaftColor = if EdgeInPattern `elem` opts then patternC else lineC
     ap1ArgTexture = solid (backgroundC colorScheme)
     ap1ArgStyle = lwG defaultLineWidth . lc (apply1C colorScheme)
     ap1ResultTexture = solid (apply1C colorScheme)
@@ -90,24 +91,24 @@ getArrowOpts (t, h) = arrowOptions
       with & arrowHead .~ noHead
       & arrowTail .~ noTail
       & lengths .~ global 0.75
-      & shaftStyle %~ lwG defaultLineWidth . lc (lineC colorScheme)
+      & shaftStyle %~ lwG defaultLineWidth . lc (shaftColor colorScheme)
       & lookupTail t & lookupHead h
 
 -- | Given an Edge, return a transformation on Diagrams that will draw a line.
 connectMaybePorts ::
    (RealFloat n, Typeable n, Renderable (Path V2 n) b) =>
      Edge -> QDiagram b V2 n Any -> QDiagram b V2 n Any
-connectMaybePorts (Edge (NameAndPort icon0 (Just port0), NameAndPort icon1 (Just port1)) ends) =
+connectMaybePorts (Edge opts ends (NameAndPort icon0 (Just port0), NameAndPort icon1 (Just port1))) =
   connect'
-  (getArrowOpts ends)
+  (getArrowOpts ends opts)
   (icon0 .> port0)
   (icon1 .> port1)
-connectMaybePorts (Edge (NameAndPort icon0 Nothing, NameAndPort icon1 (Just port1)) ends) =
-  connectOutside' (getArrowOpts ends) icon0 (icon1 .> port1)
-connectMaybePorts (Edge (NameAndPort icon0 (Just port0), NameAndPort icon1 Nothing) ends) =
-  connectOutside' (getArrowOpts ends) (icon0 .> port0) icon1
-connectMaybePorts (Edge (NameAndPort icon0 Nothing, NameAndPort icon1 Nothing) ends) =
-  connectOutside' (getArrowOpts ends) icon0 icon1
+connectMaybePorts (Edge opts ends (NameAndPort icon0 Nothing, NameAndPort icon1 (Just port1))) =
+  connectOutside' (getArrowOpts ends opts) icon0 (icon1 .> port1)
+connectMaybePorts (Edge opts ends (NameAndPort icon0 (Just port0), NameAndPort icon1 Nothing)) =
+  connectOutside' (getArrowOpts ends opts) (icon0 .> port0) icon1
+connectMaybePorts (Edge opts ends (NameAndPort icon0 Nothing, NameAndPort icon1 Nothing)) =
+  connectOutside' (getArrowOpts ends opts) icon0 icon1
 
 makeConnections ::
    (RealFloat n, Typeable n, Renderable (Path V2 n) b) =>
