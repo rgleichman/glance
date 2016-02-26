@@ -187,7 +187,7 @@ evalGuardedRhss c rhss = do
     combindedGraph = combineExpressions False $ expsWithPorts <> boolsWithPorts
     icons = [(guardName, GuardIcon (length rhss))]
     newGraph = iconGraphFromIcons icons <> combindedGraph
-  pure (newGraph, NameAndPort guardName (Just 0))
+  pure (newGraph, NameAndPort guardName (Just 1))
 
 makeBox :: String -> State IDState (IconGraph, NameAndPort)
 makeBox str = do
@@ -468,6 +468,8 @@ evalMatch c (Match _ name patterns _ rhs maybeWhereBinds) = do
 
 -- TODO If only one pattern don't tuple and untuple.
 -- Warning: [] not matched.
+-- TODO refactor so this takes as seperate arguments the first matchs, and the rest of the matches as a list.
+-- this avoids the [] case.
 matchesToCase :: [Match] -> State IDState Match
 matchesToCase [match] = pure match
 matchesToCase matches@(Match srcLoc funName pats mType _ _:_) = do

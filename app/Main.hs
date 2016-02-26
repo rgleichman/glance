@@ -14,11 +14,16 @@ import Translate(translateString, drawingFromDecl, drawingsFromModule)
 
 
 -- TODO Now --
+-- Refactor Translate
 -- Test reference lookup in case rhs.
 -- Use special colors for lines/boxes/text in patterns.
 -- Convert match to a PatBind with a lambda and a let.
+-- Have the file be a command line argument to main.
+-- In matchesToCase, don't tuple and untuple for a single argument.
 
 -- TODO Later --
+-- Let each bool, value pair in Guard icon be flipped to reduce line crossings. Do the same for case.
+-- Add text field to Apply. Also redraw text and icon when it is rotated so that the characters stay oriented.
 -- Eliminate BranchIcon for the identity funciton "y x = x"
 -- otherwise Guard special case
 -- Let lines connect to ports in multiple locations (eg. argument for Apply0Dia)
@@ -286,6 +291,14 @@ caseTests = [
   "y = case x of {F -> 0; G -> 1}"
   ]
 
+guardTests = [
+  "y x\n\
+  \  | x == 0 = 1",
+  "y x\n\
+  \  | x == 0 = 1\n\
+  \  | otherwise = 2"
+  ]
+
 patternTests = [
   "Foo _ x = 3",
   "y (F x) = x",
@@ -333,11 +346,6 @@ letTests = [
 
 otherTests = [
   "y = f 1 'c' 2.3 \"foobar\"",
-  "y x\n\
-  \  | x == 0 = 1",
-  "y x\n\
-  \  | x == 0 = 1\n\
-  \  | otherwise = 2",
   "y = 1 + 2",
   "fact x = if (x == 0) then 1 else (fact x (x - 1))",
   "fact x = if ((==) 0 x) then 1 else (fact x ((-) x 1))",
@@ -368,11 +376,12 @@ otherTests = [
   ]
 
 testDecls = mconcat [
-  specialTests
-  ,tupleTests
-  ,caseTests
+  caseTests
   ,lambdaTests
+  ,guardTests
   ,patternTests
+  ,specialTests
+  ,tupleTests
   ,letTests
   ,otherTests
   ]

@@ -38,7 +38,8 @@ data ColorStyle a = ColorStyle {
   boolC :: Colour a,
   lamArgResC :: Colour a,
   regionPerimC :: Colour a,
-  caseRhsC :: Colour a
+  caseRhsC :: Colour a,
+  patternC :: Colour a
 }
 
 colorOnBlackScheme :: (Floating a, Ord a) => ColorStyle a
@@ -52,8 +53,11 @@ colorOnBlackScheme = ColorStyle {
   boolC = orange,
   lamArgResC = lime,
   regionPerimC = white,
-  caseRhsC = yellow
+  caseRhsC = slightlyGreenYellow,
+  patternC = magenta
 }
+  where
+    slightlyGreenYellow = sRGB24 212 255 0
 
 whiteOnBlackScheme :: (Floating a, Ord a) => ColorStyle a
 whiteOnBlackScheme = ColorStyle {
@@ -66,7 +70,8 @@ whiteOnBlackScheme = ColorStyle {
   boolC = white,
   lamArgResC = white,
   regionPerimC = white,
-  caseRhsC = white
+  caseRhsC = white,
+  patternC = white
 }
 
 -- Use this to test that all of the colors use the colorScheme
@@ -81,7 +86,8 @@ randomColorScheme = ColorStyle {
   boolC = lightpink,
   lamArgResC = red,
   regionPerimC = cyan,
-  caseRhsC = red
+  caseRhsC = red,
+  patternC = olive
 }
 
 lineCol :: (Floating a, Ord a) => Colour a
@@ -267,10 +273,10 @@ guardTriangle ::
       TrailLike (QDiagram b V2 n m)) =>
      Int -> QDiagram b V2 n m
 guardTriangle x =
-  ((triangleAndPort ||| (hrule (guardSize * 0.8) # lc lineCol # lwG defaultLineWidth)) # alignR) <> makePort x # alignL
+  ((triangleAndPort ||| (hrule (guardSize * 0.8) # lwG defaultLineWidth)) # alignR) <> makePort x # alignL
   where
     triangleAndPort = polygon (with & polyType .~ PolySides [90 @@ deg, 45 @@ deg] [guardSize, guardSize])
-      # rotateBy (1/8)# lc lineCol # lwG defaultLineWidth # alignT # alignR
+      # rotateBy (1/8) # lwG defaultLineWidth # alignT # alignR
 
 guardLBracket ::
    (RealFloat n, Typeable n, Renderable (Path V2 n) b) =>
@@ -280,24 +286,21 @@ guardLBracket x = ell # alignT # alignL <> makePort x
     ellShape = fromOffsets $ map r2 [(0, guardSize), (-guardSize,0)]
     ell = ellShape # strokeLine # lc (boolC colorScheme) # lwG defaultLineWidth # lineJoin LineJoinRound
 
--- | The ports of the guard icon are as follows:
--- Port 0: Top result port
--- Port 1: Bottom result port
--- Ports 3,5...: The left ports for the booleans
--- Ports 2,4...: The right ports for the values
 generalGuardIcon ::
   (RealFloat n, Typeable n, Renderable (Path V2 n) b) =>
-  (Int -> QDiagram b V2 n Any) -> Int -> QDiagram b V2 n Any
-generalGuardIcon lBracket n = centerXY $ makePort 1 <> alignB (vcat (take n trianglesAndBrackets # alignT) <> makePort 0)
+  Colour Double -> (Int -> QDiagram b V2 n Any) -> QDiagram b V2 n Any -> Int -> QDiagram b V2 n Any
+generalGuardIcon triangleColor lBracket bottomDia n = centerXY $ (alignT $ bottomDia <> makePort 1) <> alignB (bigVerticalLine <> guardDia <> makePort 0)
   where
     --guardTriangles = vsep 0.4 (take n (map guardTriangle [0,1..]))
     trianglesWithPorts = map guardTriangle [2,4..]
     lBrackets = map lBracket [3, 5..]
     trianglesAndBrackets =
       zipWith zipper trianglesWithPorts lBrackets
-    zipper thisTriangle lBrack = verticalLine === ((lBrack # extrudeRight guardSize) # alignR <> (thisTriangle # alignL))
+    zipper thisTriangle lBrack = verticalLine === ((lBrack # extrudeRight guardSize) # alignR <> (thisTriangle # alignL # lc triangleColor))
       where
-        verticalLine = vrule 0.4 # lc lineCol # lwG defaultLineWidth
+        verticalLine = strutY 0.4
+    guardDia = vcat (take n trianglesAndBrackets # alignT)
+    bigVerticalLine = vrule (height guardDia) # lc triangleColor # lwG defaultLineWidth # alignT
 
 -- | The ports of the guard icon are as follows:
 -- Port 0: Top result port
@@ -307,21 +310,13 @@ generalGuardIcon lBracket n = centerXY $ makePort 1 <> alignB (vcat (take n tria
 guardIcon ::
    (RealFloat n, Typeable n, Renderable (Path V2 n) b) =>
      Int -> QDiagram b V2 n Any
-guardIcon n = centerXY $ makePort 1 <> alignB (vcat (take n trianglesAndBrackets # alignT) <> makePort 0)
-  where
-    --guardTriangles = vsep 0.4 (take n (map guardTriangle [0,1..]))
-    trianglesWithPorts = map guardTriangle [2,4..]
-    lBrackets = map guardLBracket [3, 5..]
-    trianglesAndBrackets =
-      zipWith zipper trianglesWithPorts lBrackets
-    zipper thisTriangle lBrack = verticalLine === ((lBrack # extrudeRight guardSize) # alignR <> (thisTriangle # alignL))
-      where
-        verticalLine = vrule 0.4 # lc lineCol # lwG defaultLineWidth
+guardIcon = generalGuardIcon lineCol guardLBracket mempty
 
+-- TODO Improve design to be more than a circle.
 caseResult :: (RealFloat n,
            Typeable n,
            Renderable (Path V2 n) b) => QDiagram b V2 n Any
-caseResult = (circle circleRadius # fc caseCColor # lc caseCColor # lw none) where
+caseResult = (circle (circleRadius * 0.7) # fc caseCColor # lc caseCColor # lw none) where
   caseCColor = caseRhsC colorScheme
 
 caseC :: (RealFloat n,
@@ -330,9 +325,12 @@ caseC :: (RealFloat n,
 caseC n = caseResult <> makePort n where
 
 
--- TODO Fix the line spacing.
--- TODO Add a caseC at the bottom for the result.
+-- | The ports of the case icon are as follows:
+-- Port 0: Top result port
+-- Port 1: Bottom result port
+-- Ports 3,5...: The left ports for the results
+-- Ports 2,4...: The right ports for the patterns
 caseIcon ::(RealFloat n,
            Typeable n,
            Renderable (Path V2 n) b) => Int -> QDiagram b V2 n Any
-caseIcon = generalGuardIcon caseC
+caseIcon = generalGuardIcon (patternC colorScheme) caseC caseResult
