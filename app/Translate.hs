@@ -70,8 +70,8 @@ evalPApp name patterns = do
   let
     context = mempty
   evaledPatterns <- mapM evalPattern patterns
+  constructorName <- evalQName name context
   let
-    constructorName = evalQName name context
     gr = makeApplyGraph True patName constructorName evaledPatterns (length evaledPatterns)
   pure gr
 
@@ -90,24 +90,26 @@ evalPattern p = case p of
   PParen pat -> evalPattern pat
   PWildCard -> fmap Right <$> makeBox "_"
 
-evalQName :: QName -> EvalContext -> (IconGraph, Reference)
-evalQName (UnQual n) context = result where
-  nameString = nameToString n
-  graph = iconGraphFromIcons [(DIA.toName nameString, TextBoxIcon nameString)]
-  result = if nameString `elem` context
+--TODO: Consider making this have unique values.
+evalQName :: QName -> EvalContext -> State IDState (IconGraph, Reference)
+evalQName (UnQual n) context = do
+  let nameString = nameToString n
+  --graph = iconGraphFromIcons [(DIA.toName nameString, TextBoxIcon nameString)]
+  graph <- makeBox nameString
+  pure $ if nameString `elem` context
     then (mempty, Left nameString)
-    else (graph, Right $ justName nameString)
+    else fmap Right graph
 -- TODO remove initialIdState
-evalQName (Special Exts.UnitCon) _ = Right <$> evalState (makeBox "()") initialIdState
+evalQName (Special Exts.UnitCon) _ = pure $ Right <$> evalState (makeBox "()") initialIdState
 
-evalQOp :: QOp -> EvalContext -> (IconGraph, Reference)
+evalQOp :: QOp -> EvalContext -> State IDState (IconGraph, Reference)
 evalQOp (QVarOp n) = evalQName n
 evalQOp (QConOp n) = evalQName n
 
 -- TODO: Refactor with combineExpressions
 edgesForRefPortList :: Bool -> [(Reference, NameAndPort)] -> IconGraph
 edgesForRefPortList inPattern portExpPairs = mconcat $ fmap mkGraph portExpPairs where
-  edgeOptions = if inPattern then [EdgeInPattern] else []
+  edgeOptions = [EdgeInPattern | inPattern]
   mkGraph (ref, port) = case ref of
     Left str -> if inPattern
       then IconGraph mempty mempty mempty mempty [(str, Right port)]
@@ -116,7 +118,7 @@ edgesForRefPortList inPattern portExpPairs = mconcat $ fmap mkGraph portExpPairs
 
 combineExpressions :: Bool -> [(GraphAndRef, NameAndPort)] -> IconGraph
 combineExpressions inPattern portExpPairs = mconcat $ fmap mkGraph portExpPairs where
-  edgeOptions = if inPattern then [EdgeInPattern] else []
+  edgeOptions = [EdgeInPattern | inPattern]
   mkGraph ((graph, ref), port) = graph <> case ref of
     Left str -> if inPattern
       then IconGraph mempty mempty mempty mempty [(str, Right port)]
@@ -143,7 +145,7 @@ evalInfixApp :: EvalContext -> Exp -> QOp -> Exp -> State IDState (IconGraph, Na
 evalInfixApp c e1 op e2 = do
   argVals <- mapM (evalExp c) [e1, e2]
   applyIconName <- DIA.toName <$> getUniqueName "app0"
-  let funVal = evalQOp op c
+  funVal <- evalQOp op c
   pure $ makeApplyGraph False applyIconName funVal argVals 2
 
 -- TODO add test for this function
@@ -352,8 +354,8 @@ evalTuple c exps = do
 
 evalExp :: EvalContext  -> Exp -> State IDState (IconGraph, Reference)
 evalExp c x = case x of
-  Var n -> pure $ evalQName n c
-  Con n -> pure $ evalQName n c
+  Var n -> evalQName n c
+  Con n -> evalQName n c
   Lit l -> fmap Right <$> evalLit l
   InfixApp e1 op e2 -> fmap Right <$> evalInfixApp c e1 op e2
   e@App{} -> fmap Right <$> evalApp (simplifyApp e) c
@@ -474,31 +476,33 @@ evalMatch c (Match _ name patterns _ rhs maybeWhereBinds) = do
 -- Warning: [] not matched.
 -- TODO refactor so this takes as seperate arguments the first matchs, and the rest of the matches as a list.
 -- this avoids the [] case.
-matchesToCase :: [Match] -> State IDState Match
-matchesToCase [match] = pure match
-matchesToCase matches@(Match srcLoc funName pats mType _ _:_) = do
+matchesToCase :: Match -> [Match] -> State IDState Match
+matchesToCase match [] = pure match
+matchesToCase firstMatch@(Match srcLoc funName pats mType _ _) restOfMatches = do
   tempStrings <- replicateM (length pats) (getUniqueName "_tempvar")
   let
+    allMatches = firstMatch:restOfMatches
     tempPats = fmap (PVar . Ident) tempStrings
     tempVars = fmap (Var . UnQual . Ident) tempStrings
     tuple = Tuple Exts.Boxed tempVars
-    alts = fmap matchToAlt matches
-    caseExp = Case tuple alts
+    alts = fmap matchToAlt allMatches
+    -- TODO See if this can be made nicer.
+    caseExp = case tempVars of
+      [oneTempVar] -> Case (head tempVars) alts
+      _ -> Case tuple alts
     rhs = UnGuardedRhs caseExp
     match = Match srcLoc funName tempPats mType rhs Nothing
 
     matchToAlt :: Match -> Alt
+    matchToAlt (Match srcLoc _ [pat] _ rhs binds) = Alt srcLoc pat rhs binds
     matchToAlt (Match srcLoc _ pats _ rhs binds) = Alt srcLoc tuplePat rhs binds where
       tuplePat = PTuple Exts.Boxed pats
   pure match
 
 evalMatches :: EvalContext -> [Match] -> State IDState IconGraph
 evalMatches _ [] = pure mempty
-evalMatches c matches = matchesToCase matches >>= evalMatch c
-  --mconcat <$> mapM (evalMatch c) matches
--- TODO turn more than one match into a case expression.
+evalMatches c (firstMatch:restOfMatches) = matchesToCase firstMatch restOfMatches >>= evalMatch c
 
--- TODO: Use the context in evalPatBind and evalMatches
 evalDecl :: EvalContext -> Decl -> State IDState IconGraph
 evalDecl c d = evaluatedDecl where
   evaluatedDecl = case d of

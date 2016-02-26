@@ -14,13 +14,10 @@ import Translate(translateString, drawingFromDecl, drawingsFromModule)
 
 
 -- TODO Now --
--- Use special colors for lines/boxes/text in patterns.
 
 -- Refactor Translate
 -- Test reference lookup in case rhs.
--- Convert match to a PatBind with a lambda and a let.
 -- Have the file be a command line argument to main.
--- In matchesToCase, don't tuple and untuple for a single argument.
 -- In evalPatBind, give the edge from the rhs to the pattern a special arrowhead.
 
 -- TODO Later --
@@ -319,6 +316,7 @@ lambdaTests = [
   "y (-1) = 2",
   "y 1 = 0",
   "{y (F x) = x; y (G x) = x}",
+  "{y (F x) z = x z; y (G x) z = z x}",
   "y x = z 3 where z = f x y",
   "y x = z where z = f x y"
   ]
