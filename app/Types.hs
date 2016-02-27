@@ -3,7 +3,7 @@
 module Types (
   Icon(..),
   NameAndPort(..),
-  Connection(..),
+  Connection,
   Edge(..),
   EdgeOption(..),
   EdgeEnd(..),

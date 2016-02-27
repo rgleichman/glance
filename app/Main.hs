@@ -10,19 +10,22 @@ import Rendering(renderDrawing)
 import Util(toNames, portToPort, iconToPort, iconToIcon,
   iconToIconEnds, iconTailToPort)
 import Types(Icon(..), Drawing(..), EdgeEnd(..))
-import Translate(translateString, drawingFromDecl, drawingsFromModule)
+import Translate(translateString, drawingsFromModule)
 
 
 -- TODO Now --
-
 -- Refactor Translate
+-- Add documentation.
+-- Update readme.
 -- Test reference lookup in case rhs.
 -- Have the file be a command line argument to main.
 -- In evalPatBind, give the edge from the rhs to the pattern a special arrowhead.
 
 -- TODO Later --
+-- Add function name and type to LambdaIcons.
 -- Let each bool, value pair in Guard icon be flipped to reduce line crossings. Do the same for case.
 -- Add text field to Apply. Also redraw text and icon when it is rotated so that the characters stay oriented.
+-- Eliminate BranchIcon in Alts.
 -- Eliminate BranchIcon for the identity funciton "y x = x"
 -- otherwise Guard special case
 -- Let lines connect to ports in multiple locations (eg. argument for Apply0Dia)

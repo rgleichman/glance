@@ -13,54 +13,31 @@ import Language.Haskell.Exts(Decl(..), parseDecl, Name(..), Pat(..), Rhs(..),
   Stmt(..), Binds(..), Alt(..), Module(..))
 import qualified Language.Haskell.Exts as Exts
 import Control.Monad.State(State, evalState)
-import Debug.Trace
-import Data.Either(partitionEithers, rights)
+import Data.Either(partitionEithers)
 import Data.List(unzip4, partition)
 import Control.Monad(replicateM)
 
-import Types(Icon, Edge(..), EdgeOption(..), Drawing(..), NameAndPort(..), IDState,
-  initialIdState, getId)
-import Util(toNames, makeSimpleEdge, noEnds, nameAndPort, justName, mapFst)
+import Types(Drawing(..), NameAndPort(..), IDState,
+  initialIdState)
+import Util(toNames, makeSimpleEdge, nameAndPort, justName, mapFst)
 import Icons(Icon(..))
+import TranslateCore(Reference, IconGraph(..), EvalContext, GraphAndRef,
+  iconGraphFromIcons, iconGraphFromIconsEdges, getUniqueName, combineExpressions,
+  edgesForRefPortList, iconGraphToDrawing, qualifyNameAndPort, makeApplyGraph,
+  namesInPattern, lookupReference, deleteBindings, makeEdges, makeEdgesCore,
+  coerceExpressionResult, makeBox)
 
-type Reference = Either String NameAndPort
--- | An IconGraph is a normal Drawing (Icons, Edges, and sub Drawings) with two additional fields:
--- unconected sink ports (varible usage), and unconnected source ports (varible definition).
-data IconGraph = IconGraph {
-  igIcons :: [(DIA.Name, Icon)],
-  igEdges :: [Edge],
-  igSubDrawings :: [(DIA.Name, Drawing)],
-  igSinks :: [(String, NameAndPort)],
-  igBindings :: [(String, Reference)]}
-  deriving (Show)
-
-type EvalContext = [String]
-type GraphAndRef = (IconGraph, Reference)
-type Sink = (String, NameAndPort)
-
-instance DIA.Semigroup IconGraph where
-  (IconGraph icons1 edges1 subDrawings1 sinks1 sources1) <> (IconGraph icons2 edges2 subDrawings2 sinks2 sources2) =
-    IconGraph (icons1 <> icons2) (edges1 <> edges2) (subDrawings1 <> subDrawings2) (sinks1 <> sinks2) (sources1 <> sources2)
-
-instance Monoid IconGraph where
-  mempty = IconGraph mempty mempty mempty mempty mempty
-  mappend = (<>)
-
-iconGraphFromIcons :: [(DIA.Name, Icon)] -> IconGraph
-iconGraphFromIcons icons = IconGraph icons mempty mempty mempty mempty
-
-iconGraphFromIconsEdges :: [(DIA.Name, Icon)] -> [Edge] -> IconGraph
-iconGraphFromIconsEdges icons edges = IconGraph icons edges mempty mempty mempty
-
-getUniqueName :: String -> State IDState String
-getUniqueName base = fmap ((base ++). show) getId
+-- OVERVIEW --
+-- The core functions and data types used in this module are in TranslateCore.
+-- The TranslateCore also contains most/all of the translation functions that
+-- do not use Language.Haskell.Exts.
 
 nameToString :: Language.Haskell.Exts.Name -> String
 nameToString (Ident s) = s
 nameToString (Symbol s) = s
 
 qNameToString :: QName -> String
-qNameToString (Qual mn name) = nameToString name
+qNameToString (Qual (Exts.ModuleName modName) name) = modName ++ "." ++ nameToString name
 qNameToString (UnQual name) = nameToString name
 
 evalPApp :: QName -> [Pat] -> State IDState (IconGraph, NameAndPort)
@@ -86,7 +63,7 @@ evalPattern p = case p of
   PLit s l -> fmap Right <$> evalPLit s l
   PApp name patterns -> fmap Right <$> evalPApp name patterns
   -- TODO special tuple handling.
-  PTuple box patterns -> fmap Right <$> evalPApp (Exts.UnQual $ Ident "(,)") patterns
+  PTuple _ patterns -> fmap Right <$> evalPApp (Exts.UnQual $ Ident "(,)") patterns
   PParen pat -> evalPattern pat
   PWildCard -> fmap Right <$> makeBox "_"
 
@@ -105,34 +82,6 @@ evalQName (Special Exts.UnitCon) _ = pure $ Right <$> evalState (makeBox "()") i
 evalQOp :: QOp -> EvalContext -> State IDState (IconGraph, Reference)
 evalQOp (QVarOp n) = evalQName n
 evalQOp (QConOp n) = evalQName n
-
--- TODO: Refactor with combineExpressions
-edgesForRefPortList :: Bool -> [(Reference, NameAndPort)] -> IconGraph
-edgesForRefPortList inPattern portExpPairs = mconcat $ fmap mkGraph portExpPairs where
-  edgeOptions = [EdgeInPattern | inPattern]
-  mkGraph (ref, port) = case ref of
-    Left str -> if inPattern
-      then IconGraph mempty mempty mempty mempty [(str, Right port)]
-      else IconGraph mempty mempty mempty [(str, port)] mempty
-    Right resultPort -> IconGraph mempty [Edge edgeOptions noEnds (resultPort, port)] mempty mempty mempty
-
-combineExpressions :: Bool -> [(GraphAndRef, NameAndPort)] -> IconGraph
-combineExpressions inPattern portExpPairs = mconcat $ fmap mkGraph portExpPairs where
-  edgeOptions = [EdgeInPattern | inPattern]
-  mkGraph ((graph, ref), port) = graph <> case ref of
-    Left str -> if inPattern
-      then IconGraph mempty mempty mempty mempty [(str, Right port)]
-      else IconGraph mempty mempty mempty [(str, port)] mempty
-    Right resultPort -> IconGraph mempty [Edge edgeOptions noEnds (resultPort, port)] mempty mempty mempty
-
-makeApplyGraph :: Bool -> DIA.Name -> (IconGraph, Reference) -> [(IconGraph, Reference)] -> Int -> (IconGraph, NameAndPort)
-makeApplyGraph inPattern applyIconName funVal argVals numArgs = (newGraph <> combinedGraph, nameAndPort applyIconName 1)
-  where
-    argumentPorts = map (nameAndPort applyIconName) [2,3..]
-    functionPort = nameAndPort applyIconName 0
-    combinedGraph = combineExpressions inPattern $ zip (funVal:argVals) (functionPort:argumentPorts)
-    icons = [(applyIconName, Apply0NIcon numArgs)]
-    newGraph = iconGraphFromIcons icons
 
 evalApp :: (Exp, [Exp]) -> EvalContext -> State IDState (IconGraph, NameAndPort)
 evalApp (funExp, argExps) c = do
@@ -193,12 +142,7 @@ evalGuardedRhss c rhss = do
     newGraph = iconGraphFromIcons icons <> combindedGraph
   pure (newGraph, NameAndPort guardName (Just 1))
 
-makeBox :: String -> State IDState (IconGraph, NameAndPort)
-makeBox str = do
-  name <- DIA.toName <$> getUniqueName str
-  let graph = iconGraphFromIcons [(DIA.toName name, TextBoxIcon str)]
-  pure (graph, justName name)
-
+-- This is in Translate and not Translate core since currently it is only used by evalLit.
 makeLiteral :: (Show x) => x -> State IDState (IconGraph, NameAndPort)
 makeLiteral = makeBox. show
 
@@ -230,15 +174,9 @@ showLiteral (Exts.PrimDouble x) = show x
 showLiteral (Exts.PrimChar x) = show x
 showLiteral (Exts.PrimString x) = show x
 
-
-namesInPattern :: GraphAndRef -> [String]
-namesInPattern (_, Left str) = [str]
-namesInPattern (IconGraph _ _ _ _ bindings, Right _) = fmap fst bindings
-
 getBoundVarName :: Decl -> [String]
 -- TODO Should evalState be used here?
 getBoundVarName (PatBind _ pat _ _) = namesInPattern $ evalState (evalPattern pat) initialIdState
-getBoundVarName (FunBind [Match _ name _ _ _ _]) = [nameToString name]
 getBoundVarName (FunBind (Match _ name _ _ _ _:_)) = [nameToString name]
 
 --TODO: Should this call makeEdges?
@@ -249,40 +187,6 @@ evalBinds c (BDecls decls) = do
     augmentedContext = boundNames <> c
   evaledDecl <- mconcat <$> mapM (evalDecl augmentedContext) decls
   pure (evaledDecl, augmentedContext)
-
-printSelf :: (Show a) => a -> a
-printSelf a = Debug.Trace.trace (show a ++ "\n\n") a
-
--- | Recursivly find the matching reference in a list of bindings.
--- TODO: Might want to present some indication if there is a reference cycle.
-lookupReference :: [(String, Reference)] -> Reference -> Reference
-lookupReference _ ref@(Right _) = ref
-lookupReference bindings ref@(Left originalS) = lookupHelper ref where
-  lookupHelper newRef@(Right _) = newRef
-  lookupHelper newRef@(Left s)= case lookup s bindings of
-    Just r -> failIfCycle r $ lookupHelper r
-    Nothing -> newRef
-    where
-      failIfCycle r@(Left newStr) res = if newStr == originalS then r else res
-      failIfCycle _ res = res
-
-deleteBindings :: IconGraph -> IconGraph
-deleteBindings (IconGraph a b c d _) = IconGraph a b c d mempty
-
-makeEdgesCore :: [Sink] -> [(String, Reference)] -> ([Sink], [Edge])
-makeEdgesCore sinks bindings = partitionEithers $ fmap renameOrMakeEdge sinks
-  where
-    renameOrMakeEdge :: (String, NameAndPort) -> Either (String, NameAndPort) Edge
-    renameOrMakeEdge orig@(s, destPort) = case lookup s bindings of
-      Just ref -> case lookupReference bindings ref of
-        (Right sourcePort) -> Right $ makeSimpleEdge (sourcePort, destPort)
-        (Left newStr) -> Left (newStr, destPort)
-      Nothing -> Left orig
-
-makeEdges :: IconGraph -> IconGraph
-makeEdges (IconGraph icons edges c sinks bindings) = newGraph where
-  (newSinks, newEdges) = makeEdgesCore sinks bindings
-  newGraph = IconGraph icons (newEdges <> edges) c newSinks bindings
 
 evalGeneralLet :: (EvalContext -> State IDState (IconGraph, Reference)) -> EvalContext -> Binds -> State IDState (IconGraph, Reference)
 evalGeneralLet expOrRhsEvaler c bs = do
@@ -305,7 +209,6 @@ evalPatAndRhs c pat rhs maybeWhereBinds = do
   -- TODO: remove coerceExpressionResult
   (rhsGraph, rhsRef) <- rhsWithBinds maybeWhereBinds rhs rhsContext >>= coerceExpressionResult
   (patGraph, patRef) <- evalPattern pat
-  caseIconName <- DIA.toName <$> getUniqueName "case"
   let
     grWithEdges = makeEdges (rhsGraph <> patGraph)
     -- The pattern and rhs are conneted if makeEdges added extra edges.
@@ -315,7 +218,7 @@ evalPatAndRhs c pat rhs maybeWhereBinds = do
 
 -- returns (combined graph, pattern reference, rhs reference)
 evalAlt :: EvalContext -> Exts.Alt -> State IDState (Bool, IconGraph, Reference, NameAndPort)
-evalAlt c (Exts.Alt s pat rhs maybeBinds) = evalPatAndRhs c pat rhs maybeBinds
+evalAlt c (Exts.Alt _ pat rhs maybeBinds) = evalPatAndRhs c pat rhs maybeBinds
 
 evalCase :: EvalContext -> Exp -> [Alt] -> State IDState (IconGraph, NameAndPort)
 evalCase c e alts = do
@@ -367,20 +270,6 @@ evalExp c x = case x of
   Tuple _ exps -> fmap Right <$> evalTuple c exps
   Paren e -> evalExp c e
 
--- | This is used by the rhs for identity (eg. y x = x)
-makeDummyRhs :: String -> State IDState (IconGraph, NameAndPort)
-makeDummyRhs s = do
-  iconName <- getUniqueName s
-  let
-    graph = IconGraph icons mempty mempty [(s, port)] mempty
-    icons = [(DIA.toName iconName, BranchIcon)]
-    port = justName iconName
-  pure (graph, port)
-
-coerceExpressionResult :: (IconGraph, Reference) -> State IDState (IconGraph, NameAndPort)
-coerceExpressionResult (_, Left str) = makeDummyRhs str
-coerceExpressionResult (g, Right x) = pure (g, x)
-
 -- | First argument is the right hand side.
 -- The second arugement is a list of strings that are bound in the environment.
 evalRhs :: EvalContext -> Rhs -> State IDState (IconGraph, Reference)
@@ -407,26 +296,6 @@ evalPatBind c (PatBind _ pat rhs maybeWhereBinds) = do
         (Right rhsPort) -> ([makeSimpleEdge (rhsPort, patPort)], mempty, mempty)
     gr = IconGraph mempty newEdges mempty newSinks bindings
   pure . makeEdges $ (gr <> rhsGraph <> patGraph)
-
-iconGraphToDrawing :: IconGraph -> Drawing
-iconGraphToDrawing (IconGraph icons edges subDrawings _ _) = Drawing icons edges subDrawings
-
-makeRhsDrawing :: DIA.IsName a => a -> (IconGraph, NameAndPort) -> Drawing
-makeRhsDrawing resultIconName (rhsGraph, rhsResult)= rhsDrawing where
-  rhsNewIcons = toNames [(resultIconName, ResultIcon)]
-  rhsNewEdges = [makeSimpleEdge (rhsResult, justName resultIconName)]
-  rhsGraphWithResult = rhsGraph <> iconGraphFromIconsEdges rhsNewIcons rhsNewEdges
-  rhsDrawing = iconGraphToDrawing rhsGraphWithResult
-
-qualifyNameAndPort :: String -> NameAndPort -> NameAndPort
-qualifyNameAndPort s (NameAndPort n p) = NameAndPort (s DIA..> n) p
-
--- TODO Like evalPatBind, this edge should have an indicator that it is the input to a pattern.
-makePatternEdges :: String -> GraphAndRef -> NameAndPort -> Either IconGraph (String, Reference)
-makePatternEdges lambdaName (_, Right patPort) lamPort =
-  Left $ iconGraphFromIconsEdges mempty
-    [makeSimpleEdge (lamPort, qualifyNameAndPort lambdaName patPort)]
-makePatternEdges _ (_, Left str) lamPort = Right (str, Right lamPort)
 
 generalEvalLambda :: EvalContext -> [Pat] -> (EvalContext -> State IDState GraphAndRef) -> State IDState (IconGraph, NameAndPort)
 generalEvalLambda context patterns rhsEvalFun = do
@@ -457,6 +326,21 @@ generalEvalLambda context patterns rhsEvalFun = do
     finalGraph = IconGraph icons internalEdges [(rhsDrawingName, rhsDrawing)]
       newSinks mempty
   pure (patternEdgeGraph <> finalGraph, justName lambdaName)
+  where
+    makeRhsDrawing :: DIA.IsName a => a -> (IconGraph, NameAndPort) -> Drawing
+    makeRhsDrawing resultIconName (rhsGraph, rhsResult)= rhsDrawing where
+      rhsNewIcons = toNames [(resultIconName, ResultIcon)]
+      rhsNewEdges = [makeSimpleEdge (rhsResult, justName resultIconName)]
+      rhsGraphWithResult = rhsGraph <> iconGraphFromIconsEdges rhsNewIcons rhsNewEdges
+      rhsDrawing = iconGraphToDrawing rhsGraphWithResult
+
+    -- TODO Like evalPatBind, this edge should have an indicator that it is the input to a pattern.
+    makePatternEdges :: String -> GraphAndRef -> NameAndPort -> Either IconGraph (String, Reference)
+    makePatternEdges lambdaName (_, Right patPort) lamPort =
+      Left $ iconGraphFromIconsEdges mempty
+        [makeSimpleEdge (lamPort, qualifyNameAndPort lambdaName patPort)]
+    makePatternEdges _ (_, Left str) lamPort = Right (str, Right lamPort)
+
 
 evalLambda :: EvalContext -> [Pat] -> Exp -> State IDState (IconGraph, NameAndPort)
 evalLambda c patterns e = generalEvalLambda c patterns (`evalExp` e)
@@ -472,32 +356,30 @@ evalMatch c (Match _ name patterns _ rhs maybeWhereBinds) = do
     newBinding = IconGraph mempty mempty mempty mempty [(matchFunNameString, Right lambdaPort)]
   pure $ makeEdges (newBinding <> lambdaGraph)
 
--- TODO If only one pattern don't tuple and untuple.
--- Warning: [] not matched.
--- TODO refactor so this takes as seperate arguments the first matchs, and the rest of the matches as a list.
--- this avoids the [] case.
+
 matchesToCase :: Match -> [Match] -> State IDState Match
 matchesToCase match [] = pure match
 matchesToCase firstMatch@(Match srcLoc funName pats mType _ _) restOfMatches = do
   tempStrings <- replicateM (length pats) (getUniqueName "_tempvar")
   let
-    allMatches = firstMatch:restOfMatches
     tempPats = fmap (PVar . Ident) tempStrings
     tempVars = fmap (Var . UnQual . Ident) tempStrings
     tuple = Tuple Exts.Boxed tempVars
-    alts = fmap matchToAlt allMatches
-    -- TODO See if this can be made nicer.
     caseExp = case tempVars of
-      [oneTempVar] -> Case (head tempVars) alts
+      [oneTempVar] -> Case oneTempVar alts
       _ -> Case tuple alts
     rhs = UnGuardedRhs caseExp
     match = Match srcLoc funName tempPats mType rhs Nothing
-
-    matchToAlt :: Match -> Alt
-    matchToAlt (Match srcLoc _ [pat] _ rhs binds) = Alt srcLoc pat rhs binds
-    matchToAlt (Match srcLoc _ pats _ rhs binds) = Alt srcLoc tuplePat rhs binds where
-      tuplePat = PTuple Exts.Boxed pats
   pure match
+  where
+    allMatches = firstMatch:restOfMatches
+    alts = fmap matchToAlt allMatches
+    matchToAlt :: Match -> Alt
+    matchToAlt (Match srcLocation _ mtaPats _ rhs binds) = Alt srcLocation altPattern rhs binds where
+      altPattern = case mtaPats of
+        [onePat] -> onePat
+        _ -> PTuple Exts.Boxed pats
+
 
 evalMatches :: EvalContext -> [Match] -> State IDState IconGraph
 evalMatches _ [] = pure mempty
@@ -511,25 +393,25 @@ evalDecl c d = evaluatedDecl where
     --TODO: Add other cases here
     _ -> pure mempty
 
-showTopLevelBinds :: IconGraph -> State IDState IconGraph
-showTopLevelBinds gr@(IconGraph _ _ _ _ binds) = do
-  let
-    addBind (_, Left _) = pure mempty
-    addBind (patName, Right port) = do
-      uniquePatName <- getUniqueName patName
-      let
-        icons = toNames [(uniquePatName, TextBoxIcon patName)]
-        edges = [makeSimpleEdge (justName uniquePatName, port)]
-        edgeGraph = iconGraphFromIconsEdges icons edges
-      pure edgeGraph
-  newGraph <- mconcat <$> mapM addBind binds
-  pure $ newGraph <> gr
-
 drawingFromDecl :: Decl -> Drawing
 drawingFromDecl d = iconGraphToDrawing $ evalState evaluatedDecl initialIdState
-  where evaluatedDecl = evalDecl mempty d >>= showTopLevelBinds
+  where
+    evaluatedDecl = evalDecl mempty d >>= showTopLevelBinds
+    showTopLevelBinds :: IconGraph -> State IDState IconGraph
+    showTopLevelBinds gr@(IconGraph _ _ _ _ binds) = do
+      let
+        addBind (_, Left _) = pure mempty
+        addBind (patName, Right port) = do
+          uniquePatName <- getUniqueName patName
+          let
+            icons = toNames [(uniquePatName, TextBoxIcon patName)]
+            edges = [makeSimpleEdge (justName uniquePatName, port)]
+            edgeGraph = iconGraphFromIconsEdges icons edges
+          pure edgeGraph
+      newGraph <- mconcat <$> mapM addBind binds
+      pure $ newGraph <> gr
 
--- Profiling: about 1.5% of time.
+-- Profiling: about 1.5% of total time.
 translateString :: String -> (Drawing, Decl)
 translateString s = (drawing, decl) where
   parseResult = parseDecl s -- :: ParseResult Module

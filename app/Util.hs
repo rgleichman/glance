@@ -13,12 +13,14 @@ module Util (
   nameAndPort,
   justName,
   fromMaybeError,
-  mapFst
+  mapFst,
+  printSelf
 )where
 
 import Control.Arrow(first)
 import Diagrams.Prelude(IsName, toName, Name)
 import Data.Maybe(fromMaybe)
+import qualified Debug.Trace
 
 import Types(EdgeEnd(..), Edge(..), NameAndPort(..), Connection)
 
@@ -64,3 +66,6 @@ iconTailToPort a endTail c d = Edge [] (endTail, EndNone) (justName a, nameAndPo
 
 fromMaybeError :: String -> Maybe a -> a
 fromMaybeError s = fromMaybe (error s)
+
+printSelf :: (Show a) => a -> a
+printSelf a = Debug.Trace.trace (show a ++ "\n\n") a

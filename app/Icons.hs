@@ -290,7 +290,7 @@ guardLBracket x = ell # alignT # alignL <> makePort x
 generalGuardIcon ::
   (RealFloat n, Typeable n, Renderable (Path V2 n) b) =>
   Colour Double -> (Int -> QDiagram b V2 n Any) -> QDiagram b V2 n Any -> Int -> QDiagram b V2 n Any
-generalGuardIcon triangleColor lBracket bottomDia n = centerXY $ (alignT $ bottomDia <> makePort 1) <> alignB (bigVerticalLine <> guardDia <> makePort 0)
+generalGuardIcon triangleColor lBracket bottomDia n = centerXY $ alignT (bottomDia <> makePort 1) <> alignB (bigVerticalLine <> guardDia <> makePort 0)
   where
     --guardTriangles = vsep 0.4 (take n (map guardTriangle [0,1..]))
     trianglesWithPorts = map guardTriangle [2,4..]
@@ -317,13 +317,13 @@ guardIcon = generalGuardIcon lineCol guardLBracket mempty
 caseResult :: (RealFloat n,
            Typeable n,
            Renderable (Path V2 n) b) => QDiagram b V2 n Any
-caseResult = (circle (circleRadius * 0.7) # fc caseCColor # lc caseCColor # lw none) where
+caseResult = circle (circleRadius * 0.7) # fc caseCColor # lc caseCColor # lw none where
   caseCColor = caseRhsC colorScheme
 
 caseC :: (RealFloat n,
            Typeable n,
            Renderable (Path V2 n) b) => Int -> QDiagram b V2 n Any
-caseC n = caseResult <> makePort n where
+caseC n = caseResult <> makePort n
 
 
 -- | The ports of the case icon are as follows:
