@@ -237,8 +237,9 @@ doGraphLayout graph nameDiagramMap edges = do
   where
     layoutParams :: GV.GraphvizParams Int v e () v
     layoutParams = GV.defaultParams{
-      GV.globalAttributes =
-        [ GV.NodeAttrs [GVA.Shape GVA.BoxShape]
+      GV.globalAttributes = [
+        --GV.NodeAttrs [GVA.Shape GVA.BoxShape]
+        GV.NodeAttrs [GVA.Shape GVA.Circle]
         , GV.GraphAttrs [GVA.Overlap GVA.ScaleXYOverlaps, GVA.Splines GVA.LineEdges]
         ],
       GV.fmtEdge = const [GV.arrowTo GV.noArrow],
@@ -246,16 +247,19 @@ doGraphLayout graph nameDiagramMap edges = do
       }
     nodeAttribute :: (Int, l) -> [GV.Attribute]
     nodeAttribute (nodeInt, _) =
-      -- todo: Potential bug. GVA.Width and GVA.Height have a minimum of 0.01
-      -- throw an error if the width or height are less than 0.01
-      [GVA.Width diaWidth, GVA.Height diaHeight]
+      -- GVA.Width and GVA.Height have a minimum of 0.01
+      --[GVA.Width diaWidth, GVA.Height diaHeight]
+      [GVA.Width circleDiameter, GVA.Height circleDiameter]
       where
-        --shapeDimensions = drawingToGraphvizScaleFactor * max (width dia) (height dia)
-        diaWidth = drawingToGraphvizScaleFactor * (width dia)
-        diaHeight = drawingToGraphvizScaleFactor * (height dia)
         --todo: Hack! Using (!!) here relies upon the implementation of Diagrams.TwoD.GraphViz.mkGraph
         -- to name the nodes in order
         (_, dia) = nameDiagramMap !! nodeInt
+
+        diaWidth = drawingToGraphvizScaleFactor * (width dia)
+        diaHeight = drawingToGraphvizScaleFactor * (height dia)
+        circleDiameter' = max diaWidth diaHeight
+        circleDiameter = if circleDiameter' <= 0.01 then error ("circleDiameter too small: " ++ show circleDiameter') else circleDiameter'
+
 
 -- | Given a Drawing, produce a Diagram complete with rotated/flipped icons and
 -- lines connecting ports and icons. IO is needed for the GraphViz layout.
