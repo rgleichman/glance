@@ -20,6 +20,10 @@ import Translate(translateString, drawingsFromModule)
 -- Test reference lookup in case rhs.
 -- Have the file be a command line argument to main.
 -- In evalPatBind, give the edge from the rhs to the pattern a special arrowhead.
+-- Use GraphViz circles to represent rotateable icons.
+-- Line intersections should have a small circle. This could probably be done with
+-- a line ending.
+-- Move tests out of main.
 
 -- TODO Later --
 -- Add function name and type to LambdaIcons.
@@ -311,7 +315,9 @@ patternTests = [
   "y = let F x y = g in x y",
   "F x = g x",
   "Foo (Bar x) (Baz y) = f 1 2 x y",
-  "Foo x y = f 1 y x"
+  "Foo x y = f 1 y x",
+  "t@(x,y) = (x,y)",
+  "y = let {t@(_,_) = (3,4)} in t + 3"
   ]
 
 lambdaTests = [

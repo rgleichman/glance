@@ -57,6 +57,14 @@ evalPLit :: Exts.Sign -> Exts.Literal -> State IDState (IconGraph, NameAndPort)
 evalPLit Exts.Signless l = evalLit l
 evalPLit Exts.Negative l = makeBox ('-' : showLiteral l)
 
+evalPAsPat :: Name -> Pat -> State IDState GraphAndRef
+evalPAsPat n p = do
+  (evaledPatGraph, evaledPatRef) <- evalPattern p
+  let
+    newBind = [(nameToString n, evaledPatRef)]
+    newGraph = mempty{igBindings = newBind}
+  pure (newGraph <> evaledPatGraph, evaledPatRef)
+
 evalPattern :: Pat -> State IDState GraphAndRef
 evalPattern p = case p of
   PVar n -> pure (mempty, Left $ nameToString n)
@@ -65,7 +73,10 @@ evalPattern p = case p of
   -- TODO special tuple handling.
   PTuple _ patterns -> fmap Right <$> evalPApp (Exts.UnQual $ Ident "(,)") patterns
   PParen pat -> evalPattern pat
+  PAsPat n subPat -> evalPAsPat n subPat
   PWildCard -> fmap Right <$> makeBox "_"
+  _ -> error $ "evalPattern: No pattern in case for " ++ show p
+  -- TODO: Other cases
 
 --TODO: Consider making this have unique values.
 evalQName :: QName -> EvalContext -> State IDState (IconGraph, Reference)
