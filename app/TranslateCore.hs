@@ -20,6 +20,7 @@ module TranslateCore(
   coerceExpressionResult,
   makeBox,
   nTupleString,
+  nListString
 ) where
 
 import Data.Semigroup(Semigroup, (<>))
@@ -74,7 +75,7 @@ getUniqueName base = fmap ((base ++). show) getId
 -- TODO: Refactor with combineExpressions
 edgesForRefPortList :: Bool -> [(Reference, NameAndPort)] -> IconGraph
 edgesForRefPortList inPattern portExpPairs = mconcat $ fmap mkGraph portExpPairs where
-  edgeOpts = [EdgeInPattern | inPattern]
+  edgeOpts = if inPattern then [EdgeInPattern] else []
   mkGraph (ref, port) = case ref of
     Left str -> if inPattern
       then IconGraph mempty mempty mempty mempty [(str, Right port)]
@@ -83,7 +84,7 @@ edgesForRefPortList inPattern portExpPairs = mconcat $ fmap mkGraph portExpPairs
 
 combineExpressions :: Bool -> [(GraphAndRef, NameAndPort)] -> IconGraph
 combineExpressions inPattern portExpPairs = mconcat $ fmap mkGraph portExpPairs where
-  edgeOpts = [EdgeInPattern | inPattern]
+  edgeOpts = if inPattern then [EdgeInPattern] else []
   mkGraph ((graph, ref), port) = graph <> case ref of
     Left str -> if inPattern
       then IconGraph mempty mempty mempty mempty [(str, Right port)]
@@ -161,3 +162,8 @@ makeBox str = do
 
 nTupleString :: Int -> String
 nTupleString n = '(' : replicate (n -1) ',' ++ ")"
+
+nListString :: Int -> String
+-- TODO: Use something better than [_]
+nListString 1 = "[_]"
+nListString n = '[' : replicate (n -1) ',' ++ "]"

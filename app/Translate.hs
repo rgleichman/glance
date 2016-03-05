@@ -25,7 +25,7 @@ import TranslateCore(Reference, IconGraph(..), EvalContext, GraphAndRef,
   iconGraphFromIcons, iconGraphFromIconsEdges, getUniqueName, combineExpressions,
   edgesForRefPortList, iconGraphToDrawing, qualifyNameAndPort, makeApplyGraph,
   namesInPattern, lookupReference, deleteBindings, makeEdges, makeEdgesCore,
-  coerceExpressionResult, makeBox, nTupleString)
+  coerceExpressionResult, makeBox, nTupleString, nListString)
 
 -- OVERVIEW --
 -- The core functions and data types used in this module are in TranslateCore.
@@ -272,6 +272,10 @@ evalTuple c exps = do
   applyIconName <- DIA.toName <$> getUniqueName "tupleApp"
   pure $ makeApplyGraph False applyIconName (fmap Right funVal) argVals (length exps)
 
+evalListExp :: EvalContext -> [Exp] -> State IDState (IconGraph, NameAndPort)
+evalListExp c [] = makeBox "[]"
+evalListExp c exps = evalApp c (Var . UnQual . Ident . nListString . length $ exps, exps)
+
 evalLeftSection :: EvalContext -> Exp -> QOp -> State IDState (IconGraph, NameAndPort)
 evalLeftSection c e op = evalApp c (qOpToExp op, [e])
 
@@ -301,6 +305,7 @@ evalExp c x = case x of
   Case e alts -> fmap Right <$> evalCase c e alts
   -- TODO special tuple symbol
   Tuple _ exps -> fmap Right <$> evalTuple c exps
+  List exps -> fmap Right <$> evalListExp c exps
   Paren e -> evalExp c e
   LeftSection e op -> fmap Right <$> evalLeftSection c e op
   RightSection op e -> fmap Right <$> evalRightSection c op e

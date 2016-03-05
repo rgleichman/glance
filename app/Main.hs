@@ -14,19 +14,18 @@ import Translate(translateString, drawingsFromModule)
 
 
 -- TODO Now --
--- Add $ special case.
 -- Refactor Translate
 -- Add documentation.
 -- Update readme.
 -- Test reference lookup in case rhs.
 -- Have the file be a command line argument to main.
 -- In evalPatBind, give the edge from the rhs to the pattern a special arrowhead.
--- Use GraphViz circles to represent rotateable icons.
 -- Line intersections should have a small circle. This could probably be done with
 -- a line ending.
 -- Move tests out of main.
 
 -- TODO Later --
+-- Consider making lines between patterns Pattern Color when the line is a reference.
 -- Make constructors in patterns PatternColor.
 -- Add function name and type to LambdaIcons.
 -- Let each bool, value pair in Guard icon be flipped to reduce line crossings. Do the same for case.
@@ -277,6 +276,7 @@ main3 = do
       arrowTestDrawing
       ]
 specialTests = [
+  "y = f x $ g y",
   "lookupTail EndAp1Arg = (arrowTail .~ dart')",
   "y = x .~ y",
   "initialIdState = IDState 0",
@@ -296,6 +296,13 @@ tupleTests = [
   "y = ()",
   "(x, y) = (1,2)",
   "(x, y, z) = (1,2,3)"
+  ]
+
+listTests = [
+  "y = []",
+  "y = [1]",
+  "y = [1,2]",
+  "y = [1,2,3]"
   ]
 
 caseTests = [
@@ -327,7 +334,10 @@ patternTests = [
   "Foo (Bar x) (Baz y) = f 1 2 x y",
   "Foo x y = f 1 y x",
   "t@(x,y) = (x,y)",
-  "y = let {t@(_,_) = (3,4)} in t + 3"
+  "y = let {t@(_,_) = (3,4)} in t + 3",
+  "y = let {(x, y) = (1,2)} in x + y",
+  -- TODO: Fix so that lines between patterns are Pattern Color.
+  "y = let {(x, y) = (1,2); (z, w) = x; (m, g) = y} in foo x y z w m g"
   ]
 
 lambdaTests = [
@@ -364,9 +374,14 @@ letTests = [
   "y x = let z = x in z"
   ]
 
+operatorTests = [
+  "y = 1 + 2",
+  "y = map (1 ++) 3",
+  "y = map (++ 1) 3"
+  ]
+
 otherTests = [
   "y = f 1 'c' 2.3 \"foobar\"",
-  "y = 1 + 2",
   "fact x = if (x == 0) then 1 else (fact x (x - 1))",
   "fact x = if ((==) 0 x) then 1 else (fact x ((-) x 1))",
   "y x = if x then (if z then q else x) else w",
@@ -404,7 +419,9 @@ testDecls = mconcat [
   ,patternTests
   ,specialTests
   ,tupleTests
+  , listTests
   ,letTests
+  ,operatorTests
   ,otherTests
   ]
 
