@@ -31,6 +31,7 @@ import TranslateCore(Reference, IconGraph(..), EvalContext, GraphAndRef,
 -- The core functions and data types used in this module are in TranslateCore.
 -- The TranslateCore also contains most/all of the translation functions that
 -- do not use Language.Haskell.Exts.
+-- * Please note that this files uses both DIA.Name from Diagrams.Prelude, and Name from Language.Haskell.Exts
 
 nameToString :: Language.Haskell.Exts.Name -> String
 nameToString (Ident s) = s
@@ -78,24 +79,24 @@ evalPattern p = case p of
   _ -> error $ "evalPattern: No pattern in case for " ++ show p
   -- TODO: Other cases
 
---TODO: Consider making this have unique values.
+-- strToGraphRef is not in TranslateCore, since it is only used by evalQName.
+strToGraphRef :: EvalContext -> String -> State IDState (IconGraph, Reference)
+strToGraphRef c str = fmap mapper (makeBox str) where
+  mapper gr = if str `elem` c
+    then (mempty, Left str)
+    else fmap Right gr
+
 evalQName :: QName -> EvalContext -> State IDState (IconGraph, Reference)
-evalQName (UnQual n) context = do
-  let nameString = nameToString n
-  --graph = iconGraphFromIcons [(DIA.toName nameString, TextBoxIcon nameString)]
-  graph <- makeBox nameString
-  pure $ if nameString `elem` context
-    then (mempty, Left nameString)
-    else fmap Right graph
--- TODO remove initialIdState
-evalQName (Special Exts.UnitCon) _ = pure $ Right <$> evalState (makeBox "()") initialIdState
+evalQName qName@(UnQual _) c = strToGraphRef c (qNameToString qName)
+evalQName qName@(Qual _ _) c = strToGraphRef c (qNameToString qName)
+evalQName (Special Exts.UnitCon) _ = fmap Right <$> makeBox "()"
 
 evalQOp :: QOp -> EvalContext -> State IDState (IconGraph, Reference)
 evalQOp (QVarOp n) = evalQName n
 evalQOp (QConOp n) = evalQName n
 
-evalApp :: (Exp, [Exp]) -> EvalContext -> State IDState (IconGraph, NameAndPort)
-evalApp (funExp, argExps) c = do
+evalApp :: EvalContext -> (Exp, [Exp]) -> State IDState (IconGraph, NameAndPort)
+evalApp c (funExp, argExps) = do
   funVal <- evalExp c funExp
   argVals <- mapM (evalExp c) argExps
   applyIconName <- DIA.toName <$> getUniqueName "app0"
@@ -189,6 +190,9 @@ getBoundVarName :: Decl -> [String]
 -- TODO Should evalState be used here?
 getBoundVarName (PatBind _ pat _ _) = namesInPattern $ evalState (evalPattern pat) initialIdState
 getBoundVarName (FunBind (Match _ name _ _ _ _:_)) = [nameToString name]
+-- TODO: Other cases
+getBoundVarName TypeSig{} = []
+getBoundVarName decl = error $ "getBoundVarName: No pattern in case for " ++ show decl
 
 --TODO: Should this call makeEdges?
 evalBinds :: EvalContext -> Binds -> State IDState (IconGraph, EvalContext)
@@ -266,13 +270,17 @@ evalTuple c exps = do
   applyIconName <- DIA.toName <$> getUniqueName "tupleApp"
   pure $ makeApplyGraph False applyIconName (fmap Right funVal) argVals (length exps)
 
+-- evalEnums is only used by evalExp
+evalEnums :: EvalContext -> String -> [Exp] -> State IDState (IconGraph, Reference)
+evalEnums c s exps = fmap Right <$> evalApp c (Var . UnQual . Ident $ s, exps)
+
 evalExp :: EvalContext  -> Exp -> State IDState (IconGraph, Reference)
 evalExp c x = case x of
   Var n -> evalQName n c
   Con n -> evalQName n c
   Lit l -> fmap Right <$> evalLit l
   InfixApp e1 op e2 -> fmap Right <$> evalInfixApp c e1 op e2
-  e@App{} -> fmap Right <$> evalApp (simplifyApp e) c
+  e@App{} -> fmap Right <$> evalApp c (simplifyApp e)
   Lambda _ patterns e -> fmap Right <$> evalLambda c patterns e
   Let bs e -> evalLet c bs e
   If e1 e2 e3 -> fmap Right <$> evalIf c e1 e2 e3
@@ -280,6 +288,12 @@ evalExp c x = case x of
   -- TODO special tuple symbol
   Tuple _ exps -> fmap Right <$> evalTuple c exps
   Paren e -> evalExp c e
+  EnumFrom e -> evalEnums c "enumFrom" [e]
+  EnumFromTo e1 e2 -> evalEnums c "enumFromTo" [e1, e2]
+  EnumFromThen e1 e2 -> evalEnums c "enumFromThen" [e1, e2]
+  EnumFromThenTo e1 e2 e3 -> evalEnums c "enumFromThenTo" [e1, e2, e3]
+  -- TODO: Add other cases
+  _ -> error $ "evalExp: No pattern in case for " ++ show x
 
 -- | First argument is the right hand side.
 -- The second arugement is a list of strings that are bound in the environment.

@@ -35,6 +35,8 @@ import Icons(Icon(..))
 -- This module has the core functions and data types used by Translate.
 -- This module also contains most/all of the translation functions that
 -- do not require Language.Haskell.Exts.
+-- * Please note that type DIA.Name is not the Name from Language.Haskell.Exts
+-- used in Translate.
 
 type Reference = Either String NameAndPort
 -- | An IconGraph is a normal Drawing (Icons, Edges, and sub Drawings) with two additional fields:

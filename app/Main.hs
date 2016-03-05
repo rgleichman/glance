@@ -14,6 +14,7 @@ import Translate(translateString, drawingsFromModule)
 
 
 -- TODO Now --
+-- Add $ special case.
 -- Refactor Translate
 -- Add documentation.
 -- Update readme.
@@ -26,6 +27,8 @@ import Translate(translateString, drawingsFromModule)
 -- Move tests out of main.
 
 -- TODO Later --
+-- Add the correct number of commas for the tuple constructor.
+-- Make constructors in patterns PatternColor.
 -- Add function name and type to LambdaIcons.
 -- Let each bool, value pair in Guard icon be flipped to reduce line crossings. Do the same for case.
 -- Add text field to Apply. Also redraw text and icon when it is rotated so that the characters stay oriented.
@@ -283,6 +286,13 @@ specialTests = [
   "yyyyy = fffff xxxxx"
   ]
 
+enumTests = [
+  "y = [1..]",
+  "y = [1,2..]",
+  "y = [0..10]",
+  "y = [0,1..10]"
+  ]
+
 tupleTests = [
   "y = ()",
   "(x, y) = (1,2)"
@@ -382,11 +392,13 @@ otherTests = [
   "y = f x",
   "y = f (g x)",
   "y = f (g x1 x2) x3",
-  "y = (f x1 x2) (g x1 x2)"
+  "y = (f x1 x2) (g x1 x2)",
+  "y = Foo.bar"
   ]
 
 testDecls = mconcat [
-  caseTests
+  enumTests
+  ,caseTests
   ,lambdaTests
   ,guardTests
   ,patternTests
