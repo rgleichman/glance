@@ -27,7 +27,6 @@ import Translate(translateString, drawingsFromModule)
 -- Move tests out of main.
 
 -- TODO Later --
--- Add the correct number of commas for the tuple constructor.
 -- Make constructors in patterns PatternColor.
 -- Add function name and type to LambdaIcons.
 -- Let each bool, value pair in Guard icon be flipped to reduce line crossings. Do the same for case.
@@ -295,7 +294,8 @@ enumTests = [
 
 tupleTests = [
   "y = ()",
-  "(x, y) = (1,2)"
+  "(x, y) = (1,2)",
+  "(x, y, z) = (1,2,3)"
   ]
 
 caseTests = [

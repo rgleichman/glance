@@ -18,7 +18,8 @@ module TranslateCore(
   makeEdges,
   makeEdgesCore,
   coerceExpressionResult,
-  makeBox
+  makeBox,
+  nTupleString,
 ) where
 
 import Data.Semigroup(Semigroup, (<>))
@@ -157,3 +158,6 @@ makeBox str = do
   name <- DIA.toName <$> getUniqueName str
   let graph = iconGraphFromIcons [(DIA.toName name, TextBoxIcon str)]
   pure (graph, justName name)
+
+nTupleString :: Int -> String
+nTupleString n = '(' : replicate (n -1) ',' ++ ")"

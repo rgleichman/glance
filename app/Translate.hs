@@ -25,7 +25,7 @@ import TranslateCore(Reference, IconGraph(..), EvalContext, GraphAndRef,
   iconGraphFromIcons, iconGraphFromIconsEdges, getUniqueName, combineExpressions,
   edgesForRefPortList, iconGraphToDrawing, qualifyNameAndPort, makeApplyGraph,
   namesInPattern, lookupReference, deleteBindings, makeEdges, makeEdgesCore,
-  coerceExpressionResult, makeBox)
+  coerceExpressionResult, makeBox, nTupleString)
 
 -- OVERVIEW --
 -- The core functions and data types used in this module are in TranslateCore.
@@ -72,7 +72,8 @@ evalPattern p = case p of
   PLit s l -> fmap Right <$> evalPLit s l
   PApp name patterns -> fmap Right <$> evalPApp name patterns
   -- TODO special tuple handling.
-  PTuple _ patterns -> fmap Right <$> evalPApp (Exts.UnQual $ Ident "(,)") patterns
+  PTuple _ patterns ->
+    fmap Right <$> evalPApp (Exts.UnQual . Ident . nTupleString . length $ patterns) patterns
   PParen pat -> evalPattern pat
   PAsPat n subPat -> evalPAsPat n subPat
   PWildCard -> fmap Right <$> makeBox "_"
@@ -266,7 +267,7 @@ evalCase c e alts = do
 evalTuple :: EvalContext -> [Exp] -> State IDState (IconGraph, NameAndPort)
 evalTuple c exps = do
   argVals <- mapM (evalExp c) exps
-  funVal <- makeBox "(,)"
+  funVal <- makeBox $ nTupleString (length exps)
   applyIconName <- DIA.toName <$> getUniqueName "tupleApp"
   pure $ makeApplyGraph False applyIconName (fmap Right funVal) argVals (length exps)
 
