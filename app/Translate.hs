@@ -103,12 +103,13 @@ evalApp c (funExp, argExps) = do
   applyIconName <- DIA.toName <$> getUniqueName "app0"
   pure $ makeApplyGraph False applyIconName funVal argVals (length argExps)
 
+qOpToExp :: QOp -> Exp
+qOpToExp (QVarOp n) = Var n
+qOpToExp (QConOp n) = Con n
+
 evalInfixApp :: EvalContext -> Exp -> QOp -> Exp -> State IDState (IconGraph, NameAndPort)
 evalInfixApp c e1 (QVarOp (UnQual (Symbol "$"))) e2 = evalApp c (e1, [e2])
 evalInfixApp c e1 op e2 = evalApp c (qOpToExp op, [e1, e2])
-  where
-    qOpToExp (QVarOp n) = Var n
-    qOpToExp (QConOp n) = Con n
 
 -- TODO add test for this function
 simplifyApp :: Exp -> (Exp, [Exp])
@@ -271,6 +272,18 @@ evalTuple c exps = do
   applyIconName <- DIA.toName <$> getUniqueName "tupleApp"
   pure $ makeApplyGraph False applyIconName (fmap Right funVal) argVals (length exps)
 
+evalLeftSection :: EvalContext -> Exp -> QOp -> State IDState (IconGraph, NameAndPort)
+evalLeftSection c e op = evalApp c (qOpToExp op, [e])
+
+evalRightSection:: EvalContext -> QOp -> Exp -> State IDState (IconGraph, NameAndPort)
+evalRightSection c op e = do
+  expVal <- evalExp c e
+  funVal <- evalQOp op c
+  applyIconName <- DIA.toName <$> getUniqueName "tupleApp"
+  -- TODO: A better option would be for makeApplyGraph to take the list of expressions as Maybes.
+  neverUsedPort <- Left <$> getUniqueName "unusedArgument"
+  pure $ makeApplyGraph False applyIconName funVal [(mempty, neverUsedPort), expVal] 2
+
 -- evalEnums is only used by evalExp
 evalEnums :: EvalContext -> String -> [Exp] -> State IDState (IconGraph, Reference)
 evalEnums c s exps = fmap Right <$> evalApp c (Var . UnQual . Ident $ s, exps)
@@ -289,6 +302,8 @@ evalExp c x = case x of
   -- TODO special tuple symbol
   Tuple _ exps -> fmap Right <$> evalTuple c exps
   Paren e -> evalExp c e
+  LeftSection e op -> fmap Right <$> evalLeftSection c e op
+  RightSection op e -> fmap Right <$> evalRightSection c op e
   EnumFrom e -> evalEnums c "enumFrom" [e]
   EnumFromTo e1 e2 -> evalEnums c "enumFromTo" [e1, e2]
   EnumFromThen e1 e2 -> evalEnums c "enumFromThen" [e1, e2]
