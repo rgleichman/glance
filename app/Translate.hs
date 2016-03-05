@@ -104,11 +104,11 @@ evalApp c (funExp, argExps) = do
   pure $ makeApplyGraph False applyIconName funVal argVals (length argExps)
 
 evalInfixApp :: EvalContext -> Exp -> QOp -> Exp -> State IDState (IconGraph, NameAndPort)
-evalInfixApp c e1 op e2 = do
-  argVals <- mapM (evalExp c) [e1, e2]
-  applyIconName <- DIA.toName <$> getUniqueName "app0"
-  funVal <- evalQOp op c
-  pure $ makeApplyGraph False applyIconName funVal argVals 2
+evalInfixApp c e1 (QVarOp (UnQual (Symbol "$"))) e2 = evalApp c (e1, [e2])
+evalInfixApp c e1 op e2 = evalApp c (qOpToExp op, [e1, e2])
+  where
+    qOpToExp (QVarOp n) = Var n
+    qOpToExp (QConOp n) = Con n
 
 -- TODO add test for this function
 simplifyApp :: Exp -> (Exp, [Exp])
