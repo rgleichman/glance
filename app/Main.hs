@@ -25,6 +25,7 @@ import Translate(translateString, drawingsFromModule)
 -- Move tests out of main.
 
 -- TODO Later --
+-- Translate Do.
 -- Consider making lines between patterns Pattern Color when the line is a reference.
 -- Make constructors in patterns PatternColor.
 -- Add function name and type to LambdaIcons.

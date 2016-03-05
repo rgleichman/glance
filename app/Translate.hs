@@ -10,7 +10,7 @@ import Diagrams.Prelude((<>))
 
 import Language.Haskell.Exts(Decl(..), parseDecl, Name(..), Pat(..), Rhs(..),
   Exp(..), QName(..), fromParseResult, Match(..), QOp(..), GuardedRhs(..),
-  Stmt(..), Binds(..), Alt(..), Module(..))
+  Stmt(..), Binds(..), Alt(..), Module(..), SpecialCon(..))
 import qualified Language.Haskell.Exts as Exts
 import Control.Monad.State(State, evalState)
 import Data.Either(partitionEithers)
@@ -40,6 +40,13 @@ nameToString (Symbol s) = s
 qNameToString :: QName -> String
 qNameToString (Qual (Exts.ModuleName modName) name) = modName ++ "." ++ nameToString name
 qNameToString (UnQual name) = nameToString name
+qNameToString (Special UnitCon) = "()"
+qNameToString (Special ListCon) = "[]"
+qNameToString (Special FunCon) = "(->)"
+qNameToString (Special (TupleCon _ n)) = nTupleString n
+qNameToString (Special Cons) = "(:)"
+-- unboxed singleton tuple constructor
+qNameToString (Special UnboxedSingleCon) = "(# #)"
 
 evalPApp :: QName -> [Pat] -> State IDState (IconGraph, NameAndPort)
 evalPApp name [] = makeBox $ qNameToString name
@@ -90,7 +97,7 @@ strToGraphRef c str = fmap mapper (makeBox str) where
 evalQName :: QName -> EvalContext -> State IDState (IconGraph, Reference)
 evalQName qName@(UnQual _) c = strToGraphRef c (qNameToString qName)
 evalQName qName@(Qual _ _) c = strToGraphRef c (qNameToString qName)
-evalQName (Special Exts.UnitCon) _ = fmap Right <$> makeBox "()"
+evalQName qName _ = fmap Right <$> makeBox (qNameToString qName)
 
 evalQOp :: QOp -> EvalContext -> State IDState (IconGraph, Reference)
 evalQOp (QVarOp n) = evalQName n
