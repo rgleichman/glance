@@ -29,6 +29,7 @@ import Translate(translateString, drawingsFromModule)
 -- Consider using seperate parameter icons in functions.
 -- Make constructors in patterns PatternColor.
 -- Add function name and type to LambdaIcons.
+-- Add proper RecConstr, and RecUpdate support.
 -- Let each bool, value pair in Guard icon be flipped to reduce line crossings. Do the same for case.
 -- Add text field to Apply. Also redraw text and icon when it is rotated so that the characters stay oriented.
 -- Eliminate BranchIcon in Alts.
@@ -286,6 +287,12 @@ specialTests = [
   "yyyyy = fffff xxxxx"
   ]
 
+negateTests = [
+  "y = -1",
+  "y = -1/2",
+  "y = -x"
+  ]
+
 doTests = [
   "y = do {x1}",
   "y = do {x1; x2}",
@@ -313,7 +320,11 @@ listTests = [
   "y = []",
   "y = [1]",
   "y = [1,2]",
-  "y = [1,2,3]"
+  "y = [1,2,3]",
+  "[x] = 1",
+  "[x, y] = 2",
+  "[x, y, z] = 3"
+  -- TODO: Add this test "(x:y) = 3"
   ]
 
 caseTests = [
@@ -348,7 +359,8 @@ patternTests = [
   "y = let {t@(_,_) = (3,4)} in t + 3",
   "y = let {(x, y) = (1,2)} in x + y",
   -- TODO: Fix so that lines between patterns are Pattern Color.
-  "y = let {(x, y) = (1,2); (z, w) = x; (m, g) = y} in foo x y z w m g"
+  "y = let {(x, y) = (1,2); (z, w) = x; (m, g) = y} in foo x y z w m g",
+  "(x:y) = 2"
   ]
 
 lambdaTests = [
@@ -423,7 +435,8 @@ otherTests = [
   ]
 
 testDecls = mconcat [
-  doTests
+  negateTests
+  ,doTests
   ,enumTests
   ,caseTests
   ,lambdaTests
@@ -431,7 +444,7 @@ testDecls = mconcat [
   ,patternTests
   ,specialTests
   ,tupleTests
-  , listTests
+  ,listTests
   ,letTests
   ,operatorTests
   ,otherTests
@@ -464,7 +477,6 @@ main5 :: IO ()
 main5 = do
   parseResult <- Exts.parseFileWithExts [Exts.EnableExtension Exts.MultiParamTypeClasses, Exts.EnableExtension Exts.FlexibleContexts]
     "./test/test_translate.hs"
-    --"./app/Icons.hs"
   let
     parsedModule = Exts.fromParseResult parseResult
     drawings = drawingsFromModule parsedModule

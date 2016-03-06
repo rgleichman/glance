@@ -70,17 +70,20 @@ evalPAsPat n p = do
   (evaledPatGraph, evaledPatRef) <- evalPattern p
   let
     newBind = [(nameToString n, evaledPatRef)]
-    newGraph = mempty{igBindings = newBind}
+    newGraph = IconGraph mempty mempty mempty mempty newBind
   pure (newGraph <> evaledPatGraph, evaledPatRef)
 
 evalPattern :: Pat -> State IDState GraphAndRef
 evalPattern p = case p of
   PVar n -> pure (mempty, Left $ nameToString n)
   PLit s l -> fmap Right <$> evalPLit s l
+  PInfixApp p1 qName p2 -> evalPattern (PApp qName [p1, p2])
   PApp name patterns -> fmap Right <$> evalPApp name patterns
   -- TODO special tuple handling.
   PTuple _ patterns ->
     fmap Right <$> evalPApp (Exts.UnQual . Ident . nTupleString . length $ patterns) patterns
+  PList patterns ->
+    fmap Right <$> evalPApp (Exts.UnQual . Ident . nListString . length $ patterns) patterns
   PParen pat -> evalPattern pat
   PAsPat n subPat -> evalPAsPat n subPat
   PWildCard -> fmap Right <$> makeBox "_"
@@ -200,7 +203,7 @@ getBoundVarName :: Decl -> [String]
 getBoundVarName (PatBind _ pat _ _) = namesInPattern $ evalState (evalPattern pat) initialIdState
 getBoundVarName (FunBind (Match _ name _ _ _ _:_)) = [nameToString name]
 -- TODO: Other cases
-getBoundVarName TypeSig{} = []
+getBoundVarName (TypeSig _ _ _) = []
 getBoundVarName decl = error $ "getBoundVarName: No pattern in case for " ++ show decl
 
 --TODO: Should this call makeEdges?
@@ -279,9 +282,11 @@ evalTuple c exps = do
   applyIconName <- DIA.toName <$> getUniqueName "tupleApp"
   pure $ makeApplyGraph False applyIconName (fmap Right funVal) argVals (length exps)
 
+makeVarExp = Var . UnQual . Ident
+
 evalListExp :: EvalContext -> [Exp] -> State IDState (IconGraph, NameAndPort)
 evalListExp c [] = makeBox "[]"
-evalListExp c exps = evalApp c (Var . UnQual . Ident . nListString . length $ exps, exps)
+evalListExp c exps = evalApp c (makeVarExp . nListString . length $ exps, exps)
 
 evalLeftSection :: EvalContext -> Exp -> QOp -> State IDState (IconGraph, NameAndPort)
 evalLeftSection c e op = evalApp c (qOpToExp op, [e])
@@ -309,13 +314,18 @@ desugarDo (Generator srcLoc pat e : stmts) =
   InfixApp e  (makeQVarOp ">>=") (Lambda srcLoc [pat] (desugarDo stmts))
 desugarDo (LetStmt binds : stmts) = Let binds (desugarDo stmts)
 
+-- TODO: Finish evalRecConstr
+evalRecConstr :: EvalContext -> QName -> [Exts.FieldUpdate] -> State IDState (IconGraph, Reference)
+evalRecConstr c qName updates = evalQName qName c
+
 evalExp :: EvalContext  -> Exp -> State IDState (IconGraph, Reference)
 evalExp c x = case x of
   Var n -> evalQName n c
   Con n -> evalQName n c
   Lit l -> fmap Right <$> evalLit l
   InfixApp e1 op e2 -> fmap Right <$> evalInfixApp c e1 op e2
-  e@App{} -> fmap Right <$> evalApp c (simplifyApp e)
+  e@(App _ _) -> fmap Right <$> evalApp c (simplifyApp e)
+  NegApp e -> evalExp c (App (makeVarExp "negate") e)
   Lambda _ patterns e -> fmap Right <$> evalLambda c patterns e
   Let bs e -> evalLet c bs e
   If e1 e2 e3 -> fmap Right <$> evalIf c e1 e2 e3
@@ -327,10 +337,15 @@ evalExp c x = case x of
   Paren e -> evalExp c e
   LeftSection e op -> fmap Right <$> evalLeftSection c e op
   RightSection op e -> fmap Right <$> evalRightSection c op e
+  RecConstr n updates -> evalRecConstr c n updates
+  -- TODO: Do RecUpdate correcly
+  RecUpdate e updates -> evalExp c e
   EnumFrom e -> evalEnums c "enumFrom" [e]
   EnumFromTo e1 e2 -> evalEnums c "enumFromTo" [e1, e2]
   EnumFromThen e1 e2 -> evalEnums c "enumFromThen" [e1, e2]
   EnumFromThenTo e1 e2 e3 -> evalEnums c "enumFromThenTo" [e1, e2, e3]
+  -- TODO: Add the type signiture to ExpTypeSig.
+  ExpTypeSig _ e _ -> evalExp c e
   -- TODO: Add other cases
   _ -> error $ "evalExp: No pattern in case for " ++ show x
 
@@ -452,7 +467,7 @@ evalMatches c (firstMatch:restOfMatches) = matchesToCase firstMatch restOfMatche
 evalDecl :: EvalContext -> Decl -> State IDState IconGraph
 evalDecl c d = evaluatedDecl where
   evaluatedDecl = case d of
-    pat@PatBind{} -> evalPatBind c pat
+    pat@(PatBind _ _ _ _) -> evalPatBind c pat
     FunBind matches -> evalMatches c matches
     --TODO: Add other cases here
     _ -> pure mempty

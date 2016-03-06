@@ -91,7 +91,8 @@ getArrowOpts (t, h) opts = arrowOptions
       with & arrowHead .~ noHead
       & arrowTail .~ noTail
       & lengths .~ global 0.75
-      & shaftStyle %~ lwG defaultLineWidth . lc (shaftColor colorScheme)
+      -- this parenthesis "%~ (lwG .. colorScheme))" is necessary for haskell-src-exts to parse the file.
+      & shaftStyle %~ (lwG defaultLineWidth . lc (shaftColor colorScheme))
       & lookupTail t & lookupHead h
 
 -- | Given an Edge, return a transformation on Diagrams that will draw a line.
