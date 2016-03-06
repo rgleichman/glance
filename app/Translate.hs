@@ -299,6 +299,16 @@ evalRightSection c op e = do
 evalEnums :: EvalContext -> String -> [Exp] -> State IDState (IconGraph, Reference)
 evalEnums c s exps = fmap Right <$> evalApp c (Var . UnQual . Ident $ s, exps)
 
+makeQVarOp = QVarOp . UnQual . Ident
+
+desugarDo :: [Stmt] -> Exp
+desugarDo [Qualifier e] = e
+desugarDo (Qualifier e : stmts) = InfixApp e thenOp (desugarDo stmts)
+  where thenOp = makeQVarOp ">>"
+desugarDo (Generator srcLoc pat e : stmts) =
+  InfixApp e  (makeQVarOp ">>=") (Lambda srcLoc [pat] (desugarDo stmts))
+desugarDo (LetStmt binds : stmts) = Let binds (desugarDo stmts)
+
 evalExp :: EvalContext  -> Exp -> State IDState (IconGraph, Reference)
 evalExp c x = case x of
   Var n -> evalQName n c
@@ -310,6 +320,7 @@ evalExp c x = case x of
   Let bs e -> evalLet c bs e
   If e1 e2 e3 -> fmap Right <$> evalIf c e1 e2 e3
   Case e alts -> fmap Right <$> evalCase c e alts
+  Do stmts -> evalExp c (desugarDo stmts)
   -- TODO special tuple symbol
   Tuple _ exps -> fmap Right <$> evalTuple c exps
   List exps -> fmap Right <$> evalListExp c exps

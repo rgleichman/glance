@@ -25,8 +25,8 @@ import Translate(translateString, drawingsFromModule)
 -- Move tests out of main.
 
 -- TODO Later --
--- Translate Do.
 -- Consider making lines between patterns Pattern Color when the line is a reference.
+-- Consider using seperate parameter icons in functions.
 -- Make constructors in patterns PatternColor.
 -- Add function name and type to LambdaIcons.
 -- Let each bool, value pair in Guard icon be flipped to reduce line crossings. Do the same for case.
@@ -286,6 +286,16 @@ specialTests = [
   "yyyyy = fffff xxxxx"
   ]
 
+doTests = [
+  "y = do {x1}",
+  "y = do {x1; x2}",
+  "y = do {x1; x2; x3}",
+  "y = do {x1 <- m1; x2}",
+  "y = do {(x1, x2) <- m1; x1 + x2}",
+  "y = do {x1 <- m1; x2 <- f x1; g x2}",
+  "y = do {let {x = 1}; x2 <- x; f x2}"
+  ]
+
 enumTests = [
   "y = [1..]",
   "y = [1,2..]",
@@ -413,7 +423,8 @@ otherTests = [
   ]
 
 testDecls = mconcat [
-  enumTests
+  doTests
+  ,enumTests
   ,caseTests
   ,lambdaTests
   ,guardTests
