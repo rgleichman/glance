@@ -2,7 +2,7 @@
 module Icons
     (
     Icon(..),
-    apply0NDia,
+    applyADia,
     flatLambda,
     iconToDiagram,
     nameDiagram,
@@ -102,7 +102,7 @@ iconToDiagram ::
    (RealFloat n, Typeable n, Renderable (Path V2 n) b,
       Renderable (Text n) b) =>
      Icon -> [(Name, QDiagram b V2 n Any)] -> QDiagram b V2 n Any
-iconToDiagram (Apply0NIcon n) _ = apply0NDia n
+iconToDiagram (ApplyAIcon n) _ = applyADia n
 iconToDiagram ResultIcon _ = resultIcon
 iconToDiagram BranchIcon _ = branchIcon
 iconToDiagram (TextBoxIcon s) _ = textBox s
@@ -163,11 +163,11 @@ apply0Line ::
 apply0Line = rect defaultLineWidth (2 * circleRadius) # fc lineCol # lw none
 
 --apply0Dia :: (Juxtaposable a, Semigroup a) => GeneralDiagram a
-apply0Dia ::
+applyA0Dia ::
    (RealFloat n, Typeable n, Monoid m, Semigroup m,
       TrailLike (QDiagram b V2 n m)) =>
      QDiagram b V2 n m
-apply0Dia = (resultCircle ||| apply0Line ||| apply0Triangle) <> makePortDiagrams apply0PortLocations # centerXY
+applyA0Dia = (resultCircle ||| apply0Line ||| apply0Triangle) <> makePortDiagrams apply0PortLocations # centerXY
 
 apply0PortLocations :: Floating a => [P2 a]
 apply0PortLocations = map p2 [
@@ -187,12 +187,12 @@ portCircle = circle (circleRadius * 0.5) # fc lineCol # lw none
 -- Port 0: Function
 -- Port 1: Result
 -- Ports 2,3..: Arguments
-apply0NDia ::
+applyADia ::
    (RealFloat n, Typeable n, Monoid m, Semigroup m,
       TrailLike (QDiagram b V2 n m)) =>
      Int -> QDiagram b V2 n m
-apply0NDia 1 = apply0Dia
-apply0NDia n = finalDia # centerXY where
+applyADia 1 = applyA0Dia
+applyADia n = finalDia # centerXY where
   seperation = circleRadius * 1.5
   trianglePortsCircle = hcat [
     reflectX apply0Triangle,

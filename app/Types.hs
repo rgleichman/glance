@@ -23,7 +23,7 @@ import Control.Monad.State(State, state)
 -- The LambdaRegionIcon's data is the number of lambda ports, and the name of it's
 -- subdrawing.
 data Icon = ResultIcon | BranchIcon | TextBoxIcon String | GuardIcon Int
-  | LambdaRegionIcon Int Name | FlatLambdaIcon Int | Apply0NIcon Int | CaseIcon Int | CaseResultIcon
+  | LambdaRegionIcon Int Name | FlatLambdaIcon Int | ApplyAIcon Int | CaseIcon Int | CaseResultIcon
   deriving (Show)
 
 data NameAndPort = NameAndPort Name (Maybe Int) deriving (Show)

@@ -419,6 +419,12 @@ evalMatch c (Match _ name patterns _ rhs maybeWhereBinds) = do
     newBinding = IconGraph mempty mempty mempty mempty [(matchFunNameString, Right lambdaPort)]
   pure $ makeEdges (newBinding <> lambdaGraph)
 
+-- Only used by matchesToCase
+matchToAlt :: Match -> Alt
+matchToAlt (Match srcLocation _ mtaPats _ rhs binds) = Alt srcLocation altPattern rhs binds where
+  altPattern = case mtaPats of
+    [onePat] -> onePat
+    _ -> PTuple Exts.Boxed mtaPats
 
 matchesToCase :: Match -> [Match] -> State IDState Match
 matchesToCase match [] = pure match
@@ -437,11 +443,6 @@ matchesToCase firstMatch@(Match srcLoc funName pats mType _ _) restOfMatches = d
   where
     allMatches = firstMatch:restOfMatches
     alts = fmap matchToAlt allMatches
-    matchToAlt :: Match -> Alt
-    matchToAlt (Match srcLocation _ mtaPats _ rhs binds) = Alt srcLocation altPattern rhs binds where
-      altPattern = case mtaPats of
-        [onePat] -> onePat
-        _ -> PTuple Exts.Boxed pats
 
 
 evalMatches :: EvalContext -> [Match] -> State IDState IconGraph

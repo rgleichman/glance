@@ -103,7 +103,7 @@ makeApplyGraph inPattern applyIconName funVal argVals numArgs = (newGraph <> com
     argumentPorts = map (nameAndPort applyIconName) [2,3..]
     functionPort = nameAndPort applyIconName 0
     combinedGraph = combineExpressions inPattern $ zip (funVal:argVals) (functionPort:argumentPorts)
-    icons = [(applyIconName, Apply0NIcon numArgs)]
+    icons = [(applyIconName, ApplyAIcon numArgs)]
     newGraph = iconGraphFromIcons icons
 
 namesInPattern :: GraphAndRef -> [String]

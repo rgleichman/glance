@@ -5,7 +5,7 @@ import Diagrams.Prelude
 import Diagrams.Backend.SVG.CmdLine
 import qualified Language.Haskell.Exts as Exts
 
-import Icons(apply0NDia, flatLambda, textBox, colorScheme, ColorStyle(..))
+import Icons(flatLambda, textBox, colorScheme, ColorStyle(..))
 import Rendering(renderDrawing)
 import Util(toNames, portToPort, iconToPort, iconToIcon,
   iconToIconEnds, iconTailToPort)
@@ -48,8 +48,8 @@ import Translate(translateString, drawingsFromModule)
 
 (d0A, d0B, d0Res, d0Foo, d0Bar) = ("A", "B", "res", "foo", "bar")
 d0Icons = toNames
-  [(d0A, Apply0NIcon 1),
-  (d0B, Apply0NIcon 1),
+  [(d0A, ApplyAIcon 1),
+  (d0B, ApplyAIcon 1),
   (d0Res, ResultIcon),
   (d0Foo, TextBoxIcon d0Foo),
   (d0Bar, TextBoxIcon d0Bar)
@@ -127,11 +127,11 @@ fact0Icons = toNames
   (fOne, TextBoxIcon "1"),
   (fEq0, TextBoxIcon "== 0"),
   (fMinus1, TextBoxIcon fMinus1),
-  (fEq0Ap, Apply0NIcon 1),
-  (fMinus1Ap, Apply0NIcon 1),
+  (fEq0Ap, ApplyAIcon 1),
+  (fMinus1Ap, ApplyAIcon 1),
   (fTimes, TextBoxIcon fTimes),
-  (fRecurAp, Apply0NIcon 1),
-  (fTimesAp, Apply0NIcon 2),
+  (fRecurAp, ApplyAIcon 1),
+  (fTimesAp, ApplyAIcon 2),
   (fArg, BranchIcon),
   (fRes, ResultIcon)
   ]
@@ -174,8 +174,8 @@ fact1Icons = toNames
   (fEq0, TextBoxIcon "== 0"),
   (fMinus1, TextBoxIcon fMinus1),
   (fTimes, TextBoxIcon fTimes),
-  (fRecurAp, Apply0NIcon 1),
-  (fTimesAp, Apply0NIcon 2),
+  (fRecurAp, ApplyAIcon 1),
+  (fTimesAp, ApplyAIcon 2),
   (fArg, BranchIcon),
   (fRes, ResultIcon)
   ]
@@ -206,8 +206,8 @@ fact2Icons = toNames
   (fEq0, TextBoxIcon "== 0"),
   (fMinus1, TextBoxIcon fMinus1),
   (fTimes, TextBoxIcon fTimes),
-  (fRecurAp, Apply0NIcon 1),
-  (fTimesAp, Apply0NIcon 2),
+  (fRecurAp, ApplyAIcon 1),
+  (fTimesAp, ApplyAIcon 2),
   --(fArg, BranchIcon),
   (fRes, ResultIcon)
   ]
