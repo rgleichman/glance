@@ -3,6 +3,7 @@ module Icons
     (
     Icon(..),
     apply0NDia,
+    flatLambda,
     iconToDiagram,
     nameDiagram,
     textBox,
@@ -21,7 +22,7 @@ import Diagrams.Prelude
 import Diagrams.TwoD.Text(Text)
 import Data.Typeable(Typeable)
 
-import Types(Icon(..))
+import Types(Icon(..), Edge)
 import Util(fromMaybeError)
 
 -- COLO(U)RS --
@@ -51,14 +52,15 @@ colorOnBlackScheme = ColorStyle {
   apply0C = red,
   apply1C = cyan,
   boolC = orange,
-  lamArgResC = lime,
-  regionPerimC = white,
+  lamArgResC = lightSlightlyPurpleBlue,
+  regionPerimC = lime,
   caseRhsC = slightlyGreenYellow,
   patternC = lightMagenta
 }
   where
     slightlyGreenYellow = sRGB24 212 255 0
     lightMagenta = sRGB24 255 94 255
+    lightSlightlyPurpleBlue = sRGB24 67 38 255
 
 whiteOnBlackScheme :: (Floating a, Ord a) => ColorStyle a
 whiteOnBlackScheme = ColorStyle {
@@ -107,6 +109,7 @@ iconToDiagram (TextBoxIcon s) _ = textBox s
 iconToDiagram (GuardIcon n) _ = guardIcon n
 iconToDiagram (CaseIcon n) _ = caseIcon n
 iconToDiagram CaseResultIcon _ = caseResult
+iconToDiagram (FlatLambdaIcon n) _ = flatLambda n
 iconToDiagram (LambdaRegionIcon n diagramName) nameToSubdiagramMap =
   lambdaRegion n dia
   where
@@ -121,6 +124,7 @@ nameDiagram name dia = named name (name .>> dia)
 makePort :: (Floating n, Ord n, Semigroup m, Metric v) => Int -> QDiagram b v n m
 makePort x = mempty # named x
 --makePort x = circle 0.2 # fc green # named x
+-- Note, the version of makePort below seems to have a different type.
 --makePort x = textBox (show x) # fc green # named x
 
 
@@ -176,6 +180,8 @@ apply0PortLocations = map p2 [
     triangleWidth = circleRadius * sqrt 3
     lineCenter = circleRadius + (defaultLineWidth / 2.0)
 
+portCircle = circle (circleRadius * 0.5) # fc lineCol # lw none
+
 -- apply0N Icon--
 -- | apply0N port locations:
 -- Port 0: Function
@@ -188,7 +194,6 @@ apply0NDia ::
 apply0NDia 1 = apply0Dia
 apply0NDia n = finalDia # centerXY where
   seperation = circleRadius * 1.5
-  portCircle = circle (circleRadius * 0.5) # fc lineCol # lw none
   trianglePortsCircle = hcat [
     reflectX apply0Triangle,
     hcat $ take n $ map (\x -> makePort x <> portCircle <> strutX seperation) [2,3..],
@@ -335,3 +340,16 @@ caseIcon ::(RealFloat n,
            Typeable n,
            Renderable (Path V2 n) b) => Int -> QDiagram b V2 n Any
 caseIcon = generalGuardIcon (patternC colorScheme) caseC caseResult
+
+-- | The ports of flatLambdaIcon are:
+-- 0: Optional result icon
+-- 1: The lambda function value
+-- 2,3.. : The parameters
+flatLambda n = finalDia where
+  lambdaCircle = circle circleRadius # fc (regionPerimC colorScheme) # lc (regionPerimC colorScheme) # lwG defaultLineWidth
+  lambdaParts = (makePort 0 <> resultIcon) : (portIcons ++  [makePort 1 <> lambdaCircle])
+  portIcons = take n $ map (\x -> makePort x <> portCircle) [2,3..]
+  middle = alignL (hsep 0.5 lambdaParts)
+  topAndBottomLineWidth = width middle - circleRadius
+  topAndBottomLine = hrule topAndBottomLineWidth # lc (regionPerimC colorScheme) # lwG defaultLineWidth # alignL
+  finalDia = topAndBottomLine <> (alignB $ topAndBottomLine <> (middle # alignT))

@@ -11,6 +11,7 @@ import Diagrams.TwoD.Text(Text)
 
 import qualified Data.GraphViz as GV
 import qualified Data.GraphViz.Attributes.Complete as GVA
+--import qualified Data.GraphViz.Types
 --import Data.GraphViz.Commands
 import qualified Data.Map as Map
 import Data.Maybe(isJust)
@@ -19,6 +20,7 @@ import Data.List(minimumBy)
 import Data.Function(on)
 import Data.Graph.Inductive.PatriciaTree (Gr)
 import Data.Typeable(Typeable)
+--import Data.Word(Word16)
 
 import Icons(colorScheme, Icon(..), iconToDiagram, nameDiagram, defaultLineWidth, ColorStyle(..))
 import Types(Edge(..), EdgeOption(..), Connection, Drawing(..), EdgeEnd(..), NameAndPort(..))
@@ -34,12 +36,13 @@ scaleFactor :: (Fractional a) => a
 scaleFactor = 0.05
 
 -- For Fdp
---scaleFactor = 0.05
+--scaleFactor = 0.09
 
 --scaleFactor = 0.04
 
 drawingToGraphvizScaleFactor :: Double
 drawingToGraphvizScaleFactor = 0.4
+--drawingToGraphvizScaleFactor = 1
 
 -- CONVERTING Edges AND Icons TO DIAGRAMS --
 
@@ -237,11 +240,18 @@ doGraphLayout graph nameDiagramMap edges = do
   return $ placeNodes layoutResult nameDiagramMap edges
   where
     layoutParams :: GV.GraphvizParams Int v e () v
+    --layoutParams :: GV.GraphvizParams Int l el Int l
     layoutParams = GV.defaultParams{
       GV.globalAttributes = [
-        --GV.NodeAttrs [GVA.Shape GVA.BoxShape]
-        GV.NodeAttrs [GVA.Shape GVA.Circle]
-        , GV.GraphAttrs [GVA.Overlap GVA.ScaleXYOverlaps, GVA.Splines GVA.LineEdges]
+        GV.NodeAttrs [GVA.Shape GVA.BoxShape]
+        --GV.NodeAttrs [GVA.Shape GVA.Circle]
+        , GV.GraphAttrs
+          [
+          GVA.Overlap GVA.ScaleOverlaps,
+          --GVA.Overlap $ GVA.PrismOverlap (Just 1000),
+          GVA.Splines GVA.LineEdges
+          --GVA.OverlapScaling (5)
+          ]
         ],
       GV.fmtEdge = const [GV.arrowTo GV.noArrow],
       GV.fmtNode = nodeAttribute
@@ -269,7 +279,7 @@ renderDrawing ::
       Renderable (Text Double) b) =>
      Drawing -> IO (QDiagram b V2 Double Any)
 renderDrawing (Drawing nameIconMap edges subDrawings) = do
-  subDiagramMap <- mapM renderSubDrawing subDrawings
+  subDiagramMap <- traverse renderSubDrawing subDrawings
   let diagramMap = makeNamedMap subDiagramMap nameIconMap
   --mapM_ (putStrLn . (++"\n") . show . (map fst) . names . snd) diagramMap
   makeConnections edges <$>

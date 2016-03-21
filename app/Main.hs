@@ -5,7 +5,7 @@ import Diagrams.Prelude
 import Diagrams.Backend.SVG.CmdLine
 import qualified Language.Haskell.Exts as Exts
 
-import Icons(apply0NDia, textBox, colorScheme, ColorStyle(..))
+import Icons(apply0NDia, flatLambda, textBox, colorScheme, ColorStyle(..))
 import Rendering(renderDrawing)
 import Util(toNames, portToPort, iconToPort, iconToIcon,
   iconToIconEnds, iconTailToPort)
@@ -14,6 +14,7 @@ import Translate(translateString, drawingsFromModule)
 
 
 -- TODO Now --
+-- Test case x of {0 -> 1; y -> y}, see if the second match forms a loop.
 -- Refactor Translate
 -- Add documentation.
 -- Update readme.
@@ -25,6 +26,8 @@ import Translate(translateString, drawingsFromModule)
 -- Move tests out of main.
 
 -- TODO Later --
+-- Highlight the names of top level declarations.
+-- Use clustered graphs. Make a test project.
 -- Consider making lines between patterns Pattern Color when the line is a reference.
 -- Consider using seperate parameter icons in functions.
 -- Make constructors in patterns PatternColor.
@@ -256,11 +259,11 @@ main1 = do
   placedNodes <- renderDrawing factLam0Drawing
   mainWith ((placedNodes # bgFrame 1 (backgroundC colorScheme)) :: Diagram B)
 
-main2 = mainWith ((apply0NDia 3 # bgFrame 0.1 black)  :: Diagram B)
+main2 = mainWith ((flatLambda 3 # bgFrame 0.1 black)  :: Diagram B)
 
 main3 :: IO ()
 main3 = do
-  renderedDiagrams <- mapM renderDrawing allDrawings
+  renderedDiagrams <- traverse renderDrawing allDrawings
   let vCattedDrawings = vcat' (with & sep .~ 0.5) renderedDiagrams
   mainWith ((vCattedDrawings # bgFrame 1 (backgroundC colorScheme)) :: Diagram B)
   where
@@ -364,6 +367,20 @@ patternTests = [
   ]
 
 lambdaTests = [
+  "y = (\\x -> (\\x -> (\\x -> x) x) x)",
+  "y = (\\x -> (\\x -> (\\x -> x)))",
+  "y = (\\y -> y)",
+  "y = (\\x1 -> (\\x2 -> (\\x3 -> x1 x2 x3)))",
+  "y x = (\\z -> x)",
+  "y = (\\x -> (\\z -> x))",
+  "y x = x",
+  "y x = y x",
+  "y x = g y y",
+  "y f x = f x",
+  "y x = x y",
+  "y x1 x2 = f x1 x3 x2",
+  "y x1 x2 = f x1 x2",
+  "y x = f x1 x2",
   "{y 0 = 1; y 1= 0}",
   "y (-1) = 2",
   "y 1 = 0",
@@ -411,20 +428,6 @@ otherTests = [
   "y x1 x2 x3 = if f x1 then g x2 else h x3",
   "y x1 x2 x3 = if x1 then x2 else x3",
   "y = if b then x else n",
-  "y = (\\x -> (\\x -> (\\x -> x) x) x)",
-  "y = (\\x -> (\\x -> (\\x -> x)))",
-  "y = (\\y -> y)",
-  "y = (\\x1 -> (\\x2 -> (\\x3 -> x1 x2 x3)))",
-  "y x = (\\z -> x)",
-  "y = (\\x -> (\\z -> x))",
-  "y x = x",
-  "y x = y x",
-  "y x = g y y",
-  "y f x = f x",
-  "y x = x y",
-  "y x1 x2 = f x1 x3 x2",
-  "y x1 x2 = f x1 x2",
-  "y x = f x1 x2",
   "y2 = f x1 x2 x3 x4",
   "y = x",
   "y = f x",
@@ -462,7 +465,7 @@ translateStringToDrawing s = do
 
 main4 :: IO ()
 main4 = do
-  drawings <- mapM translateStringToDrawing testDecls
+  drawings <- traverse translateStringToDrawing testDecls
   let
     textDrawings = fmap (alignL . textBox) testDecls
     vCattedDrawings = vcat' (with & sep .~ 1) $ zipWith (===) (fmap alignL drawings) textDrawings
@@ -484,7 +487,7 @@ main5 = do
   print "\n\n"
   --print drawings
 
-  diagrams <- mapM renderDrawing drawings
+  diagrams <- traverse renderDrawing drawings
   let
     vCattedDrawings = vcat' (with & sep .~ 1) $ fmap alignL diagrams
   mainWith ((vCattedDrawings # bgFrame 1 (backgroundC colorScheme)) :: Diagram B)

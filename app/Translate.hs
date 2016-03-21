@@ -18,7 +18,7 @@ import Data.List(unzip4, partition)
 import Control.Monad(replicateM)
 
 import Types(Drawing(..), NameAndPort(..), IDState,
-  initialIdState)
+  initialIdState, Edge)
 import Util(toNames, makeSimpleEdge, nameAndPort, justName, mapFst)
 import Icons(Icon(..))
 import TranslateCore(Reference, IconGraph(..), EvalContext, GraphAndRef,
@@ -383,41 +383,25 @@ generalEvalLambda context patterns rhsEvalFun = do
   let
     patternStrings = concatMap namesInPattern patternVals
     rhsContext = patternStrings <> context
-    lambdaPorts = map (nameAndPort lambdaName) [0,1..]
+    lambdaPorts = map (nameAndPort lambdaName) [2,3..]
     patternGraph = mconcat $ map fst patternVals
 
-    (patternEdgeGraphs, rawNewBinds) =
+    (patternEdges, newBinds) =
       partitionEithers $ zipWith (makePatternEdges lambdaName) patternVals lambdaPorts
-    patternEdgeGraph = mconcat patternEdgeGraphs
-
-    newBinds = rawNewBinds
     numParameters = length patterns
   -- TODO remove coerceExpressionResult here
   (rhsRawGraph, rhsResult) <- rhsEvalFun rhsContext >>= coerceExpressionResult
-  resultIconName <- getUniqueName "res"
-  rhsDrawingName <- DIA.toName <$> getUniqueName "rhsDraw"
   let
-    rhsAndPatternGraph@(IconGraph _ _ _ sinks _) = makeEdges $ patternGraph <> rhsRawGraph
-    qualifiedSinks = fmap (fmap (qualifyNameAndPort lambdaName)) sinks
-    (newSinks, internalEdges) = makeEdgesCore qualifiedSinks newBinds
-    rhsDrawing = makeRhsDrawing resultIconName (rhsAndPatternGraph, rhsResult)
-    icons = toNames [(lambdaName, LambdaRegionIcon numParameters rhsDrawingName)]
-    finalGraph = IconGraph icons internalEdges [(rhsDrawingName, rhsDrawing)]
-      newSinks mempty
-  pure (patternEdgeGraph <> finalGraph, justName lambdaName)
+    icons = toNames [(lambdaName, FlatLambdaIcon numParameters)]
+    resultIconEdge = makeSimpleEdge (rhsResult, nameAndPort lambdaName 0)
+    finalGraph = IconGraph icons (resultIconEdge:patternEdges) mempty
+      mempty newBinds
+  pure (deleteBindings . makeEdges $ (rhsRawGraph <> patternGraph <> finalGraph), nameAndPort lambdaName 1)
   where
-    makeRhsDrawing :: DIA.IsName a => a -> (IconGraph, NameAndPort) -> Drawing
-    makeRhsDrawing resultIconName (rhsGraph, rhsResult)= rhsDrawing where
-      rhsNewIcons = toNames [(resultIconName, ResultIcon)]
-      rhsNewEdges = [makeSimpleEdge (rhsResult, justName resultIconName)]
-      rhsGraphWithResult = rhsGraph <> iconGraphFromIconsEdges rhsNewIcons rhsNewEdges
-      rhsDrawing = iconGraphToDrawing rhsGraphWithResult
-
     -- TODO Like evalPatBind, this edge should have an indicator that it is the input to a pattern.
-    makePatternEdges :: String -> GraphAndRef -> NameAndPort -> Either IconGraph (String, Reference)
+    makePatternEdges :: String -> GraphAndRef -> NameAndPort -> Either Edge (String, Reference)
     makePatternEdges lambdaName (_, Right patPort) lamPort =
-      Left $ iconGraphFromIconsEdges mempty
-        [makeSimpleEdge (lamPort, qualifyNameAndPort lambdaName patPort)]
+      Left $ makeSimpleEdge (lamPort, patPort)
     makePatternEdges _ (_, Left str) lamPort = Right (str, Right lamPort)
 
 
