@@ -40,7 +40,8 @@ data ColorStyle a = ColorStyle {
   lamArgResC :: Colour a,
   regionPerimC :: Colour a,
   caseRhsC :: Colour a,
-  patternC :: Colour a
+  patternC :: Colour a,
+  patternTextC :: Colour a
 }
 
 colorOnBlackScheme :: (Floating a, Ord a) => ColorStyle a
@@ -55,7 +56,8 @@ colorOnBlackScheme = ColorStyle {
   lamArgResC = lightSlightlyPurpleBlue,
   regionPerimC = lime,
   caseRhsC = slightlyGreenYellow,
-  patternC = lightMagenta
+  patternC = lightMagenta,
+  patternTextC = cyan
 }
   where
     slightlyGreenYellow = sRGB24 212 255 0
@@ -74,7 +76,8 @@ whiteOnBlackScheme = ColorStyle {
   lamArgResC = white,
   regionPerimC = white,
   caseRhsC = white,
-  patternC = white
+  patternC = white,
+  patternTextC = white
 }
 
 -- Use this to test that all of the colors use the colorScheme
@@ -90,7 +93,8 @@ randomColorScheme = ColorStyle {
   lamArgResC = red,
   regionPerimC = cyan,
   caseRhsC = red,
-  patternC = olive
+  patternC = olive,
+  patternTextC = coral
 }
 
 lineCol :: (Floating a, Ord a) => Colour a
@@ -103,6 +107,8 @@ iconToDiagram ::
       Renderable (Text n) b) =>
      Icon -> [(Name, QDiagram b V2 n Any)] -> QDiagram b V2 n Any
 iconToDiagram (ApplyAIcon n) _ = applyADia n
+iconToDiagram (PAppIcon n str) _ = pAppDia n str
+iconToDiagram (TextApplyAIcon n str) _ = textApplyADia n str
 iconToDiagram ResultIcon _ = resultIcon
 iconToDiagram BranchIcon _ = branchIcon
 iconToDiagram (TextBoxIcon s) _ = textBox s
@@ -167,7 +173,7 @@ applyA0Dia ::
    (RealFloat n, Typeable n, Monoid m, Semigroup m,
       TrailLike (QDiagram b V2 n m)) =>
      QDiagram b V2 n m
-applyA0Dia = (resultCircle ||| apply0Line ||| apply0Triangle) <> makePortDiagrams apply0PortLocations # centerXY
+applyA0Dia = ((resultCircle ||| apply0Line ||| apply0Triangle) <> makePortDiagrams apply0PortLocations) # reflectX # centerXY
 
 apply0PortLocations :: Floating a => [P2 a]
 apply0PortLocations = map p2 [
@@ -191,7 +197,7 @@ applyADia ::
    (RealFloat n, Typeable n, Monoid m, Semigroup m,
       TrailLike (QDiagram b V2 n m)) =>
      Int -> QDiagram b V2 n m
-applyADia 1 = applyA0Dia
+--applyADia 1 = applyA0Dia
 applyADia n = finalDia # centerXY where
   seperation = circleRadius * 1.5
   trianglePortsCircle = hcat [
@@ -203,6 +209,16 @@ applyADia n = finalDia # centerXY where
   topAndBottomLineWidth = width allPorts - circleRadius
   topAndBottomLine = hrule topAndBottomLineWidth # lc (apply0C colorScheme) # lwG defaultLineWidth # alignL
   finalDia = topAndBottomLine === allPorts === topAndBottomLine
+
+--textApplyADia :: _ => Int -> String -> QDiagram b V2 n m
+textApplyADia :: (RealFloat n, Typeable n, Renderable (Path V2 n) b,
+  Renderable (Text n) b) =>
+  Int -> String -> QDiagram b V2 n Any
+textApplyADia numArgs functionName = textBox functionName ||| applyADia numArgs
+
+pAppDia numArgs constructorName =
+  coloredTextBox (patternTextC colorScheme) (opaque (patternC colorScheme)) constructorName
+  ||| applyADia numArgs
 
 -- TEXT ICON --
 textBoxFontSize :: (Num a) => a
@@ -347,7 +363,7 @@ caseIcon = generalGuardIcon (patternC colorScheme) caseC caseResult
 -- 2,3.. : The parameters
 flatLambda n = finalDia where
   lambdaCircle = circle circleRadius # fc (regionPerimC colorScheme) # lc (regionPerimC colorScheme) # lwG defaultLineWidth
-  lambdaParts = (makePort 0 <> resultIcon) : (portIcons ++  [makePort 1 <> lambdaCircle])
+  lambdaParts = (makePort 0 <> resultIcon) : (portIcons ++  [makePort 1 <> (alignR lambdaCircle)])
   portIcons = take n $ map (\x -> makePort x <> portCircle) [2,3..]
   middle = alignL (hsep 0.5 lambdaParts)
   topAndBottomLineWidth = width middle - circleRadius

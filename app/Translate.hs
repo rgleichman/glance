@@ -52,12 +52,10 @@ evalPApp :: QName -> [Pat] -> State IDState (IconGraph, NameAndPort)
 evalPApp name [] = makeBox $ qNameToString name
 evalPApp name patterns = do
   patName <- DIA.toName <$> getUniqueName "pat"
-  let
-    context = mempty
   evaledPatterns <- mapM evalPattern patterns
-  constructorName <- evalQName name context
   let
-    gr = makeApplyGraph True patName constructorName evaledPatterns (length evaledPatterns)
+    constructorName = qNameToString name
+    gr = makeTextApplyGraph True patName constructorName evaledPatterns (length evaledPatterns)
   pure gr
 
 
@@ -106,8 +104,33 @@ evalQOp :: QOp -> EvalContext -> State IDState (IconGraph, Reference)
 evalQOp (QVarOp n) = evalQName n
 evalQOp (QConOp n) = evalQName n
 
+makeTextApplyGraph :: Bool -> DIA.Name -> String -> [(IconGraph, Reference)] -> Int -> (IconGraph, NameAndPort)
+makeTextApplyGraph inPattern applyIconName funStr argVals numArgs = (newGraph <> combinedGraph, nameAndPort applyIconName 1)
+  where
+    argumentPorts = map (nameAndPort applyIconName) [2,3..]
+    combinedGraph = combineExpressions inPattern $ zip argVals argumentPorts
+    icon = if inPattern
+      then PAppIcon
+      else TextApplyAIcon
+    icons = [(applyIconName, icon numArgs funStr)]
+    newGraph = iconGraphFromIcons icons
+
 evalApp :: EvalContext -> (Exp, [Exp]) -> State IDState (IconGraph, NameAndPort)
-evalApp c (funExp, argExps) = do
+evalApp c exps@(funExp, argExps) = case funExp of
+  (Var n) -> makeTextApp n
+  (Con n) -> makeTextApp n
+  _ -> evalAppNoText c exps
+  where
+    makeTextApp funName = let funStr = qNameToString funName in
+      if funStr `elem` c
+      then evalAppNoText c exps
+      else do
+        argVals <- mapM (evalExp c) argExps
+        applyIconName <- DIA.toName <$> getUniqueName "app0"
+        pure $ makeTextApplyGraph False applyIconName funStr argVals (length argExps)
+
+evalAppNoText :: EvalContext -> (Exp, [Exp]) -> State IDState (IconGraph, NameAndPort)
+evalAppNoText c (funExp, argExps) = do
   funVal <- evalExp c funExp
   argVals <- mapM (evalExp c) argExps
   applyIconName <- DIA.toName <$> getUniqueName "app0"
@@ -399,6 +422,7 @@ generalEvalLambda context patterns rhsEvalFun = do
   pure (deleteBindings . makeEdges $ (rhsRawGraph <> patternGraph <> finalGraph), nameAndPort lambdaName 1)
   where
     -- TODO Like evalPatBind, this edge should have an indicator that it is the input to a pattern.
+    -- makePatternEdges creates the edges between the patterns and the parameter ports.
     makePatternEdges :: String -> GraphAndRef -> NameAndPort -> Either Edge (String, Reference)
     makePatternEdges lambdaName (_, Right patPort) lamPort =
       Left $ makeSimpleEdge (lamPort, patPort)
