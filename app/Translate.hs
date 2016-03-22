@@ -104,6 +104,10 @@ evalQOp :: QOp -> EvalContext -> State IDState (IconGraph, Reference)
 evalQOp (QVarOp n) = evalQName n
 evalQOp (QConOp n) = evalQName n
 
+qOpToString :: QOp -> String
+qOpToString (QVarOp n) = qNameToString n
+qOpToString (QConOp n) = qNameToString n
+
 makeTextApplyGraph :: Bool -> DIA.Name -> String -> [(IconGraph, Reference)] -> Int -> (IconGraph, NameAndPort)
 makeTextApplyGraph inPattern applyIconName funStr argVals numArgs = (newGraph <> combinedGraph, nameAndPort applyIconName 1)
   where
@@ -301,9 +305,8 @@ evalCase c e alts = do
 evalTuple :: EvalContext -> [Exp] -> State IDState (IconGraph, NameAndPort)
 evalTuple c exps = do
   argVals <- mapM (evalExp c) exps
-  funVal <- makeBox $ nTupleString (length exps)
   applyIconName <- DIA.toName <$> getUniqueName "tupleApp"
-  pure $ makeApplyGraph False applyIconName (fmap Right funVal) argVals (length exps)
+  pure $ makeTextApplyGraph False applyIconName (nTupleString (length exps)) argVals (length exps)
 
 makeVarExp = Var . UnQual . Ident
 
@@ -317,11 +320,10 @@ evalLeftSection c e op = evalApp c (qOpToExp op, [e])
 evalRightSection:: EvalContext -> QOp -> Exp -> State IDState (IconGraph, NameAndPort)
 evalRightSection c op e = do
   expVal <- evalExp c e
-  funVal <- evalQOp op c
   applyIconName <- DIA.toName <$> getUniqueName "tupleApp"
   -- TODO: A better option would be for makeApplyGraph to take the list of expressions as Maybes.
   neverUsedPort <- Left <$> getUniqueName "unusedArgument"
-  pure $ makeApplyGraph False applyIconName funVal [(mempty, neverUsedPort), expVal] 2
+  pure $ makeTextApplyGraph False applyIconName (qOpToString op) [(mempty, neverUsedPort), expVal] 2
 
 -- evalEnums is only used by evalExp
 evalEnums :: EvalContext -> String -> [Exp] -> State IDState (IconGraph, Reference)

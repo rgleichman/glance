@@ -358,14 +358,14 @@ caseIcon ::(RealFloat n,
 caseIcon = generalGuardIcon (patternC colorScheme) caseC caseResult
 
 -- | The ports of flatLambdaIcon are:
--- 0: Optional result icon
+-- 0: Result icon
 -- 1: The lambda function value
 -- 2,3.. : The parameters
 flatLambda n = finalDia where
   lambdaCircle = circle circleRadius # fc (regionPerimC colorScheme) # lc (regionPerimC colorScheme) # lwG defaultLineWidth
-  lambdaParts = (makePort 0 <> resultIcon) : (portIcons ++  [makePort 1 <> (alignR lambdaCircle)])
+  lambdaParts = (makePort 0 <> resultIcon) : (portIcons ++  [makePort 1 <> alignR lambdaCircle])
   portIcons = take n $ map (\x -> makePort x <> portCircle) [2,3..]
   middle = alignL (hsep 0.5 lambdaParts)
   topAndBottomLineWidth = width middle - circleRadius
   topAndBottomLine = hrule topAndBottomLineWidth # lc (regionPerimC colorScheme) # lwG defaultLineWidth # alignL
-  finalDia = topAndBottomLine <> (alignB $ topAndBottomLine <> (middle # alignT))
+  finalDia = topAndBottomLine <> alignB (topAndBottomLine <> (middle # alignT))
