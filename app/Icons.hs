@@ -100,26 +100,43 @@ randomColorScheme = ColorStyle {
 lineCol :: (Floating a, Ord a) => Colour a
 lineCol = lineC colorScheme
 
+type TransformableDia a b c d = (Bool -> Float -> QDiagram a b c d)
+
 -- FUNCTIONS --
 -- Optimization: The apply0NDia's can be memoized.
-iconToDiagram ::
-   (RealFloat n, Typeable n, Renderable (Path V2 n) b,
-      Renderable (Text n) b) =>
-     Icon -> [(Name, QDiagram b V2 n Any)] -> QDiagram b V2 n Any
-iconToDiagram (ApplyAIcon n) _ = applyADia n
-iconToDiagram (PAppIcon n str) _ = pAppDia n str
-iconToDiagram (TextApplyAIcon n str) _ = textApplyADia n str
-iconToDiagram ResultIcon _ = resultIcon
-iconToDiagram BranchIcon _ = branchIcon
-iconToDiagram (TextBoxIcon s) _ = textBox s
-iconToDiagram (GuardIcon n) _ = guardIcon n
-iconToDiagram (CaseIcon n) _ = caseIcon n
-iconToDiagram CaseResultIcon _ = caseResult
-iconToDiagram (FlatLambdaIcon n) _ = flatLambda n
+-- iconToDiagram ::
+--    (RealFloat n, Typeable n, Renderable (Path V2 n) b,
+--       Renderable (Text n) b) =>
+--      Icon -> [(Name, QDiagram b V2 n Any)] -> TransformableDia b V2 n Any
+iconToDiagram ::_ =>
+  Icon -> [(Name, QDiagram b V2 Double Any)] -> nm -> Bool -> Double -> QDiagram b V2 Double Any
+iconToDiagram (ApplyAIcon n) _ = makeSymmetricTransDia $ applyADia n
+iconToDiagram (PAppIcon n str) _ = makeRotateSymmetricTransDia $ pAppDia n str
+iconToDiagram (TextApplyAIcon n str) _ = makeRotateSymmetricTransDia $ textApplyADia n str
+iconToDiagram ResultIcon _ = makeSymmetricTransDia resultIcon
+iconToDiagram BranchIcon _ = makeSymmetricTransDia branchIcon
+iconToDiagram (TextBoxIcon s) _ = makeSymmetricTransDia $ textBox s
+iconToDiagram (GuardIcon n) _ = makeTransformableDia $ guardIcon n
+iconToDiagram (CaseIcon n) _ = makeTransformableDia $ caseIcon n
+iconToDiagram CaseResultIcon _ = makeSymmetricTransDia caseResult
+iconToDiagram (FlatLambdaIcon n) _ = makeSymmetricTransDia $ flatLambda n
 iconToDiagram (LambdaRegionIcon n diagramName) nameToSubdiagramMap =
-  lambdaRegion n dia
+  makeTransformableDia $ lambdaRegion n dia
   where
     dia = fromMaybeError "iconToDiagram: subdiagram not found" $ lookup diagramName nameToSubdiagramMap
+
+--Get the decimal part of a float
+--reduceAngleRange :: Double -> Double
+reduceAngleRange :: Double -> Double
+reduceAngleRange x = x - (fromInteger (floor x))
+
+makeTransformableDia :: _ => QDiagram b V2 n m -> nm -> Bool -> n -> QDiagram b V2 n m
+makeTransformableDia dia nm reflect angle = nameDiagram nm $ rotateBy angle (if reflect then reflectX dia else dia)
+
+--makeSymmetricTransDia :: _ => QDiagram b V2 n m -> nm -> Bool -> n -> QDiagram b V2 n m
+makeSymmetricTransDia dia nm reflect angle = nameDiagram nm $ rotateBy (if reflect then angle + (1/2) else angle) dia
+
+makeRotateSymmetricTransDia dia nm reflect angle = nameDiagram nm $ dia (if reflect then angle + (1/2) else angle)
 
 -- | Names the diagram and puts all sub-names in the namespace of the top level name.
 nameDiagram :: (Floating n, Ord n, Semigroup m, Metric v, IsName nm) => nm -> QDiagram b v n m -> QDiagram b v n m
@@ -211,14 +228,18 @@ applyADia n = finalDia # centerXY where
   finalDia = topAndBottomLine === allPorts === topAndBottomLine
 
 --textApplyADia :: _ => Int -> String -> QDiagram b V2 n m
-textApplyADia :: (RealFloat n, Typeable n, Renderable (Path V2 n) b,
-  Renderable (Text n) b) =>
-  Int -> String -> QDiagram b V2 n Any
-textApplyADia numArgs functionName = textBox functionName ||| applyADia numArgs
+textApplyADia :: _ =>
+  Int -> String -> Double -> QDiagram b V2 Double Any
+textApplyADia = generalTextAppDia (textBoxTextC colorScheme) (opaque lineCol)
 
-pAppDia numArgs constructorName =
-  coloredTextBox (patternTextC colorScheme) (opaque (patternC colorScheme)) constructorName
-  ||| applyADia numArgs
+pAppDia :: _ =>
+  Int -> String -> Double -> QDiagram b V2 Double Any
+pAppDia = generalTextAppDia (patternTextC colorScheme) (opaque (patternC colorScheme))
+
+generalTextAppDia textCol borderCol numArgs str angle = rotateDia where
+  rotateDia = rotateBy angle $ (rotateBy textBoxRotation (coloredTextBox textCol borderCol str)) ||| applyADia numArgs
+  reducedAngle = reduceAngleRange angle
+  textBoxRotation = if (reducedAngle > (1/4)) && (reducedAngle < (3/4)) then (1/2) else 0
 
 -- TEXT ICON --
 textBoxFontSize :: (Num a) => a

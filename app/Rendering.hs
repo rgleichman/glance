@@ -1,4 +1,4 @@
-{-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeFamilies #-}
+{-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeFamilies, PartialTypeSignatures #-}
 
 module Rendering (
   renderDrawing
@@ -50,12 +50,14 @@ drawingToGraphvizScaleFactor = 0.4
 -- The first argument is the subdiagram map used for the inside of lambdaIcons
 -- The second argument is the map of icons that should be converted to diagrams.
 --makeNamedMap :: IsName name => [(Name, Diagram B)] -> [(name, Icon)] -> [(name, Diagram B)]
-makeNamedMap ::
-   (RealFloat n, Typeable n, Renderable (Path V2 n) b,
-      Renderable (Diagrams.TwoD.Text.Text n) b, IsName nm) =>
-     [(Name, QDiagram b V2 n Any)]-> [(nm, Icon)] -> [(nm, QDiagram b V2 n Any)]
+
+--
+-- makeNamedMap ::
+--    (RealFloat n, Typeable n, Renderable (Path V2 n) b,
+--       Renderable (Diagrams.TwoD.Text.Text n) b, IsName nm) =>
+--      [(Name, QDiagram b V2 n Any)]-> [(nm, Icon)] -> [(nm, QDiagram b V2 n Any)]
 makeNamedMap subDiagramMap =
-  map (\(name, icon) -> (name, iconToDiagram icon subDiagramMap # nameDiagram name))
+  map (\(name, icon) -> (name, iconToDiagram icon subDiagramMap name))
 
 -- | Make an inductive Graph from a list of node names, and a list of Connections.
 edgesToGraph :: [Name] -> [(NameAndPort, NameAndPort)] -> Gr Name ()
@@ -177,7 +179,7 @@ connectedPorts edges name = map edgeToPort $ filter nameInEdge edges
 rotateNodes ::
    Semigroup m =>
      Map.Map Name (Point V2 Double)
-     -> [(Name, QDiagram b V2 Double m)]
+     -> [(Name, Bool -> Double -> QDiagram b V2 Double m)]
      -> [Connection]
      -> [(Name, QDiagram b V2 Double m)]
 rotateNodes positionMap nameDiagramMap edges = map rotateDiagram nameDiagramMap
@@ -185,11 +187,10 @@ rotateNodes positionMap nameDiagramMap edges = map rotateDiagram nameDiagramMap
     rotateDiagram (name, originalDia) = (name, transformedDia)
       where
         transformedDia = if flippedDist < unflippedDist
-          then rotateBy flippedAngle flippedDia
-          else rotateBy unflippedAngle originalDia
-        flippedDia = reflectX originalDia
-        (unflippedAngle, unflippedDist) = minAngleForDia originalDia
-        (flippedAngle, flippedDist) = minAngleForDia flippedDia
+          then originalDia True flippedAngle
+          else originalDia False unflippedAngle
+        (unflippedAngle, unflippedDist) = minAngleForDia (originalDia False 0)
+        (flippedAngle, flippedDist) = minAngleForDia (originalDia True 0)
         --minAngleForDia :: QDiagram b V2 Double m -> (Double, Double)
         minAngleForDia dia = minAngle where
         --ports = Debug.Trace.trace ((show $ names dia) ++ "\n") $ names dia
@@ -216,7 +217,7 @@ type LayoutResult a = Gr (GV.AttributeNode Name) (GV.AttributeNode a)
 placeNodes ::
    (Monoid m, Semigroup m) =>
      LayoutResult a
-     -> [(Name, QDiagram b V2 Double m)]
+     -> [(Name, Bool -> Double -> QDiagram b V2 Double m)]
      -> [Connection]
      -> QDiagram b V2 Double m
 placeNodes layoutResult nameDiagramMap edges = mconcat placedNodes
@@ -229,9 +230,9 @@ placeNodes layoutResult nameDiagramMap edges = mconcat placedNodes
     placeNode (name, diagram) = place (diagram # centerXY) (scaleFactor *^ (positionMap Map.! name))
 
 doGraphLayout ::
-   (Monoid m, Semigroup m) =>
+   _ =>
      Gr Name e
-     -> [(Name, QDiagram b V2 Double m)]
+     -> [(Name, Bool -> Double -> QDiagram b V2 Double m)]
      -> [Connection]
      -> IO (QDiagram b V2 Double m)
 doGraphLayout graph nameDiagramMap edges = do
@@ -264,7 +265,8 @@ doGraphLayout graph nameDiagramMap edges = do
       where
         --todo: Hack! Using (!!) here relies upon the implementation of Diagrams.TwoD.GraphViz.mkGraph
         -- to name the nodes in order
-        (_, dia) = nameDiagramMap !! nodeInt
+        (_, unTransformedDia) = (nameDiagramMap !! nodeInt)
+        dia = unTransformedDia False 0
 
         diaWidth = drawingToGraphvizScaleFactor * (width dia)
         diaHeight = drawingToGraphvizScaleFactor * (height dia)
@@ -275,9 +277,8 @@ doGraphLayout graph nameDiagramMap edges = do
 -- | Given a Drawing, produce a Diagram complete with rotated/flipped icons and
 -- lines connecting ports and icons. IO is needed for the GraphViz layout.
 renderDrawing ::
-   (Renderable (Path V2 Double) b,
-      Renderable (Text Double) b) =>
-     Drawing -> IO (QDiagram b V2 Double Any)
+  _ =>
+  Drawing -> IO (QDiagram b V2 Double Any)
 renderDrawing (Drawing nameIconMap edges subDrawings) = do
   subDiagramMap <- traverse renderSubDrawing subDrawings
   let diagramMap = makeNamedMap subDiagramMap nameIconMap

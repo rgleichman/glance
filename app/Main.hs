@@ -30,7 +30,6 @@ import Translate(translateString, drawingsFromModule)
 -- Use clustered graphs. Make a test project.
 -- Consider making lines between patterns Pattern Color when the line is a reference.
 -- Consider using seperate parameter icons in functions.
--- Make constructors in patterns PatternColor.
 -- Add function name and type to LambdaIcons.
 -- Add proper RecConstr, and RecUpdate support.
 -- Let each bool, value pair in Guard icon be flipped to reduce line crossings. Do the same for case.
