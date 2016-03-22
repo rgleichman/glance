@@ -14,6 +14,7 @@ import Translate(translateString, drawingsFromModule)
 
 
 -- TODO Now --
+-- Clean up Rendering and Icons.
 -- Test case x of {0 -> 1; y -> y}, see if the second match forms a loop.
 -- Refactor Translate
 -- Add documentation.

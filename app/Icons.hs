@@ -179,7 +179,7 @@ apply0Triangle ::
    (Typeable (N b), Transformable b, HasStyle b, TrailLike b,
       V b ~ V2) =>
      b
-apply0Triangle = eqTriangle (2 * circleRadius) # rotateBy (-1/12) # fc (apply0C colorScheme) # lw none
+apply0Triangle = eqTriangle (2 * circleRadius) # rotateBy (-1/12) # lw none
 
 apply0Line ::
    (Typeable (N b), HasStyle b, TrailLike b, V b ~ V2) => b
@@ -190,7 +190,7 @@ applyA0Dia ::
    (RealFloat n, Typeable n, Monoid m, Semigroup m,
       TrailLike (QDiagram b V2 n m)) =>
      QDiagram b V2 n m
-applyA0Dia = ((resultCircle ||| apply0Line ||| apply0Triangle) <> makePortDiagrams apply0PortLocations) # reflectX # centerXY
+applyA0Dia = ((resultCircle ||| apply0Line ||| (fc (apply0C colorScheme) apply0Triangle)) <> makePortDiagrams apply0PortLocations) # reflectX # centerXY
 
 apply0PortLocations :: Floating a => [P2 a]
 apply0PortLocations = map p2 [
@@ -210,34 +210,37 @@ portCircle = circle (circleRadius * 0.5) # fc lineCol # lw none
 -- Port 0: Function
 -- Port 1: Result
 -- Ports 2,3..: Arguments
-applyADia ::
+coloredApplyADia ::
    (RealFloat n, Typeable n, Monoid m, Semigroup m,
       TrailLike (QDiagram b V2 n m)) =>
-     Int -> QDiagram b V2 n m
+     Colour Double -> Int -> QDiagram b V2 n m
 --applyADia 1 = applyA0Dia
-applyADia n = finalDia # centerXY where
+coloredApplyADia appColor n = finalDia # centerXY where
   seperation = circleRadius * 1.5
   trianglePortsCircle = hcat [
-    reflectX apply0Triangle,
+    reflectX (fc appColor apply0Triangle),
     hcat $ take n $ map (\x -> makePort x <> portCircle <> strutX seperation) [2,3..],
-    makePort 1 <> alignR (circle circleRadius # fc (apply0C colorScheme) # lwG defaultLineWidth # lc (apply0C colorScheme))
+    makePort 1 <> alignR (circle circleRadius # fc appColor # lwG defaultLineWidth # lc appColor)
     ]
   allPorts = makePort 0 <> alignL trianglePortsCircle
   topAndBottomLineWidth = width allPorts - circleRadius
-  topAndBottomLine = hrule topAndBottomLineWidth # lc (apply0C colorScheme) # lwG defaultLineWidth # alignL
+  topAndBottomLine = hrule topAndBottomLineWidth # lc appColor # lwG defaultLineWidth # alignL
   finalDia = topAndBottomLine === allPorts === topAndBottomLine
+
+applyADia = coloredApplyADia (apply0C colorScheme)
 
 --textApplyADia :: _ => Int -> String -> QDiagram b V2 n m
 textApplyADia :: _ =>
   Int -> String -> Double -> QDiagram b V2 Double Any
-textApplyADia = generalTextAppDia (textBoxTextC colorScheme) (opaque lineCol)
+textApplyADia = generalTextAppDia (textBoxTextC colorScheme) (apply0C colorScheme)
 
 pAppDia :: _ =>
   Int -> String -> Double -> QDiagram b V2 Double Any
-pAppDia = generalTextAppDia (patternTextC colorScheme) (opaque (patternC colorScheme))
+pAppDia = generalTextAppDia (patternTextC colorScheme) (patternC colorScheme)
 
 generalTextAppDia textCol borderCol numArgs str angle = rotateDia where
-  rotateDia = rotateBy angle $ (rotateBy textBoxRotation (coloredTextBox textCol borderCol str)) ||| applyADia numArgs
+  rotateDia = rotateBy angle $ (rotateBy textBoxRotation (coloredTextBox textCol (opaque borderCol) str)) |||
+    coloredApplyADia borderCol numArgs
   reducedAngle = reduceAngleRange angle
   textBoxRotation = if (reducedAngle > (1/4)) && (reducedAngle < (3/4)) then (1/2) else 0
 
