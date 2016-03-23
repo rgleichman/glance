@@ -494,7 +494,7 @@ drawingFromDecl d = iconGraphToDrawing $ evalState evaluatedDecl initialIdState
         addBind (patName, Right port) = do
           uniquePatName <- getUniqueName patName
           let
-            icons = toNames [(uniquePatName, TextBoxIcon patName)]
+            icons = toNames [(uniquePatName, BindTextBoxIcon patName)]
             edges = [makeSimpleEdge (justName uniquePatName, port)]
             edgeGraph = iconGraphFromIconsEdges icons edges
           pure edgeGraph

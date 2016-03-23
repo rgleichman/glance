@@ -41,7 +41,9 @@ data ColorStyle a = ColorStyle {
   regionPerimC :: Colour a,
   caseRhsC :: Colour a,
   patternC :: Colour a,
-  patternTextC :: Colour a
+  patternTextC :: Colour a,
+  bindTextBoxC :: Colour a,
+  bindTextBoxTextC :: Colour a
 }
 
 colorOnBlackScheme :: (Floating a, Ord a) => ColorStyle a
@@ -57,12 +59,16 @@ colorOnBlackScheme = ColorStyle {
   regionPerimC = lime,
   caseRhsC = slightlyGreenYellow,
   patternC = lightMagenta,
-  patternTextC = cyan
+  patternTextC = cyan,
+  bindTextBoxC = reddishOrange,
+  bindTextBoxTextC = blueishLightCyan
 }
   where
     slightlyGreenYellow = sRGB24 212 255 0
     lightMagenta = sRGB24 255 94 255
     lightSlightlyPurpleBlue = sRGB24 67 38 255
+    reddishOrange = sRGB24 255 119 0
+    blueishLightCyan = sRGB24 66 198 255
 
 whiteOnBlackScheme :: (Floating a, Ord a) => ColorStyle a
 whiteOnBlackScheme = ColorStyle {
@@ -77,7 +83,9 @@ whiteOnBlackScheme = ColorStyle {
   regionPerimC = white,
   caseRhsC = white,
   patternC = white,
-  patternTextC = white
+  patternTextC = white,
+  bindTextBoxC = white,
+  bindTextBoxTextC = white
 }
 
 -- Use this to test that all of the colors use the colorScheme
@@ -94,7 +102,9 @@ randomColorScheme = ColorStyle {
   regionPerimC = cyan,
   caseRhsC = red,
   patternC = olive,
-  patternTextC = coral
+  patternTextC = coral,
+  bindTextBoxC = maroon,
+  bindTextBoxTextC = lime
 }
 
 lineCol :: (Floating a, Ord a) => Colour a
@@ -116,6 +126,7 @@ iconToDiagram (TextApplyAIcon n str) _ = makeRotateSymmetricTransDia $ textApply
 iconToDiagram ResultIcon _ = makeSymmetricTransDia resultIcon
 iconToDiagram BranchIcon _ = makeSymmetricTransDia branchIcon
 iconToDiagram (TextBoxIcon s) _ = makeSymmetricTransDia $ textBox s
+iconToDiagram (BindTextBoxIcon s) _ = makeSymmetricTransDia $ bindTextBox s
 iconToDiagram (GuardIcon n) _ = makeTransformableDia $ guardIcon n
 iconToDiagram (CaseIcon n) _ = makeTransformableDia $ caseIcon n
 iconToDiagram CaseResultIcon _ = makeSymmetricTransDia caseResult
@@ -257,6 +268,12 @@ textBox ::
       Renderable (Text n) b) =>
       String -> QDiagram b V2 n Any
 textBox = coloredTextBox (textBoxTextC colorScheme) $ opaque (textBoxC colorScheme)
+
+bindTextBox ::
+   (RealFloat n, Typeable n, Renderable (Path V2 n) b,
+      Renderable (Text n) b) =>
+      String -> QDiagram b V2 n Any
+bindTextBox = coloredTextBox (bindTextBoxTextC colorScheme) $ opaque (bindTextBoxC colorScheme)
 
 -- Since the normal SVG text has no size, some hackery is needed to determine
 -- the size of the text's bounding box.

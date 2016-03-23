@@ -25,6 +25,7 @@ import Control.Monad.State(State, state)
 data Icon = ResultIcon | BranchIcon | TextBoxIcon String | GuardIcon Int
   | LambdaRegionIcon Int Name | FlatLambdaIcon Int | ApplyAIcon Int
   | TextApplyAIcon Int String | PAppIcon Int String | CaseIcon Int | CaseResultIcon
+  | BindTextBoxIcon String
   deriving (Show)
 
 data NameAndPort = NameAndPort Name (Maybe Int) deriving (Show)

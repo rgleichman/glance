@@ -27,14 +27,16 @@ import Translate(translateString, drawingsFromModule)
 -- Move tests out of main.
 
 -- TODO Later --
--- Highlight the names of top level declarations.
+-- Visual todos
+-- Give lines a black border to make line crossings easier to see.
+-- Give lines that cross the border of a lambda function a special color.
+
 -- Use clustered graphs. Make a test project.
 -- Consider making lines between patterns Pattern Color when the line is a reference.
 -- Consider using seperate parameter icons in functions.
 -- Add function name and type to LambdaIcons.
 -- Add proper RecConstr, and RecUpdate support.
 -- Let each bool, value pair in Guard icon be flipped to reduce line crossings. Do the same for case.
--- Add text field to Apply. Also redraw text and icon when it is rotated so that the characters stay oriented.
 -- Eliminate BranchIcon in Alts.
 -- Eliminate BranchIcon for the identity funciton "y x = x"
 -- otherwise Guard special case
