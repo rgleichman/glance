@@ -61,14 +61,13 @@ colorOnBlackScheme = ColorStyle {
   patternC = lightMagenta,
   patternTextC = cyan,
   bindTextBoxC = reddishOrange,
-  bindTextBoxTextC = blueishLightCyan
+  bindTextBoxTextC = lime
 }
   where
     slightlyGreenYellow = sRGB24 212 255 0
     lightMagenta = sRGB24 255 94 255
     lightSlightlyPurpleBlue = sRGB24 67 38 255
     reddishOrange = sRGB24 255 119 0
-    blueishLightCyan = sRGB24 66 198 255
 
 whiteOnBlackScheme :: (Floating a, Ord a) => ColorStyle a
 whiteOnBlackScheme = ColorStyle {
