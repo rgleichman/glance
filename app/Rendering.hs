@@ -33,7 +33,7 @@ import Util(fromMaybeError)
 scaleFactor :: (Fractional a) => a
 
 -- For Neato
-scaleFactor = 0.05
+scaleFactor = 0.12
 
 -- For Fdp
 --scaleFactor = 0.09
@@ -41,8 +41,11 @@ scaleFactor = 0.05
 --scaleFactor = 0.04
 
 drawingToGraphvizScaleFactor :: Double
-drawingToGraphvizScaleFactor = 0.4
---drawingToGraphvizScaleFactor = 1
+-- For Neato, ScaleOverlaps
+--drawingToGraphvizScaleFactor = 0.08
+
+-- For Neato, PrismOverlap
+drawingToGraphvizScaleFactor = 0.15
 
 -- CONVERTING Edges AND Icons TO DIAGRAMS --
 
@@ -248,10 +251,12 @@ doGraphLayout graph nameDiagramMap edges = do
         --GV.NodeAttrs [GVA.Shape GVA.Circle]
         , GV.GraphAttrs
           [
-          GVA.Overlap GVA.ScaleOverlaps,
-          --GVA.Overlap $ GVA.PrismOverlap (Just 1000),
-          GVA.Splines GVA.LineEdges
-          --GVA.OverlapScaling (5)
+          --GVA.Overlap GVA.KeepOverlaps,
+          --GVA.Overlap GVA.ScaleOverlaps,
+          GVA.Overlap $ GVA.PrismOverlap (Just 1000),
+          GVA.Splines GVA.LineEdges,
+          GVA.OverlapScaling 4,
+          GVA.OverlapShrink True
           ]
         ],
       GV.fmtEdge = const [GV.arrowTo GV.noArrow],
