@@ -1,4 +1,4 @@
-{-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeFamilies #-}
+{-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeFamilies, ConstraintKinds #-}
 
 module Types (
   Icon(..),
@@ -9,11 +9,14 @@ module Types (
   EdgeEnd(..),
   Drawing(..),
   IDState,
+  SpecialQDiagram,
+  SpecialBackend,
   initialIdState,
   getId
 ) where
 
-import Diagrams.Prelude(Name)
+import Diagrams.Prelude(Name, QDiagram, V2, Any, Renderable, Path)
+import Diagrams.TwoD.Text(Text)
 import Control.Monad.State(State, state)
 
 -- TYPES --
@@ -47,6 +50,11 @@ data Drawing = Drawing [(Name, Icon)] [Edge] [(Name, Drawing)] deriving (Show)
 
 -- | IDState is an Abstract Data Type that is used as a state whose value is a unique id.
 newtype IDState = IDState Int deriving (Eq, Show)
+
+-- Note that SpecialBackend is a constraint synonym, not a type synonym.
+type SpecialBackend b = (Renderable (Path V2 Double) b, Renderable (Text Double) b)
+
+type SpecialQDiagram b = QDiagram b V2 Double Any
 
 initialIdState :: IDState
 initialIdState = IDState 0

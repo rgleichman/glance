@@ -6,7 +6,6 @@ module Rendering (
 
 import Diagrams.Prelude
 import Diagrams.TwoD.GraphViz(mkGraph, getGraph, layoutGraph')
-import Diagrams.TwoD.Text(Text)
 --import Diagrams.Backend.SVG(B)
 
 import qualified Data.GraphViz as GV
@@ -22,8 +21,9 @@ import Data.Graph.Inductive.PatriciaTree (Gr)
 import Data.Typeable(Typeable)
 --import Data.Word(Word16)
 
-import Icons(colorScheme, Icon(..), iconToDiagram, nameDiagram, defaultLineWidth, ColorStyle(..))
-import Types(Edge(..), EdgeOption(..), Connection, Drawing(..), EdgeEnd(..), NameAndPort(..))
+import Icons(colorScheme, iconToDiagram, nameDiagram, defaultLineWidth, ColorStyle(..))
+import Types(Edge(..), Icon, EdgeOption(..), Connection, Drawing(..), EdgeEnd(..),
+  NameAndPort(..), SpecialQDiagram, SpecialBackend)
 import Util(fromMaybeError)
 
 -- If the inferred types for these functions becomes unweildy,
@@ -52,13 +52,7 @@ drawingToGraphvizScaleFactor = 0.15
 -- | Convert a map of names and icons, to a list of names and diagrams.
 -- The first argument is the subdiagram map used for the inside of lambdaIcons
 -- The second argument is the map of icons that should be converted to diagrams.
---makeNamedMap :: IsName name => [(Name, Diagram B)] -> [(name, Icon)] -> [(name, Diagram B)]
-
---
--- makeNamedMap ::
---    (RealFloat n, Typeable n, Renderable (Path V2 n) b,
---       Renderable (Diagrams.TwoD.Text.Text n) b, IsName nm) =>
---      [(Name, QDiagram b V2 n Any)]-> [(nm, Icon)] -> [(nm, QDiagram b V2 n Any)]
+makeNamedMap :: SpecialBackend b => [(Name, SpecialQDiagram b)] -> [(t, Icon)] -> [(t, Bool -> Double -> SpecialQDiagram b)]
 makeNamedMap subDiagramMap =
   map (\(name, icon) -> (name, iconToDiagram icon subDiagramMap))
 
@@ -179,12 +173,11 @@ connectedPorts edges name = map edgeToPort $ filter nameInEdge edges
 -- are minimized.
 -- Precondition: the diagrams are already centered
 -- todo: confirm precondition (or use a newtype)
-rotateNodes ::
-   Semigroup m =>
-     Map.Map Name (Point V2 Double)
-     -> [(Name, Bool -> Double -> QDiagram b V2 Double m)]
-     -> [Connection]
-     -> [(Name, QDiagram b V2 Double m)]
+rotateNodes :: SpecialBackend b =>
+  Map.Map Name (Point V2 Double)
+  -> [(Name, Bool -> Double -> SpecialQDiagram b)]
+  -> [Connection]
+  -> [(Name, SpecialQDiagram b)]
 rotateNodes positionMap nameDiagramMap edges = map rotateDiagram nameDiagramMap
   where
     rotateDiagram (name, originalDia) = (name, nameDiagram name transformedDia)
@@ -219,12 +212,11 @@ rotateNodes positionMap nameDiagramMap edges = map rotateDiagram nameDiagramMap
           minAngle = angleWithMinDist (getFromMapAndScale positionMap name) portEdges
 
 type LayoutResult a = Gr (GV.AttributeNode Name) (GV.AttributeNode a)
-placeNodes ::
-   (Monoid m, Semigroup m) =>
-     LayoutResult a
-     -> [(Name, Bool -> Double -> QDiagram b V2 Double m)]
-     -> [Connection]
-     -> QDiagram b V2 Double m
+placeNodes :: SpecialBackend b =>
+   LayoutResult a
+   -> [(Name, Bool -> Double -> SpecialQDiagram b)]
+   -> [Connection]
+   -> SpecialQDiagram b
 placeNodes layoutResult nameDiagramMap edges = mconcat placedNodes
   where
     (positionMap, _) = getGraph layoutResult
@@ -234,12 +226,11 @@ placeNodes layoutResult nameDiagramMap edges = mconcat placedNodes
     -- todo: Not sure if the diagrams should already be centered at this point.
     placeNode (name, diagram) = place (diagram # centerXY) (scaleFactor *^ (positionMap Map.! name))
 
-doGraphLayout ::
-   _ =>
-     Gr Name e
-     -> [(Name, Bool -> Double -> QDiagram b V2 Double m)]
-     -> [Connection]
-     -> IO (QDiagram b V2 Double m)
+doGraphLayout :: SpecialBackend b =>
+   Gr Name e
+   -> [(Name, Bool -> Double -> SpecialQDiagram b)]
+   -> [Connection]
+   -> IO (SpecialQDiagram b)
 doGraphLayout graph nameDiagramMap edges = do
   layoutResult <- layoutGraph' layoutParams GVA.Neato graph
   --  layoutResult <- layoutGraph' layoutParams GVA.Fdp graph
@@ -272,19 +263,18 @@ doGraphLayout graph nameDiagramMap edges = do
       where
         --todo: Hack! Using (!!) here relies upon the implementation of Diagrams.TwoD.GraphViz.mkGraph
         -- to name the nodes in order
-        (_, unTransformedDia) = (nameDiagramMap !! nodeInt)
+        (_, unTransformedDia) = nameDiagramMap !! nodeInt
         dia = unTransformedDia False 0
 
-        diaWidth = drawingToGraphvizScaleFactor * (width dia)
-        diaHeight = drawingToGraphvizScaleFactor * (height dia)
+        diaWidth = drawingToGraphvizScaleFactor * width dia
+        diaHeight = drawingToGraphvizScaleFactor * height dia
         circleDiameter' = max diaWidth diaHeight
         circleDiameter = if circleDiameter' <= 0.01 then error ("circleDiameter too small: " ++ show circleDiameter') else circleDiameter'
 
 
 -- | Given a Drawing, produce a Diagram complete with rotated/flipped icons and
 -- lines connecting ports and icons. IO is needed for the GraphViz layout.
-renderDrawing ::
-  _ =>
+renderDrawing :: SpecialBackend b =>
   Drawing -> IO (QDiagram b V2 Double Any)
 renderDrawing (Drawing nameIconMap edges subDrawings) = do
   subDiagramMap <- traverse renderSubDrawing subDrawings

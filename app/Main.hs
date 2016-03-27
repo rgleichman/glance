@@ -18,40 +18,31 @@ import Translate(translateString, drawingsFromModule)
 
 -- Refactor Translate
 -- Add documentation.
--- Update readme.
--- Test reference lookup in case rhs.
 -- Have the file be a command line argument to main.
--- In evalPatBind, give the edge from the rhs to the pattern a special arrowhead.
--- Line intersections should have a small circle. This could probably be done with
--- a line ending.
+
 -- Move tests out of main.
 
 -- TODO Later --
--- Visual todos
+-- Visual todos:
 -- Give lines a black border to make line crossings easier to see.
 -- Give lines that cross the border of a lambda function a special color.
+-- Line intersections should have a small circle. This could probably be done with
+-- a line ending.
+-- Let each bool, value pair in Guard icon be flipped to reduce line crossings. Do the same for case.
+-- Let lines connect to ports in multiple locations (eg. case value, or guard result)
+-- Rotate icons based on the outgoing line's difference from ideal angle, not line distance.
+-- Improve line routing. Draw curved lines with outgoing lines at fixed angles.
+--  - connectPerim might be useful for this.
 
 -- Translate todos:
 -- Fix test case x of {0 -> 1; y -> y}.
-
--- Have icon rotation just rotate internal items, not the entire diagram.
--- Use a nested tree layout. A graph can take an optional (name, Icon) as filling a port.
--- Use clustered graphs. Make a test project.
--- Consider making lines between patterns Pattern Color when the line is a reference.
--- Consider using seperate parameter icons in functions.
--- Add function name and type to LambdaIcons.
 -- Add proper RecConstr, and RecUpdate support.
--- Let each bool, value pair in Guard icon be flipped to reduce line crossings. Do the same for case.
 -- Eliminate BranchIcon in Alts.
 -- Eliminate BranchIcon for the identity funciton "y x = x"
 -- otherwise Guard special case
--- Let lines connect to ports in multiple locations (eg. argument for Apply0Dia)
--- Add a small black border to lines to help distinguish line crossings.
--- todo: Find out how to hide unqualified names such that recursive drawings are connected correctly
--- todo: Find out and fix why connectinos to sub-icons need to be qualified twice (eg. "lam0" .> "arg" .> "arg")
--- todo: Rotate based on difference from ideal tangent angle, not line distance.
--- todo: Try using connectPerim for port to port connections. Hopefully this will draw a spline.
--- todo: layout and rotate considering external connections.
+
+--Other todos:
+-- Use a nested tree layout. A graph can take an optional (name, Icon) instead of a port.
 
 (d0A, d0B, d0Res, d0Foo, d0Bar) = ("A", "B", "res", "foo", "bar")
 d0Icons = toNames

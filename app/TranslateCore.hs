@@ -9,14 +9,14 @@ module TranslateCore(
   getUniqueName,
   edgesForRefPortList,
   combineExpressions,
-  qualifyNameAndPort,
+  --qualifyNameAndPort,
   iconGraphToDrawing,
   makeApplyGraph,
   namesInPattern,
   lookupReference,
   deleteBindings,
   makeEdges,
-  makeEdgesCore,
+  --makeEdgesCore,
   coerceExpressionResult,
   makeBox,
   nTupleString,
@@ -91,8 +91,8 @@ combineExpressions inPattern portExpPairs = mconcat $ fmap mkGraph portExpPairs 
       else IconGraph mempty mempty mempty [(str, port)] mempty
     Right resultPort -> IconGraph mempty [Edge edgeOpts noEnds (resultPort, port)] mempty mempty mempty
 
-qualifyNameAndPort :: String -> NameAndPort -> NameAndPort
-qualifyNameAndPort s (NameAndPort n p) = NameAndPort (s DIA..> n) p
+-- qualifyNameAndPort :: String -> NameAndPort -> NameAndPort
+-- qualifyNameAndPort s (NameAndPort n p) = NameAndPort (s DIA..> n) p
 
 iconGraphToDrawing :: IconGraph -> Drawing
 iconGraphToDrawing (IconGraph icons edges subDrawings _ _) = Drawing icons edges subDrawings

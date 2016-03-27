@@ -23,8 +23,8 @@ import Util(toNames, makeSimpleEdge, nameAndPort, justName, mapFst)
 import Icons(Icon(..))
 import TranslateCore(Reference, IconGraph(..), EvalContext, GraphAndRef,
   iconGraphFromIcons, iconGraphFromIconsEdges, getUniqueName, combineExpressions,
-  edgesForRefPortList, iconGraphToDrawing, qualifyNameAndPort, makeApplyGraph,
-  namesInPattern, lookupReference, deleteBindings, makeEdges, makeEdgesCore,
+  edgesForRefPortList, iconGraphToDrawing, makeApplyGraph,
+  namesInPattern, lookupReference, deleteBindings, makeEdges,
   coerceExpressionResult, makeBox, nTupleString, nListString)
 
 -- OVERVIEW --
@@ -100,9 +100,9 @@ evalQName qName@(UnQual _) c = strToGraphRef c (qNameToString qName)
 evalQName qName@(Qual _ _) c = strToGraphRef c (qNameToString qName)
 evalQName qName _ = fmap Right <$> makeBox (qNameToString qName)
 
-evalQOp :: QOp -> EvalContext -> State IDState (IconGraph, Reference)
-evalQOp (QVarOp n) = evalQName n
-evalQOp (QConOp n) = evalQName n
+-- evalQOp :: QOp -> EvalContext -> State IDState (IconGraph, Reference)
+-- evalQOp (QVarOp n) = evalQName n
+-- evalQOp (QConOp n) = evalQName n
 
 qOpToString :: QOp -> String
 qOpToString (QVarOp n) = qNameToString n
@@ -308,10 +308,11 @@ evalTuple c exps = do
   applyIconName <- DIA.toName <$> getUniqueName "tupleApp"
   pure $ makeTextApplyGraph False applyIconName (nTupleString (length exps)) argVals (length exps)
 
+makeVarExp :: String -> Exp
 makeVarExp = Var . UnQual . Ident
 
 evalListExp :: EvalContext -> [Exp] -> State IDState (IconGraph, NameAndPort)
-evalListExp c [] = makeBox "[]"
+evalListExp _ [] = makeBox "[]"
 evalListExp c exps = evalApp c (makeVarExp . nListString . length $ exps, exps)
 
 evalLeftSection :: EvalContext -> Exp -> QOp -> State IDState (IconGraph, NameAndPort)
@@ -329,6 +330,7 @@ evalRightSection c op e = do
 evalEnums :: EvalContext -> String -> [Exp] -> State IDState (IconGraph, Reference)
 evalEnums c s exps = fmap Right <$> evalApp c (Var . UnQual . Ident $ s, exps)
 
+makeQVarOp :: String -> QOp
 makeQVarOp = QVarOp . UnQual . Ident
 
 desugarDo :: [Stmt] -> Exp
@@ -341,7 +343,7 @@ desugarDo (LetStmt binds : stmts) = Let binds (desugarDo stmts)
 
 -- TODO: Finish evalRecConstr
 evalRecConstr :: EvalContext -> QName -> [Exts.FieldUpdate] -> State IDState (IconGraph, Reference)
-evalRecConstr c qName updates = evalQName qName c
+evalRecConstr c qName _ = evalQName qName c
 
 evalExp :: EvalContext  -> Exp -> State IDState (IconGraph, Reference)
 evalExp c x = case x of
@@ -364,7 +366,7 @@ evalExp c x = case x of
   RightSection op e -> fmap Right <$> evalRightSection c op e
   RecConstr n updates -> evalRecConstr c n updates
   -- TODO: Do RecUpdate correcly
-  RecUpdate e updates -> evalExp c e
+  RecUpdate e _ -> evalExp c e
   EnumFrom e -> evalEnums c "enumFrom" [e]
   EnumFromTo e1 e2 -> evalEnums c "enumFromTo" [e1, e2]
   EnumFromThen e1 e2 -> evalEnums c "enumFromThen" [e1, e2]
@@ -412,7 +414,7 @@ generalEvalLambda context patterns rhsEvalFun = do
     patternGraph = mconcat $ map fst patternVals
 
     (patternEdges, newBinds) =
-      partitionEithers $ zipWith (makePatternEdges lambdaName) patternVals lambdaPorts
+      partitionEithers $ zipWith makePatternEdges patternVals lambdaPorts
     numParameters = length patterns
   -- TODO remove coerceExpressionResult here
   (rhsRawGraph, rhsResult) <- rhsEvalFun rhsContext >>= coerceExpressionResult
@@ -425,10 +427,10 @@ generalEvalLambda context patterns rhsEvalFun = do
   where
     -- TODO Like evalPatBind, this edge should have an indicator that it is the input to a pattern.
     -- makePatternEdges creates the edges between the patterns and the parameter ports.
-    makePatternEdges :: String -> GraphAndRef -> NameAndPort -> Either Edge (String, Reference)
-    makePatternEdges lambdaName (_, Right patPort) lamPort =
+    makePatternEdges :: GraphAndRef -> NameAndPort -> Either Edge (String, Reference)
+    makePatternEdges (_, Right patPort) lamPort =
       Left $ makeSimpleEdge (lamPort, patPort)
-    makePatternEdges _ (_, Left str) lamPort = Right (str, Right lamPort)
+    makePatternEdges (_, Left str) lamPort = Right (str, Right lamPort)
 
 
 evalLambda :: EvalContext -> [Pat] -> Exp -> State IDState (IconGraph, NameAndPort)
