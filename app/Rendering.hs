@@ -52,7 +52,8 @@ drawingToGraphvizScaleFactor = 0.15
 -- | Convert a map of names and icons, to a list of names and diagrams.
 -- The first argument is the subdiagram map used for the inside of lambdaIcons
 -- The second argument is the map of icons that should be converted to diagrams.
-makeNamedMap :: SpecialBackend b => [(Name, SpecialQDiagram b)] -> [(t, Icon)] -> [(t, Bool -> Double -> SpecialQDiagram b)]
+makeNamedMap :: SpecialBackend b =>
+  [(Name, SpecialQDiagram b)] -> [(t, Icon)] -> [(t, Bool -> Double -> SpecialQDiagram b)]
 makeNamedMap subDiagramMap =
   map (\(name, icon) -> (name, iconToDiagram icon subDiagramMap))
 
@@ -98,9 +99,8 @@ getArrowOpts (t, h) opts = arrowOptions
       & lookupTail t & lookupHead h
 
 -- | Given an Edge, return a transformation on Diagrams that will draw a line.
-connectMaybePorts ::
-   (RealFloat n, Typeable n, Renderable (Path V2 n) b) =>
-     Edge -> QDiagram b V2 n Any -> QDiagram b V2 n Any
+connectMaybePorts :: SpecialBackend b =>
+  Edge -> SpecialQDiagram b -> SpecialQDiagram b
 connectMaybePorts (Edge opts ends (NameAndPort icon0 (Just port0), NameAndPort icon1 (Just port1))) =
   connect'
   (getArrowOpts ends opts)
@@ -113,9 +113,8 @@ connectMaybePorts (Edge opts ends (NameAndPort icon0 (Just port0), NameAndPort i
 connectMaybePorts (Edge opts ends (NameAndPort icon0 Nothing, NameAndPort icon1 Nothing)) =
   connectOutside' (getArrowOpts ends opts) icon0 icon1
 
-makeConnections ::
-   (RealFloat n, Typeable n, Renderable (Path V2 n) b) =>
-     [Edge] -> QDiagram b V2 n Any -> QDiagram b V2 n Any
+makeConnections :: SpecialBackend b =>
+  [Edge] -> SpecialQDiagram b -> SpecialQDiagram b
 makeConnections edges = applyAll connections
   where
     connections = map connectMaybePorts edges
@@ -275,7 +274,7 @@ doGraphLayout graph nameDiagramMap edges = do
 -- | Given a Drawing, produce a Diagram complete with rotated/flipped icons and
 -- lines connecting ports and icons. IO is needed for the GraphViz layout.
 renderDrawing :: SpecialBackend b =>
-  Drawing -> IO (QDiagram b V2 Double Any)
+  Drawing -> IO (SpecialQDiagram b)
 renderDrawing (Drawing nameIconMap edges subDrawings) = do
   subDiagramMap <- traverse renderSubDrawing subDrawings
   let diagramMap = makeNamedMap subDiagramMap nameIconMap
