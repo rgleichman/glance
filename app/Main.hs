@@ -15,7 +15,7 @@ import Translate(translateString, drawingsFromModule)
 
 -- TODO Now --
 -- Clean up Rendering and Icons.
--- Test case x of {0 -> 1; y -> y}, see if the second match forms a loop.
+
 -- Refactor Translate
 -- Add documentation.
 -- Update readme.
@@ -31,6 +31,11 @@ import Translate(translateString, drawingsFromModule)
 -- Give lines a black border to make line crossings easier to see.
 -- Give lines that cross the border of a lambda function a special color.
 
+-- Translate todos:
+-- Fix test case x of {0 -> 1; y -> y}.
+
+-- Have icon rotation just rotate internal items, not the entire diagram.
+-- Use a nested tree layout. A graph can take an optional (name, Icon) as filling a port.
 -- Use clustered graphs. Make a test project.
 -- Consider making lines between patterns Pattern Color when the line is a reference.
 -- Consider using seperate parameter icons in functions.
@@ -338,7 +343,8 @@ caseTests = [
   "y = case x of {Foo a -> a}",
   "y = case x of {Foo a -> f a; Bar a -> f a}",
   "y = case x of {F x -> x; G x -> x}",
-  "y = case x of {F -> 0; G -> 1}"
+  "y = case x of {F -> 0; G -> 1}",
+  "z = case x of {0 -> 1; y -> y}"
   ]
 
 guardTests = [

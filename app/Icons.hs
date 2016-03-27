@@ -109,7 +109,7 @@ randomColorScheme = ColorStyle {
 lineCol :: (Floating a, Ord a) => Colour a
 lineCol = lineC colorScheme
 
-type TransformableDia a b c d = (Bool -> Float -> QDiagram a b c d)
+type TransformableDia a b c d = (Bool -> Double -> QDiagram a b c d)
 
 -- FUNCTIONS --
 -- Optimization: The apply0NDia's can be memoized.
@@ -118,35 +118,36 @@ type TransformableDia a b c d = (Bool -> Float -> QDiagram a b c d)
 --       Renderable (Text n) b) =>
 --      Icon -> [(Name, QDiagram b V2 n Any)] -> TransformableDia b V2 n Any
 iconToDiagram ::_ =>
-  Icon -> [(Name, QDiagram b V2 Double Any)] -> nm -> Bool -> Double -> QDiagram b V2 Double Any
-iconToDiagram (ApplyAIcon n) _ = makeSymmetricTransDia $ applyADia n
-iconToDiagram (PAppIcon n str) _ = makeRotateSymmetricTransDia $ pAppDia n str
-iconToDiagram (TextApplyAIcon n str) _ = makeRotateSymmetricTransDia $ textApplyADia n str
-iconToDiagram ResultIcon _ = makeSymmetricTransDia resultIcon
-iconToDiagram BranchIcon _ = makeSymmetricTransDia branchIcon
-iconToDiagram (TextBoxIcon s) _ = makeSymmetricTransDia $ textBox s
-iconToDiagram (BindTextBoxIcon s) _ = makeSymmetricTransDia $ bindTextBox s
-iconToDiagram (GuardIcon n) _ = makeTransformableDia $ guardIcon n
-iconToDiagram (CaseIcon n) _ = makeTransformableDia $ caseIcon n
-iconToDiagram CaseResultIcon _ = makeSymmetricTransDia caseResult
-iconToDiagram (FlatLambdaIcon n) _ = makeSymmetricTransDia $ flatLambda n
+  Icon -> [(Name, QDiagram b V2 Double Any)] -> Bool -> Double -> QDiagram b V2 Double Any
+iconToDiagram (ApplyAIcon n) _ = identDiaFunc $ applyADia n
+iconToDiagram (PAppIcon n str) _ = diaFunc $ pAppDia n str
+iconToDiagram (TextApplyAIcon n str) _ = diaFunc $ textApplyADia n str
+iconToDiagram ResultIcon _ = identDiaFunc resultIcon
+iconToDiagram BranchIcon _ = identDiaFunc branchIcon
+iconToDiagram (TextBoxIcon s) _ = identDiaFunc $ textBox s
+iconToDiagram (BindTextBoxIcon s) _ = identDiaFunc $ bindTextBox s
+iconToDiagram (GuardIcon n) _ = identDiaFunc $ guardIcon n
+iconToDiagram (CaseIcon n) _ = identDiaFunc $ caseIcon n
+iconToDiagram CaseResultIcon _ = identDiaFunc caseResult
+iconToDiagram (FlatLambdaIcon n) _ = identDiaFunc $ flatLambda n
 iconToDiagram (LambdaRegionIcon n diagramName) nameToSubdiagramMap =
-  makeTransformableDia $ lambdaRegion n dia
+  identDiaFunc $ lambdaRegion n dia
   where
     dia = fromMaybeError "iconToDiagram: subdiagram not found" $ lookup diagramName nameToSubdiagramMap
 
 --Get the decimal part of a float
 --reduceAngleRange :: Double -> Double
 reduceAngleRange :: Double -> Double
-reduceAngleRange x = x - (fromInteger (floor x))
+reduceAngleRange x = x - fromInteger (floor x)
 
-makeTransformableDia :: _ => QDiagram b V2 n m -> nm -> Bool -> n -> QDiagram b V2 n m
-makeTransformableDia dia nm reflect angle = nameDiagram nm $ rotateBy angle (if reflect then reflectX dia else dia)
+-- Make an identity TransformableDia
+identDiaFunc :: _ => QDiagram b V2 n m -> TransformableDia b V2 n m
+identDiaFunc dia _ _ = dia
 
 --makeSymmetricTransDia :: _ => QDiagram b V2 n m -> nm -> Bool -> n -> QDiagram b V2 n m
-makeSymmetricTransDia dia nm reflect angle = nameDiagram nm $ rotateBy (if reflect then angle + (1/2) else angle) dia
+--makeSymmetricTransDia dia nm reflect angle = nameDiagram nm $ rotateBy (if reflect then angle + (1/2) else angle) dia
 
-makeRotateSymmetricTransDia dia nm reflect angle = nameDiagram nm $ dia (if reflect then angle + (1/2) else angle)
+diaFunc dia reflect angle = dia reflect angle
 
 -- | Names the diagram and puts all sub-names in the namespace of the top level name.
 nameDiagram :: (Floating n, Ord n, Semigroup m, Metric v, IsName nm) => nm -> QDiagram b v n m -> QDiagram b v n m
@@ -200,7 +201,7 @@ applyA0Dia ::
    (RealFloat n, Typeable n, Monoid m, Semigroup m,
       TrailLike (QDiagram b V2 n m)) =>
      QDiagram b V2 n m
-applyA0Dia = ((resultCircle ||| apply0Line ||| (fc (apply0C colorScheme) apply0Triangle)) <> makePortDiagrams apply0PortLocations) # reflectX # centerXY
+applyA0Dia = ((resultCircle ||| apply0Line ||| fc (apply0C colorScheme) apply0Triangle) <> makePortDiagrams apply0PortLocations) # reflectX # centerXY
 
 apply0PortLocations :: Floating a => [P2 a]
 apply0PortLocations = map p2 [
@@ -241,18 +242,20 @@ applyADia = coloredApplyADia (apply0C colorScheme)
 
 --textApplyADia :: _ => Int -> String -> QDiagram b V2 n m
 textApplyADia :: _ =>
-  Int -> String -> Double -> QDiagram b V2 Double Any
+  Int -> String -> TransformableDia b V2 Double Any
 textApplyADia = generalTextAppDia (textBoxTextC colorScheme) (apply0C colorScheme)
 
 pAppDia :: _ =>
-  Int -> String -> Double -> QDiagram b V2 Double Any
+  Int -> String -> TransformableDia b V2 Double Any
 pAppDia = generalTextAppDia (patternTextC colorScheme) (patternC colorScheme)
 
-generalTextAppDia textCol borderCol numArgs str angle = rotateDia where
-  rotateDia = rotateBy angle $ (rotateBy textBoxRotation (coloredTextBox textCol (opaque borderCol) str)) |||
+generalTextAppDia :: _ => Colour Double -> Colour Double -> Int -> String -> Bool -> Double -> QDiagram b V2 n Any
+generalTextAppDia textCol borderCol numArgs str reflect angle = rotateDia where
+  rotateDia = rotateBy textBoxRotation (reflectIfTrue reflect (coloredTextBox textCol (opaque borderCol) str)) |||
     coloredApplyADia borderCol numArgs
   reducedAngle = reduceAngleRange angle
-  textBoxRotation = if (reducedAngle > (1/4)) && (reducedAngle < (3/4)) then (1/2) else 0
+  textBoxRotation = if (reducedAngle > (1/4)) && (reducedAngle < (3/4)) then 1 / 2 else 0
+  reflectIfTrue shouldReflect dia = if shouldReflect then reflectX dia else dia
 
 -- TEXT ICON --
 textBoxFontSize :: (Num a) => a

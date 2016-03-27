@@ -60,7 +60,7 @@ drawingToGraphvizScaleFactor = 0.15
 --       Renderable (Diagrams.TwoD.Text.Text n) b, IsName nm) =>
 --      [(Name, QDiagram b V2 n Any)]-> [(nm, Icon)] -> [(nm, QDiagram b V2 n Any)]
 makeNamedMap subDiagramMap =
-  map (\(name, icon) -> (name, iconToDiagram icon subDiagramMap name))
+  map (\(name, icon) -> (name, iconToDiagram icon subDiagramMap))
 
 -- | Make an inductive Graph from a list of node names, and a list of Connections.
 edgesToGraph :: [Name] -> [(NameAndPort, NameAndPort)] -> Gr Name ()
@@ -187,13 +187,13 @@ rotateNodes ::
      -> [(Name, QDiagram b V2 Double m)]
 rotateNodes positionMap nameDiagramMap edges = map rotateDiagram nameDiagramMap
   where
-    rotateDiagram (name, originalDia) = (name, transformedDia)
+    rotateDiagram (name, originalDia) = (name, nameDiagram name transformedDia)
       where
         transformedDia = if flippedDist < unflippedDist
-          then originalDia True flippedAngle
-          else originalDia False unflippedAngle
+          then rotateBy flippedAngle . reflectX $ originalDia True flippedAngle
+          else rotateBy unflippedAngle $ originalDia False unflippedAngle
         (unflippedAngle, unflippedDist) = minAngleForDia (originalDia False 0)
-        (flippedAngle, flippedDist) = minAngleForDia (originalDia True 0)
+        (flippedAngle, flippedDist) = minAngleForDia (reflectX $ originalDia True 0)
         --minAngleForDia :: QDiagram b V2 Double m -> (Double, Double)
         minAngleForDia dia = minAngle where
         --ports = Debug.Trace.trace ((show $ names dia) ++ "\n") $ names dia
@@ -206,7 +206,9 @@ rotateNodes positionMap nameDiagramMap edges = map rotateDiagram nameDiagramMap
           getPortPoint :: Int -> P2 Double
           getPortPoint x =
             -- TODO remove partial function head.
-            head $ fromMaybeError ("port not found. Port: " ++ show name ++ ".> " ++ show x ++ ". Valid ports: " ++ show ports) (lookup (name .> x) ports)
+            head $ fromMaybeError
+              ("rotateNodes: port not found. Port: " ++ show x ++ ". Valid ports: " ++ show ports)
+              (lookup (toName x) ports)
 
           makePortEdge :: (Int, Name, Maybe Int) -> (P2 Double, P2 Double)
           makePortEdge (portInt, otherIconName, _) =
