@@ -36,7 +36,7 @@ executable glance-exe
                      , mtl
                      , semigroups
   default-language:    Haskell2010
-  Other-modules: Icons, Rendering, Types, Util, Translate, TranslateCore
+  Other-modules: Icons, Rendering, Types, Util, Translate, TranslateCore, DrawingColors
 
 test-suite glance-test
   type:                exitcode-stdio-1.0
