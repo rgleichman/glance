@@ -29,6 +29,8 @@ data Icon = ResultIcon | BranchIcon | TextBoxIcon String | GuardIcon Int
   | LambdaRegionIcon Int Name | FlatLambdaIcon Int | ApplyAIcon Int
   | TextApplyAIcon Int String | PAppIcon Int String | CaseIcon Int | CaseResultIcon
   | BindTextBoxIcon String
+  -- TODO: NestedApply should have the type NestedApply (Maybe (Name, Icon)) [Maybe (Name, Icon)]
+  | NestedApply String [Maybe (Name, Icon)]
   deriving (Show)
 
 data NameAndPort = NameAndPort Name (Maybe Int) deriving (Show)

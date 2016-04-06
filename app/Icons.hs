@@ -14,7 +14,9 @@ module Icons
     caseIcon,
     defaultLineWidth,
     ColorStyle(..),
-    colorScheme
+    colorScheme,
+
+    nestedApplyDia
     ) where
 
 import Diagrams.Prelude
@@ -35,7 +37,7 @@ lineCol = lineC colorScheme
 
 -- FUNCTIONS --
 -- Optimization: The apply0NDia's can be memoized.
-iconToDiagram :: SpecialBackend b => Icon -> [(Name, SpecialQDiagram b)] -> Bool -> Double -> SpecialQDiagram b
+iconToDiagram :: SpecialBackend b => Icon -> [(Name, SpecialQDiagram b)] -> TransformableDia b
 iconToDiagram (ApplyAIcon n) _ = identDiaFunc $ applyADia n
 iconToDiagram (PAppIcon n str) _ = pAppDia n str
 iconToDiagram (TextApplyAIcon n str) _ = textApplyADia n str
@@ -47,6 +49,7 @@ iconToDiagram (GuardIcon n) _ = identDiaFunc $ guardIcon n
 iconToDiagram (CaseIcon n) _ = identDiaFunc $ caseIcon n
 iconToDiagram CaseResultIcon _ = identDiaFunc caseResult
 iconToDiagram (FlatLambdaIcon n) _ = identDiaFunc $ flatLambda n
+iconToDiagram (NestedApply s args) _ = nestedApplyDia s args
 iconToDiagram (LambdaRegionIcon n diagramName) nameToSubdiagramMap =
   identDiaFunc $ lambdaRegion n dia
   where
@@ -123,11 +126,41 @@ reduceAngleRange x = x - fromInteger (floor x)
 generalTextAppDia :: SpecialBackend b =>
   Colour Double -> Colour Double -> Int -> String -> Bool -> Double -> SpecialQDiagram b
 generalTextAppDia textCol borderCol numArgs str reflect angle = rotateDia where
-  rotateDia = rotateBy textBoxRotation (reflectIfTrue reflect (coloredTextBox textCol (opaque borderCol) str)) |||
+  rotateDia = transformCorrectedTextBox str textCol borderCol reflect angle |||
     coloredApplyADia borderCol numArgs
-  reducedAngle = reduceAngleRange angle
-  textBoxRotation = if (reducedAngle > (1/4)) && (reducedAngle < (3/4)) then 1 / 2 else 0
-  reflectIfTrue shouldReflect dia = if shouldReflect then reflectX dia else dia
+
+transformCorrectedTextBox :: SpecialBackend b =>
+  String -> Colour Double -> Colour Double -> TransformableDia b
+transformCorrectedTextBox str textCol borderCol reflect angle =
+  rotateBy textBoxRotation (reflectIfTrue reflect (coloredTextBox textCol (opaque borderCol) str))
+  where
+    reducedAngle = reduceAngleRange angle
+    textBoxRotation = if (reducedAngle > (1/4)) && (reducedAngle < (3/4)) then 1 / 2 else 0
+    reflectIfTrue shouldReflect dia = if shouldReflect then reflectX dia else dia
+
+
+nestedApplyDia :: SpecialBackend b =>
+  String -> [Maybe (Name, Icon)] -> TransformableDia b
+nestedApplyDia funText args reflect angle = transformedText ||| centerY finalDia
+  where
+    transformedText = transformCorrectedTextBox funText (textBoxTextC colorScheme) (apply0C colorScheme) reflect angle
+    seperation = circleRadius * 1.5
+    verticalSeperation = circleRadius
+    appColor = apply0C colorScheme
+    n = length args
+    trianglePortsCircle = hsep seperation $
+      reflectX (fc appColor apply0Triangle) :
+      zipWith makeInnerIcon [2,3..] args ++
+      [makePort 1 <> alignR (circle circleRadius # fc appColor # lwG defaultLineWidth # lc appColor)]
+
+    allPorts = makePort 0 <> alignL trianglePortsCircle
+    topAndBottomLineWidth = width allPorts - circleRadius
+    argBox = rect topAndBottomLineWidth (height allPorts + verticalSeperation)# lc appColor # lwG defaultLineWidth # alignL
+    finalDia = argBox <> allPorts
+
+    makeInnerIcon portNum Nothing = makePort portNum <> portCircle
+    makeInnerIcon portNum (Just (iconName, icon)) = nameDiagram iconName $ iconToDiagram icon [] reflect angle
+
 
 -- TEXT ICON --
 textBoxFontSize :: (Num a) => a

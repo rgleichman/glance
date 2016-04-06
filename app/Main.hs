@@ -5,7 +5,7 @@ import Diagrams.Prelude
 import Diagrams.Backend.SVG.CmdLine
 import qualified Language.Haskell.Exts as Exts
 
-import Icons(flatLambda, textBox, colorScheme, ColorStyle(..))
+import Icons(flatLambda, textBox, colorScheme, ColorStyle(..), nestedApplyDia)
 import Rendering(renderDrawing)
 import Util(toNames, portToPort, iconToPort, iconToIcon,
   iconToIconEnds, iconTailToPort)
@@ -257,7 +257,10 @@ main1 = do
   placedNodes <- renderDrawing factLam0Drawing
   mainWith ((placedNodes # bgFrame 1 (backgroundC colorScheme)) :: Diagram B)
 
-main2 = mainWith ((flatLambda 3 # bgFrame 0.1 black)  :: Diagram B)
+main2 = mainWith ((dia False 0 # bgFrame 0.1 black)  :: Diagram B)
+  where
+    args = [Nothing, Just (toName "foo", TextBoxIcon "3"), Just (toName "in", NestedApply "inner" [Just (toName "t", TextBoxIcon "t")])]
+    dia = nestedApplyDia "Hello world" args
 
 main3 :: IO ()
 main3 = do
@@ -493,4 +496,4 @@ main5 = do
 
 
 main :: IO ()
-main = main4
+main = main2
