@@ -26,6 +26,7 @@ executable glance-exe
   build-depends:       base
                      , glance
                      , diagrams
+                     , diagrams-core
                      , diagrams-lib
                      , diagrams-svg
                      , diagrams-graphviz

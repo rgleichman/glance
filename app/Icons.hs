@@ -43,13 +43,14 @@ iconToDiagram (PAppIcon n str) _ = pAppDia n str
 iconToDiagram (TextApplyAIcon n str) _ = textApplyADia n str
 iconToDiagram ResultIcon _ = identDiaFunc resultIcon
 iconToDiagram BranchIcon _ = identDiaFunc branchIcon
-iconToDiagram (TextBoxIcon s) _ = identDiaFunc $ textBox s
+iconToDiagram (TextBoxIcon s) _ = textBox s
 iconToDiagram (BindTextBoxIcon s) _ = identDiaFunc $ bindTextBox s
 iconToDiagram (GuardIcon n) _ = identDiaFunc $ guardIcon n
 iconToDiagram (CaseIcon n) _ = identDiaFunc $ caseIcon n
 iconToDiagram CaseResultIcon _ = identDiaFunc caseResult
 iconToDiagram (FlatLambdaIcon n) _ = identDiaFunc $ flatLambda n
 iconToDiagram (NestedApply s args) _ = nestedApplyDia s args
+iconToDiagram (NestedPApp s args) _ = nestedPAppDia s args
 iconToDiagram (LambdaRegionIcon n diagramName) nameToSubdiagramMap =
   identDiaFunc $ lambdaRegion n dia
   where
@@ -138,24 +139,31 @@ transformCorrectedTextBox str textCol borderCol reflect angle =
     textBoxRotation = if (reducedAngle > (1/4)) && (reducedAngle < (3/4)) then 1 / 2 else 0
     reflectIfTrue shouldReflect dia = if shouldReflect then reflectX dia else dia
 
-
 nestedApplyDia :: SpecialBackend b =>
   String -> [Maybe (Name, Icon)] -> TransformableDia b
-nestedApplyDia funText args reflect angle = transformedText ||| centerY finalDia
+nestedApplyDia = generalNestedDia (textBoxC colorScheme) (apply0C colorScheme)
+
+nestedPAppDia :: SpecialBackend b =>
+  String -> [Maybe (Name, Icon)] -> TransformableDia b
+nestedPAppDia = generalNestedDia (patternTextC colorScheme) (patternC colorScheme)
+
+generalNestedDia :: SpecialBackend b =>
+  Colour Double -> Colour Double-> String -> [Maybe (Name, Icon)] -> TransformableDia b
+generalNestedDia textCol borderCol funText args reflect angle = centerXY $  transformedText ||| centerY finalDia
   where
-    transformedText = transformCorrectedTextBox funText (textBoxTextC colorScheme) (apply0C colorScheme) reflect angle
+    transformedText = transformCorrectedTextBox funText textCol borderCol reflect angle
     seperation = circleRadius * 1.5
     verticalSeperation = circleRadius
     appColor = apply0C colorScheme
     n = length args
     trianglePortsCircle = hsep seperation $
-      reflectX (fc appColor apply0Triangle) :
+      reflectX (fc borderCol apply0Triangle) :
       zipWith makeInnerIcon [2,3..] args ++
-      [makePort 1 <> alignR (circle circleRadius # fc appColor # lwG defaultLineWidth # lc appColor)]
+      [makePort 1 <> alignR (circle circleRadius # fc borderCol # lwG defaultLineWidth # lc borderCol)]
 
     allPorts = makePort 0 <> alignL trianglePortsCircle
     topAndBottomLineWidth = width allPorts - circleRadius
-    argBox = rect topAndBottomLineWidth (height allPorts + verticalSeperation)# lc appColor # lwG defaultLineWidth # alignL
+    argBox = rect topAndBottomLineWidth (height allPorts + verticalSeperation)# lc borderCol # lwG defaultLineWidth # alignL
     finalDia = argBox <> allPorts
 
     makeInnerIcon portNum Nothing = makePort portNum <> portCircle
@@ -171,8 +179,8 @@ textBoxHeightFactor :: (Fractional a) => a
 textBoxHeightFactor = 1.1
 
 textBox :: SpecialBackend b =>
-  String -> SpecialQDiagram b
-textBox = coloredTextBox (textBoxTextC colorScheme) $ opaque (textBoxC colorScheme)
+  String -> TransformableDia b
+textBox t = transformCorrectedTextBox t (textBoxTextC colorScheme) $ textBoxC colorScheme
 
 bindTextBox :: SpecialBackend b =>
   String -> SpecialQDiagram b

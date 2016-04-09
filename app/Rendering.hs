@@ -6,6 +6,7 @@ module Rendering (
 
 import Diagrams.Prelude
 import Diagrams.TwoD.GraphViz(mkGraph, getGraph, layoutGraph')
+import Diagrams.Core.Names(Name(..))
 --import Diagrams.Backend.SVG(B)
 
 import qualified Data.GraphViz as GV
@@ -57,11 +58,18 @@ makeNamedMap :: SpecialBackend b =>
 makeNamedMap subDiagramMap =
   map (\(name, icon) -> (name, iconToDiagram icon subDiagramMap))
 
+-- Note that the name type alias is different from the Name constructor.
+getTopLevelName :: Name -> Name
+getTopLevelName (Name []) = Name []
+getTopLevelName (Name (x:_)) = Name [x]
+
+
+-- TODO: Not sure if using getTopLevelName here will break the old nested lambda icon.
 -- | Make an inductive Graph from a list of node names, and a list of Connections.
 edgesToGraph :: [Name] -> [(NameAndPort, NameAndPort)] -> Gr Name ()
 edgesToGraph iconNames edges = mkGraph iconNames simpleEdges
   where
-    simpleEdges = map (\(NameAndPort a _, NameAndPort c _) -> (a, c, ())) edges
+    simpleEdges = map (\(NameAndPort a _, NameAndPort c _) -> (getTopLevelName a, getTopLevelName c, ())) edges
 
 -- | Custom arrow tail for the arg1 result circle.
 -- The ArrowHT type does not seem to be documented.

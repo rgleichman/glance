@@ -16,6 +16,7 @@ import Control.Monad.State(State, evalState)
 import Data.Either(partitionEithers)
 import Data.List(unzip4, partition)
 import Control.Monad(replicateM)
+import Data.Maybe(catMaybes)
 
 import Types(Drawing(..), NameAndPort(..), IDState,
   initialIdState, Edge)
@@ -108,8 +109,34 @@ qOpToString :: QOp -> String
 qOpToString (QVarOp n) = qNameToString n
 qOpToString (QConOp n) = qNameToString n
 
+--decideIfNested :: ((IconGraph, r), p) -> (Maybe ((IconGraph, r), p), Maybe (DIA.Name, Icon))
+decideIfNested valAndPort@((IconGraph [nameAndIcon] [] [] sinks bindings, _), _) = (Nothing, Just nameAndIcon, sinks, bindings)
+decideIfNested valAndPort = (Just valAndPort, Nothing, [], [])
+
 makeTextApplyGraph :: Bool -> DIA.Name -> String -> [(IconGraph, Reference)] -> Int -> (IconGraph, NameAndPort)
-makeTextApplyGraph inPattern applyIconName funStr argVals numArgs = (newGraph <> combinedGraph, nameAndPort applyIconName 1)
+makeTextApplyGraph inPattern applyIconName funStr argVals numArgs = result
+  where
+    result = nestedApplyResult
+    argumentPorts = map (nameAndPort applyIconName) [2,3..]
+    (unnestedArgsAndPort, nestedArgs, nestedSinks, nestedBindings) = unzip4 $ map decideIfNested (zip argVals argumentPorts)
+    qualifiedSinks = map qualifySink (mconcat nestedSinks)
+    qualifySink (str, (NameAndPort n p)) = (str, NameAndPort (applyIconName DIA..> n) p)
+
+    qualifiedBinds = map qualifyBinds (mconcat nestedBindings)
+    qualifyBinds (str, ref) = (str, qualifiedRef) where
+      qualifiedRef = case ref of
+        Left _ -> ref
+        Right (NameAndPort n p) -> Right $ NameAndPort (applyIconName DIA..> n) p
+
+    combinedGraph = combineExpressions inPattern $ catMaybes unnestedArgsAndPort
+    icon = if inPattern then NestedPApp else NestedApply
+    icons = [(applyIconName, icon funStr nestedArgs)]
+    newGraph = IconGraph icons [] [] qualifiedSinks qualifiedBinds
+    nestedApplyResult = (newGraph <> combinedGraph, nameAndPort applyIconName 1)
+
+
+makeTextApplyGraph' :: Bool -> DIA.Name -> String -> [(IconGraph, Reference)] -> Int -> (IconGraph, NameAndPort)
+makeTextApplyGraph' inPattern applyIconName funStr argVals numArgs = (newGraph <> combinedGraph, nameAndPort applyIconName 1)
   where
     argumentPorts = map (nameAndPort applyIconName) [2,3..]
     combinedGraph = combineExpressions inPattern $ zip argVals argumentPorts
