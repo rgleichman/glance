@@ -171,9 +171,9 @@ qOpToExp :: QOp -> Exp
 qOpToExp (QVarOp n) = Var n
 qOpToExp (QConOp n) = Con n
 
-evalInfixApp :: EvalContext -> Exp -> QOp -> Exp -> State IDState (IconGraph, NameAndPort)
-evalInfixApp c e1 (QVarOp (UnQual (Symbol "$"))) e2 = evalApp c (e1, [e2])
-evalInfixApp c e1 op e2 = evalApp c (qOpToExp op, [e1, e2])
+evalInfixApp :: EvalContext -> Exp -> QOp -> Exp -> State IDState (IconGraph, Reference)
+evalInfixApp c e1 (QVarOp (UnQual (Symbol "$"))) e2 = evalExp c (App e1 e2)
+evalInfixApp c e1 op e2 = fmap Right <$> evalApp c (qOpToExp op, [e1, e2])
 
 -- TODO add test for this function
 simplifyApp :: Exp -> (Exp, [Exp])
@@ -377,7 +377,7 @@ evalExp c x = case x of
   Var n -> evalQName n c
   Con n -> evalQName n c
   Lit l -> fmap Right <$> evalLit l
-  InfixApp e1 op e2 -> fmap Right <$> evalInfixApp c e1 op e2
+  InfixApp e1 op e2 -> evalInfixApp c e1 op e2
   e@(App _ _) -> fmap Right <$> evalApp c (simplifyApp e)
   NegApp e -> evalExp c (App (makeVarExp "negate") e)
   Lambda _ patterns e -> fmap Right <$> evalLambda c patterns e
