@@ -3,7 +3,7 @@ module DrawingColors (
   colorScheme
 ) where
 
-import Diagrams.Prelude
+import Diagrams.Prelude hiding ((&), (#))
 
 -- COLO(U)RS --
 colorScheme :: ColorStyle Double

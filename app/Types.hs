@@ -32,9 +32,9 @@ data Icon = ResultIcon | BranchIcon | TextBoxIcon String | GuardIcon Int
   -- TODO: NestedApply should have the type NestedApply (Maybe (Name, Icon)) [Maybe (Name, Icon)]
   | NestedApply String [Maybe (Name, Icon)]
   | NestedPApp String [Maybe (Name, Icon)]
-  deriving (Show)
+  deriving (Show, Eq)
 
-data NameAndPort = NameAndPort Name (Maybe Int) deriving (Show)
+data NameAndPort = NameAndPort Name (Maybe Int) deriving (Show, Eq)
 
 type Connection = (NameAndPort, NameAndPort)
 
@@ -43,13 +43,13 @@ data EdgeOption = EdgeInPattern deriving (Show, Eq)
 -- | An Edge has an name of the source icon, and its optional port number,
 -- and the name of the destination icon, and its optional port number.
 data Edge = Edge {edgeOptions::[EdgeOption], edgeEnds :: (EdgeEnd, EdgeEnd), edgeConnection :: Connection}
-  deriving (Show)
+  deriving (Show, Eq)
 
-data EdgeEnd = EndAp1Result | EndAp1Arg | EndNone deriving (Show)
+data EdgeEnd = EndAp1Result | EndAp1Arg | EndNone deriving (Show, Eq)
 
 -- | A drawing is a map from names to Icons, a list of edges,
 -- and a map of names to subDrawings
-data Drawing = Drawing [(Name, Icon)] [Edge] [(Name, Drawing)] deriving (Show)
+data Drawing = Drawing [(Name, Icon)] [Edge] [(Name, Drawing)] deriving (Show, Eq)
 
 -- | IDState is an Abstract Data Type that is used as a state whose value is a unique id.
 newtype IDState = IDState Int deriving (Eq, Show)

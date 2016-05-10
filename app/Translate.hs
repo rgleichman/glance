@@ -5,7 +5,7 @@ module Translate(
   drawingsFromModule
 ) where
 
-import qualified Diagrams.Prelude as DIA
+import qualified Diagrams.Prelude as DIA hiding ((#), (&))
 import Diagrams.Prelude((<>))
 
 import Language.Haskell.Exts(Decl(..), parseDecl, Name(..), Pat(..), Rhs(..),
@@ -58,7 +58,6 @@ evalPApp name patterns = do
     constructorName = qNameToString name
     gr = makeTextApplyGraph True patName constructorName evaledPatterns (length evaledPatterns)
   pure gr
-
 
 evalPLit :: Exts.Sign -> Exts.Literal -> State IDState (IconGraph, NameAndPort)
 evalPLit Exts.Signless l = evalLit l
@@ -120,7 +119,7 @@ makeTextApplyGraph inPattern applyIconName funStr argVals numArgs = result
     argumentPorts = map (nameAndPort applyIconName) [2,3..]
     (unnestedArgsAndPort, nestedArgs, nestedSinks, nestedBindings) = unzip4 $ map decideIfNested (zip argVals argumentPorts)
     qualifiedSinks = map qualifySink (mconcat nestedSinks)
-    qualifySink (str, (NameAndPort n p)) = (str, NameAndPort (applyIconName DIA..> n) p)
+    qualifySink (str, NameAndPort n p) = (str, NameAndPort (applyIconName DIA..> n) p)
 
     qualifiedBinds = map qualifyBinds (mconcat nestedBindings)
     qualifyBinds (str, ref) = (str, qualifiedRef) where
@@ -533,8 +532,7 @@ drawingFromDecl d = iconGraphToDrawing $ evalState evaluatedDecl initialIdState
 -- Profiling: about 1.5% of total time.
 translateString :: String -> (Drawing, Decl)
 translateString s = (drawing, decl) where
-  parseResult = parseDecl s -- :: ParseResult Module
-  decl = fromParseResult parseResult
+  decl = fromParseResult (parseDecl s) -- :: ParseResult Module
   drawing = drawingFromDecl decl
 
 drawingsFromModule :: Module -> [Drawing]

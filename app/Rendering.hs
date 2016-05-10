@@ -4,7 +4,7 @@ module Rendering (
   renderDrawing
 ) where
 
-import Diagrams.Prelude
+import Diagrams.Prelude hiding ((#), (&))
 import Diagrams.TwoD.GraphViz(mkGraph, getGraph, layoutGraph')
 import Diagrams.Core.Names(Name(..))
 --import Diagrams.Backend.SVG(B)
@@ -74,11 +74,11 @@ edgesToGraph iconNames edges = mkGraph iconNames simpleEdges
 -- | Custom arrow tail for the arg1 result circle.
 -- The ArrowHT type does not seem to be documented.
 arg1ResT :: (RealFloat n) => ArrowHT n
-arg1ResT len _ = (circle (len / 2) # alignR, mempty)
+arg1ResT len _ = (alignR $ circle (len / 2), mempty)
 
 -- | Arrow head version of arg1ResT
 arg1ResH :: (RealFloat n) => ArrowHT n
-arg1ResH len _ = (circle (len / 2) # alignL, mempty)
+arg1ResH len _ = (alignL $ circle (len / 2), mempty)
 
 getArrowOpts :: (RealFloat n, Typeable n) => (EdgeEnd, EdgeEnd) -> [EdgeOption]-> ArrowOpts n
 getArrowOpts (t, h) opts = arrowOptions
@@ -99,12 +99,11 @@ getArrowOpts (t, h) opts = arrowOptions
     lookupHead EndAp1Result = (arrowHead .~ arg1ResH) . (headTexture .~ ap1ResultTexture)
 
     arrowOptions =
-      with & arrowHead .~ noHead
-      & arrowTail .~ noTail
-      & lengths .~ global 0.75
-      -- this parenthesis "%~ (lwG .. colorScheme))" is necessary for haskell-src-exts to parse the file.
-      & shaftStyle %~ (lwG defaultLineWidth . lc (shaftColor colorScheme))
-      & lookupTail t & lookupHead h
+      arrowHead .~ noHead $
+      arrowTail .~ noTail $
+      lengths .~ global 0.75 $
+      shaftStyle %~ (lwG defaultLineWidth . lc (shaftColor colorScheme)) $
+      lookupHead h $ lookupTail t with
 
 -- | Given an Edge, return a transformation on Diagrams that will draw a line.
 connectMaybePorts :: SpecialBackend b =>
@@ -231,7 +230,7 @@ placeNodes layoutResult nameDiagramMap edges = mconcat placedNodes
     placedNodes = map placeNode rotatedNameDiagramMap
     --placedNodes = map placeNode nameDiagramMap
     -- todo: Not sure if the diagrams should already be centered at this point.
-    placeNode (name, diagram) = place (diagram # centerXY) (scaleFactor *^ (positionMap Map.! name))
+    placeNode (name, diagram) = place (centerXY diagram) (scaleFactor *^ (positionMap Map.! name))
 
 doGraphLayout :: SpecialBackend b =>
    Gr Name e
@@ -253,9 +252,10 @@ doGraphLayout graph nameDiagramMap edges = do
           [
           --GVA.Overlap GVA.KeepOverlaps,
           --GVA.Overlap GVA.ScaleOverlaps,
-          GVA.Overlap $ GVA.PrismOverlap (Just 1000),
+          GVA.Overlap $ GVA.PrismOverlap (Just 5000),
           GVA.Splines GVA.LineEdges,
-          GVA.OverlapScaling 4,
+          GVA.OverlapScaling 8,
+          --GVA.OverlapScaling 4,
           GVA.OverlapShrink True
           ]
         ],

@@ -19,7 +19,7 @@ module Icons
     nestedApplyDia
     ) where
 
-import Diagrams.Prelude
+import Diagrams.Prelude hiding ((&), (#))
 -- import Diagrams.Backend.SVG(B)
 import Diagrams.TwoD.Text(Text)
 import Data.Typeable(Typeable)
@@ -67,7 +67,7 @@ nameDiagram name dia = named name (name .>> dia)
 -- | Make an port with an integer name. Always use <> to add a ports (not === or |||)
 --- since mempty has no size and will not be placed where you want it.
 makePort :: Int -> SpecialQDiagram b
-makePort x = mempty # named x
+makePort x = named x mempty
 --makePort x = circle 0.2 # fc green # named x
 -- Note, the version of makePort below seems to have a different type.
 --makePort x = textBox (show x) # fc green # named x
@@ -84,10 +84,10 @@ apply0Triangle ::
    (Typeable (N b), Transformable b, HasStyle b, TrailLike b,
       V b ~ V2) =>
      b
-apply0Triangle = eqTriangle (2 * circleRadius) # rotateBy (-1/12) # lw none
+apply0Triangle = lw none $ rotateBy (-1/12) $ eqTriangle (2 * circleRadius)
 
 portCircle :: (SpecialBackend b) => SpecialQDiagram b
-portCircle = circle (circleRadius * 0.5) # fc lineCol # lw none
+portCircle = lw none $ fc lineCol $ circle (circleRadius * 0.5)
 
 -- applyA Icon--
 -- | apply0N port locations:
@@ -97,16 +97,15 @@ portCircle = circle (circleRadius * 0.5) # fc lineCol # lw none
 coloredApplyADia ::
   (SpecialBackend b) =>
   Colour Double -> Int -> SpecialQDiagram b
-coloredApplyADia appColor n = finalDia # centerXY where
-  seperation = circleRadius * 1.5
+coloredApplyADia appColor n = centerXY finalDia where
   trianglePortsCircle = hcat [
     reflectX (fc appColor apply0Triangle),
-    hcat $ take n $ map (\x -> makePort x <> portCircle <> strutX seperation) [2,3..],
-    makePort 1 <> alignR (circle circleRadius # fc appColor # lwG defaultLineWidth # lc appColor)
+    hcat $ take n $ map (\x -> makePort x <> portCircle <> strutX (circleRadius * 1.5)) [2,3..],
+    makePort 1 <> alignR (lc appColor $ lwG defaultLineWidth $ fc appColor $ circle circleRadius)
     ]
   allPorts = makePort 0 <> alignL trianglePortsCircle
   topAndBottomLineWidth = width allPorts - circleRadius
-  topAndBottomLine = hrule topAndBottomLineWidth # lc appColor # lwG defaultLineWidth # alignL
+  topAndBottomLine = alignL $ lwG defaultLineWidth $ lc appColor $ hrule topAndBottomLineWidth
   finalDia = topAndBottomLine === allPorts === topAndBottomLine
 
 applyADia :: SpecialBackend b => Int -> SpecialQDiagram b
@@ -159,11 +158,11 @@ generalNestedDia textCol borderCol funText args reflect angle = centerXY $  tran
     trianglePortsCircle = hsep seperation $
       reflectX (fc borderCol apply0Triangle) :
       zipWith makeInnerIcon [2,3..] args ++
-      [makePort 1 <> alignR (circle circleRadius # fc borderCol # lwG defaultLineWidth # lc borderCol)]
+      [makePort 1 <> alignR (lc borderCol $ lwG defaultLineWidth $ fc borderCol $ circle circleRadius)]
 
     allPorts = makePort 0 <> alignL trianglePortsCircle
     topAndBottomLineWidth = width allPorts - circleRadius
-    argBox = rect topAndBottomLineWidth (height allPorts + verticalSeperation)# lc borderCol # lwG defaultLineWidth # alignL
+    argBox = alignL $ lwG defaultLineWidth $ lc borderCol $ rect topAndBottomLineWidth (height allPorts + verticalSeperation)
     finalDia = argBox <> allPorts
 
     makeInnerIcon portNum Nothing = makePort portNum <> portCircle
@@ -192,8 +191,8 @@ coloredTextBox :: SpecialBackend b =>
   Colour Double
   -> AlphaColour Double -> String -> SpecialQDiagram b
 coloredTextBox textColor boxColor t =
-  text t # fc textColor # font "freemono" # bold # fontSize (local textBoxFontSize)
-  <> rect rectangleWidth (textBoxFontSize * textBoxHeightFactor) # lcA boxColor # lwG (0.6 * defaultLineWidth)
+  fontSize (local textBoxFontSize) (bold $ font "freemono" $ fc textColor $ text t)
+  <>  lwG (0.6 * defaultLineWidth) (lcA boxColor $ rect rectangleWidth (textBoxFontSize * textBoxHeightFactor))
   where
     rectangleWidth = textBoxFontSize * monoLetterWidthToHeightFraction
       * fromIntegral (length t)
@@ -202,7 +201,7 @@ coloredTextBox textColor boxColor t =
 -- ENCLOSING REGION --
 enclosure :: SpecialBackend b =>
   SpecialQDiagram b -> SpecialQDiagram b
-enclosure dia = dia <> boundingRect (dia # frame 0.5) # lc (regionPerimC colorScheme) # lwG defaultLineWidth
+enclosure dia = dia <> lwG defaultLineWidth (lc (regionPerimC colorScheme) $ boundingRect (frame 0.5 dia))
 
 -- LAMBDA ICON --
 -- Don't use === here to put the port under the text box since mempty will stay
@@ -210,7 +209,7 @@ enclosure dia = dia <> boundingRect (dia # frame 0.5) # lc (regionPerimC colorSc
 lambdaIcon ::
   SpecialBackend b =>
   Int -> SpecialQDiagram b
-lambdaIcon x = coloredTextBox (lamArgResC colorScheme) transparent "λ" # alignB <> makePort x
+lambdaIcon x = alignB (coloredTextBox (lamArgResC colorScheme) transparent "λ") <> makePort x
 
 -- LAMBDA REGION --
 
@@ -219,16 +218,16 @@ lambdaIcon x = coloredTextBox (lamArgResC colorScheme) transparent "λ" # alignB
 lambdaRegion :: SpecialBackend b =>
   Int -> SpecialQDiagram b -> SpecialQDiagram b
 lambdaRegion n dia =
-  centerXY $ lambdaIcons # centerX === (enclosure dia # centerX)
+  centerXY $ centerX lambdaIcons === centerX (enclosure dia)
   where lambdaIcons = hsep 0.4 (take n (map lambdaIcon [0,1..]))
 
 -- RESULT ICON --
 resultIcon :: SpecialBackend b => SpecialQDiagram b
-resultIcon = unitSquare # lw none # fc (lamArgResC colorScheme)
+resultIcon =  lw none $ fc (lamArgResC colorScheme) unitSquare
 
 -- BRANCH ICON --
 branchIcon :: SpecialBackend b => SpecialQDiagram b
-branchIcon = circle circleRadius # fc lineCol # lc lineCol # lw none
+branchIcon = lw none $ lc lineCol $ fc lineCol $ circle circleRadius
 
 -- GUARD ICON --
 guardSize :: (Fractional a) => a
@@ -237,17 +236,17 @@ guardSize = 0.7
 guardTriangle :: SpecialBackend b =>
   Int -> SpecialQDiagram b
 guardTriangle x =
-  ((triangleAndPort ||| (hrule (guardSize * 0.8) # lwG defaultLineWidth)) # alignR) <> makePort x # alignL
+  alignL $ alignR (triangleAndPort ||| lwG defaultLineWidth (hrule (guardSize * 0.8))) <> makePort x
   where
-    triangleAndPort = polygon (with & polyType .~ PolySides [90 @@ deg, 45 @@ deg] [guardSize, guardSize])
-      # rotateBy (1/8) # lwG defaultLineWidth # alignT # alignR
+    triangleAndPort = alignR $ alignT $ lwG defaultLineWidth $ rotateBy (1/8) $
+      polygon (polyType .~ PolySides [90 @@ deg, 45 @@ deg] [guardSize, guardSize] $ with)
 
 guardLBracket :: SpecialBackend b =>
   Int -> SpecialQDiagram b
-guardLBracket x = ell # alignT # alignL <> makePort x
+guardLBracket x = alignL (alignT ell) <> makePort x
   where
     ellShape = fromOffsets $ map r2 [(0, guardSize), (-guardSize,0)]
-    ell = ellShape # strokeLine # lc (boolC colorScheme) # lwG defaultLineWidth # lineJoin LineJoinRound
+    ell = lineJoin LineJoinRound $ lwG defaultLineWidth $ lc (boolC colorScheme) (strokeLine ellShape)
 
 generalGuardIcon :: SpecialBackend b =>
   Colour Double -> (Int -> SpecialQDiagram b) -> SpecialQDiagram b -> Int -> SpecialQDiagram b
@@ -258,11 +257,11 @@ generalGuardIcon triangleColor lBracket bottomDia n = centerXY $ alignT (bottomD
     lBrackets = map lBracket [3, 5..]
     trianglesAndBrackets =
       zipWith zipper trianglesWithPorts lBrackets
-    zipper thisTriangle lBrack = verticalLine === ((lBrack # extrudeRight guardSize) # alignR <> (thisTriangle # alignL # lc triangleColor))
+    zipper thisTriangle lBrack = verticalLine === (alignR (extrudeRight guardSize lBrack) <> lc triangleColor (alignL thisTriangle))
       where
         verticalLine = strutY 0.4
-    guardDia = vcat (take n trianglesAndBrackets # alignT)
-    bigVerticalLine = vrule (height guardDia) # lc triangleColor # lwG defaultLineWidth # alignT
+    guardDia = vcat (alignT $ take n trianglesAndBrackets)
+    bigVerticalLine = alignT $ lwG defaultLineWidth $ lc triangleColor $ vrule (height guardDia)
 
 -- | The ports of the guard icon are as follows:
 -- Port 0: Top result port
@@ -276,8 +275,9 @@ guardIcon = generalGuardIcon lineCol guardLBracket mempty
 -- TODO Improve design to be more than a circle.
 caseResult :: SpecialBackend b =>
   SpecialQDiagram b
-caseResult = circle (circleRadius * 0.7) # fc caseCColor # lc caseCColor # lw none where
-  caseCColor = caseRhsC colorScheme
+caseResult = lw none $ lc caseCColor $ fc caseCColor $ circle (circleRadius * 0.7)
+  where
+    caseCColor = caseRhsC colorScheme
 
 caseC :: SpecialBackend b =>
   Int -> SpecialQDiagram b
@@ -299,10 +299,10 @@ caseIcon = generalGuardIcon (patternC colorScheme) caseC caseResult
 -- 2,3.. : The parameters
 flatLambda :: SpecialBackend b => Int -> SpecialQDiagram b
 flatLambda n = finalDia where
-  lambdaCircle = circle circleRadius # fc (regionPerimC colorScheme) # lc (regionPerimC colorScheme) # lwG defaultLineWidth
+  lambdaCircle = lwG defaultLineWidth $ lc (regionPerimC colorScheme) $ fc (regionPerimC colorScheme) $ circle circleRadius
   lambdaParts = (makePort 0 <> resultIcon) : (portIcons ++  [makePort 1 <> alignR lambdaCircle])
   portIcons = take n $ map (\x -> makePort x <> portCircle) [2,3..]
   middle = alignL (hsep 0.5 lambdaParts)
   topAndBottomLineWidth = width middle - circleRadius
-  topAndBottomLine = hrule topAndBottomLineWidth # lc (regionPerimC colorScheme) # lwG defaultLineWidth # alignL
-  finalDia = topAndBottomLine <> alignB (topAndBottomLine <> (middle # alignT))
+  topAndBottomLine = alignL $ lwG defaultLineWidth $ lc (regionPerimC colorScheme) $ hrule topAndBottomLineWidth
+  finalDia = topAndBottomLine <> alignB (topAndBottomLine <> alignT middle)

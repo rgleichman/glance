@@ -1,7 +1,9 @@
 {-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeFamilies #-}
 module Main where
 
-import Diagrams.Prelude
+-- Note: (#) and (&) are hidden in all Glance source files, since they would require
+-- - an special case when translating when Glance is run on its own source code.
+import Diagrams.Prelude hiding ((#), (&))
 import Diagrams.Backend.SVG.CmdLine
 import qualified Language.Haskell.Exts as Exts
 
@@ -14,6 +16,11 @@ import Translate(translateString, drawingsFromModule)
 
 
 -- TODO Now --
+-- Fix icon nesting if a non-nestable icon (eg. flatLambdaIcon) is part of the expression.
+-- - eg. y = f $ g (\x -> x)
+-- Fix rotation missing edges to nested diagrams.
+
+-- Add a maximum nesting depth.
 -- Clean up Rendering and Icons.
 
 -- Refactor Translate
@@ -23,7 +30,10 @@ import Translate(translateString, drawingsFromModule)
 -- Move tests out of main.
 
 -- TODO Later --
+-- Why is totalLengthOfLines not nesting?
+
 -- Visual todos:
+-- Don't rotate text and nested icons, give them rectangualar bounding boxes in GraphViz. (Perhaps use a typeclass for isRotateAble)
 -- Give lines a black border to make line crossings easier to see.
 -- Give lines that cross the border of a lambda function a special color.
 -- Line intersections should have a small circle. This could probably be done with
@@ -33,16 +43,16 @@ import Translate(translateString, drawingsFromModule)
 -- Rotate icons based on the outgoing line's difference from ideal angle, not line distance.
 -- Improve line routing. Draw curved lines with outgoing lines at fixed angles.
 --  - connectPerim might be useful for this.
+-- For nested apply, cycle through different colors and line styles (eg. dashed, solid, wavy)
+-- - for each nesting level. This will help distinguish what is an argument to which funciton.
 
 -- Translate todos:
+-- Make nested version of FlatLambdaIcon
 -- Fix test case x of {0 -> 1; y -> y}.
 -- Add proper RecConstr, and RecUpdate support.
 -- Eliminate BranchIcon in Alts.
 -- Eliminate BranchIcon for the identity funciton "y x = x"
 -- otherwise Guard special case
-
---Other todos:
--- Use a nested tree layout. A graph can take an optional (name, Icon) instead of a port.
 
 (d0A, d0B, d0Res, d0Foo, d0Bar) = ("A", "B", "res", "foo", "bar")
 d0Icons = toNames
@@ -252,12 +262,33 @@ arrowTestEdges = [
 
 arrowTestDrawing = Drawing arrowTestIcons arrowTestEdges []
 
+nestedTestIcons = toNames [
+  ("n1", NestedApply "N1" args),
+  ("t1", TextBoxIcon "T1"),
+  ("t2", TextBoxIcon "t2")
+  ]
+  where
+    innerArgs = [Just (toName "t", TextBoxIcon "t"), Nothing, Just (toName "n2", NestedApply "n2" [Nothing])]
+    args = [
+      Nothing, Just (toName "foo", TextBoxIcon "3"),
+      Just (toName "in", NestedApply "inner" innerArgs)
+      ]
+
+nestedTestEdges = [
+  iconToPort "t1" "n1" 2,
+  --iconToPort "t1" "in" 1,
+  --iconToPort "t2" ("n1" .> "in") 3,
+  iconToPort "t2" ("n1" .> "in" .> "n2") 2
+  ]
+
+nestedTextDrawing = Drawing nestedTestIcons nestedTestEdges []
+
 main1 :: IO ()
 main1 = do
-  placedNodes <- renderDrawing factLam0Drawing
-  mainWith ((placedNodes # bgFrame 1 (backgroundC colorScheme)) :: Diagram B)
+  placedNodes <- renderDrawing nestedTextDrawing
+  mainWith (bgFrame 1 (backgroundC colorScheme) placedNodes :: Diagram B)
 
-main2 = mainWith ((dia False 0 # bgFrame 0.1 black)  :: Diagram B)
+main2 = mainWith ((bgFrame 0.1 black $ dia False 0)  :: Diagram B)
   where
     args = [Nothing, Just (toName "foo", TextBoxIcon "3"), Just (toName "in", NestedApply "inner" [Just (toName "t", TextBoxIcon "t")])]
     dia = nestedApplyDia "Hello world" args
@@ -265,8 +296,8 @@ main2 = mainWith ((dia False 0 # bgFrame 0.1 black)  :: Diagram B)
 main3 :: IO ()
 main3 = do
   renderedDiagrams <- traverse renderDrawing allDrawings
-  let vCattedDrawings = vcat' (with & sep .~ 0.5) renderedDiagrams
-  mainWith ((vCattedDrawings # bgFrame 1 (backgroundC colorScheme)) :: Diagram B)
+  let vCattedDrawings = vsep 0.5 renderedDiagrams
+  mainWith (bgFrame 1 (backgroundC colorScheme) vCattedDrawings :: Diagram B)
   where
     allDrawings = [
       drawing0,
@@ -281,8 +312,24 @@ main3 = do
       factLam2Drawing,
       arrowTestDrawing
       ]
+
+nestedTests = [
+  "y = f x",
+  "y = f (g x)",
+  "y = let x = 1 in f x",
+  "y = let x = 1 in f (g x)",
+  "y = f []",
+  "y = f [1]",
+  "y = f [1,2]",
+  "y = f [g 3, h 5]"
+  ]
+
+dollarTests = [
+  "y = f $ g 3",
+  " y = f 1 $ g 2 "
+  ]
+
 specialTests = [
-  "y = f x $ g y",
   "lookupTail EndAp1Arg = (arrowTail .~ dart')",
   "y = x .~ y",
   "initialIdState = IDState 0",
@@ -440,19 +487,21 @@ otherTests = [
   ]
 
 testDecls = mconcat [
-  negateTests
-  ,doTests
-  ,enumTests
-  ,caseTests
-  ,lambdaTests
-  ,guardTests
-  ,patternTests
-  ,specialTests
-  ,tupleTests
-  ,listTests
-  ,letTests
-  ,operatorTests
-  ,otherTests
+  --dollarTests
+  nestedTests
+  -- ,negateTests
+  -- ,doTests
+  -- ,enumTests
+  -- ,caseTests
+  -- ,lambdaTests
+  -- ,guardTests
+  -- ,patternTests
+  -- ,specialTests
+  -- ,tupleTests
+  -- ,listTests
+  -- ,letTests
+  -- ,operatorTests
+  -- ,otherTests
   ]
 
 translateStringToDrawing :: String -> IO (Diagram B)
@@ -469,9 +518,9 @@ main4 :: IO ()
 main4 = do
   drawings <- traverse translateStringToDrawing testDecls
   let
-    textDrawings = fmap (alignL . textBox) testDecls
-    vCattedDrawings = vcat' (with & sep .~ 1) $ zipWith (===) (fmap alignL drawings) textDrawings
-  mainWith ((vCattedDrawings # bgFrame 1 (backgroundC colorScheme)) :: Diagram B)
+    textDrawings = fmap (\t -> alignL $ textBox t False 0) testDecls
+    vCattedDrawings = vsep 1 $ zipWith (===) (fmap alignL drawings) textDrawings
+  mainWith (bgFrame 1 (backgroundC colorScheme) vCattedDrawings :: Diagram B)
 
 testFiles = [
   "./app/Main.hs",
@@ -481,7 +530,8 @@ testFiles = [
 main5 :: IO ()
 main5 = do
   parseResult <- Exts.parseFileWithExts [Exts.EnableExtension Exts.MultiParamTypeClasses, Exts.EnableExtension Exts.FlexibleContexts]
-    "./test/test_translate.hs"
+    --"./app/Icons.hs"
+    "./test/test_nesting.hs"
   let
     parsedModule = Exts.fromParseResult parseResult
     drawings = drawingsFromModule parsedModule
@@ -491,9 +541,9 @@ main5 = do
 
   diagrams <- traverse renderDrawing drawings
   let
-    vCattedDrawings = vcat' (with & sep .~ 1) $ fmap alignL diagrams
-  mainWith ((vCattedDrawings # bgFrame 1 (backgroundC colorScheme)) :: Diagram B)
+    vCattedDrawings = vsep 1 $ fmap alignL diagrams
+  mainWith (bgFrame 1 (backgroundC colorScheme) vCattedDrawings :: Diagram B)
 
 
 main :: IO ()
-main = main2
+main = main5
