@@ -1,4 +1,3 @@
-module AllTests where
 import Diagrams.Prelude hiding ((#), (&))
 import Diagrams.Backend.SVG.CmdLine
 import Diagrams.Backend.SVG (renderSVG)
@@ -216,7 +215,7 @@ renderAllTests = do
     textDrawings = fmap (\t -> alignL $ textBox t False 0) testDecls
     vCattedDrawings = vsep 1 $ zipWith (===) (fmap alignL drawings) textDrawings
   --mainWith (bgFrame 1 (backgroundC colorScheme) vCattedDrawings :: Diagram B)
-  renderSVG "test/tests.svg" (mkWidth 700) (bgFrame 1 (backgroundC colorScheme) vCattedDrawings :: Diagram B)
+  renderSVG "test/test-output/all-tests.svg" (mkWidth 700) (bgFrame 1 (backgroundC colorScheme) vCattedDrawings :: Diagram B)
 
 main :: IO ()
 main = renderAllTests

@@ -16,3 +16,6 @@ cabal.sandbox.config
 .stack-work/
 *.*~
 *~
+
+# You can put SVG images created by Glance in /images
+/images
