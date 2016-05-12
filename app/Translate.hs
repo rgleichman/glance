@@ -22,7 +22,7 @@ import Types(Drawing(..), NameAndPort(..), IDState,
   initialIdState, Edge)
 import Util(toNames, makeSimpleEdge, nameAndPort, justName, mapFst)
 import Icons(Icon(..))
-import TranslateCore(Reference, IconGraph(..), EvalContext, GraphAndRef,
+import TranslateCore(Reference, IconGraph(..), Sink, EvalContext, GraphAndRef,
   iconGraphFromIcons, iconGraphFromIconsEdges, getUniqueName, combineExpressions,
   edgesForRefPortList, iconGraphToDrawing, makeApplyGraph,
   namesInPattern, lookupReference, deleteBindings, makeEdges,
@@ -108,11 +108,12 @@ qOpToString :: QOp -> String
 qOpToString (QVarOp n) = qNameToString n
 qOpToString (QConOp n) = qNameToString n
 
---decideIfNested :: ((IconGraph, r), p) -> (Maybe ((IconGraph, r), p), Maybe (DIA.Name, Icon))
-decideIfNested valAndPort@((IconGraph [nameAndIcon] [] [] sinks bindings, _), _) = (Nothing, Just nameAndIcon, sinks, bindings)
+decideIfNested :: ((IconGraph, t1), t) ->
+  (Maybe ((IconGraph, t1), t), Maybe (DIA.Name, Icon), [Sink], [(String, Reference)])
+decideIfNested ((IconGraph [nameAndIcon] [] [] sinks bindings, _), _) = (Nothing, Just nameAndIcon, sinks, bindings)
 decideIfNested valAndPort = (Just valAndPort, Nothing, [], [])
 
-makeTextApplyGraph :: Bool -> DIA.Name -> String -> [(IconGraph, Reference)] -> Int -> (IconGraph, NameAndPort)
+makeTextApplyGraph :: Bool -> DIA.Name -> String -> [GraphAndRef] -> Int -> (IconGraph, NameAndPort)
 makeTextApplyGraph inPattern applyIconName funStr argVals numArgs = result
   where
     result = nestedApplyResult

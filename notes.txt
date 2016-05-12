@@ -8,3 +8,10 @@ or if that does not work
 stack build  --exec "glance-exe -o output.svg -w 500"
 
 View circle.svg with svg-preview plug-in.
+
+To use ghci with the test file:
+stack ghci glance:test:glance-test
+
+For all warnings (some warnings duplicated):
+stack clean
+stack build --test --no-run-tests --ghc-options -Wall

@@ -21,7 +21,7 @@ module Icons
 
 import Diagrams.Prelude hiding ((&), (#))
 -- import Diagrams.Backend.SVG(B)
-import Diagrams.TwoD.Text(Text)
+--import Diagrams.TwoD.Text(Text)
 import Data.Typeable(Typeable)
 
 import Types(Icon(..), SpecialQDiagram, SpecialBackend)
@@ -153,8 +153,6 @@ generalNestedDia textCol borderCol funText args reflect angle = centerXY $  tran
     transformedText = transformCorrectedTextBox funText textCol borderCol reflect angle
     seperation = circleRadius * 1.5
     verticalSeperation = circleRadius
-    appColor = apply0C colorScheme
-    n = length args
     trianglePortsCircle = hsep seperation $
       reflectX (fc borderCol apply0Triangle) :
       zipWith makeInnerIcon [2,3..] args ++
@@ -166,7 +164,7 @@ generalNestedDia textCol borderCol funText args reflect angle = centerXY $  tran
     finalDia = argBox <> allPorts
 
     makeInnerIcon portNum Nothing = makePort portNum <> portCircle
-    makeInnerIcon portNum (Just (iconName, icon)) = nameDiagram iconName $ iconToDiagram icon [] reflect angle
+    makeInnerIcon _ (Just (iconName, icon)) = nameDiagram iconName $ iconToDiagram icon [] reflect angle
 
 
 -- TEXT ICON --
