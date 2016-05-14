@@ -32,55 +32,6 @@ d0Edges =
 drawing0 = Drawing d0Icons d0Edges []
 d0Name = toName "d0"
 
-(s1Lam, s1y, s1z, s1q) = ("lam0", "y", "z", "q")
-superIcons = toNames [
-  (s1Lam, LambdaRegionIcon 3 d0Name),
-  (s1y, TextBoxIcon s1y),
-  (s1z, TextBoxIcon s1z),
-  (s1q, TextBoxIcon s1q)
-  ]
-
-superEdges =
-  [
-  portToPort (s1Lam .> d0A) 1 s1Lam 0,
-  iconToIcon s1y s1Lam,
-  iconToIcon s1z s1Lam,
-  iconToIcon s1q s1Lam,
-  iconToIcon d0A s1z,
-  iconToPort (s1Lam .> d0Foo .> d0Foo) s1Lam 0
-  ]
-
---superDrawing = Drawing [((toName "lam0"), LambdaRegionIcon 3 (toName"d0"))] superEdges [((toName "d0"), drawing0)]
-superDrawing = Drawing superIcons superEdges [(d0Name, drawing0)]
-
-super2Icons = toNames [
-  (s1Lam, LambdaRegionIcon 1 d0Name),
-  --("y", TextBoxIcon "y"),
-  ("lam1", LambdaRegionIcon 2 d0Name)
-  ]
-
-super2Edges =
-  [
-  iconToIcon s1Lam "lam1"
-  --iconToIcon "y" "lam0"
-  ]
-
-super2Drawing = Drawing super2Icons super2Edges [(d0Name, drawing0)]
-super2Name = toName "s2"
-
-super3Icons = toNames [
-  (s1Lam, LambdaRegionIcon 3 super2Name),
-  --("y", TextBoxIcon "y"),
-  ("lam1", LambdaRegionIcon 4 super2Name)
-  ]
-
-super3Edges =
-  [
---  iconToIcon "lam0" "lam1",
-  iconToIcon s1Lam "A"
-  ]
-
-super3Drawing = Drawing super3Icons super2Edges [(super2Name, super2Drawing)]
 
 (fG0, fOne, fEq0, fMinus1, fEq0Ap, fMinus1Ap, fTimes, fRecurAp, fTimesAp, fArg, fRes) =
   ("g0", "one", "eq0", "-1", "eq0Ap", "-1Ap", "*", "recurAp", "*Ap", "arg", "res")
@@ -118,19 +69,6 @@ fact0Edges = [
 fact0Drawing = Drawing fact0Icons fact0Edges []
 fact0Name = toName "fac0"
 
-factLam0Icons = toNames [
-  ("lam0", LambdaRegionIcon 1 fact0Name),
-  ("fac", TextBoxIcon "factorial")
-  ]
-
-factLam0Edges = [
-  iconToPort ("lam0" .> fArg) "lam0" 0,
-  iconToPort "lam0" ("lam0" .> fRecurAp) 0,
-  iconToIcon "lam0" "fac"
-  ]
-
-factLam0Drawing = Drawing factLam0Icons factLam0Edges [(fact0Name, fact0Drawing)]
-
 fact1Icons = toNames
   [
   (fG0, GuardIcon 2),
@@ -158,8 +96,6 @@ fact1Edges = [
   ]
 
 fact1Drawing = Drawing fact1Icons fact1Edges []
-
-factLam1Drawing = Drawing factLam0Icons factLam0Edges [(fact0Name, fact1Drawing)]
 
 -- fact2 is like fact1, but uses fTimesAp port 2 to distrubute the argument,
 -- not fArg
@@ -192,13 +128,6 @@ fact2Edges = [
   ]
 
 fact2Drawing = Drawing fact2Icons fact2Edges []
-
-factLam2Edges = [
-  iconToPort ("lam0" .> fTimesAp .> (2 :: Int)) "lam0" 0,
-  iconToPort "lam0" ("lam0" .> fRecurAp) 0,
-  iconToIcon "lam0" "fac"
-  ]
-factLam2Drawing = Drawing factLam0Icons factLam2Edges [(fact0Name, fact2Drawing)]
 
 (arr1, arr2, arr3, arr4) = ("arr1", "arr2", "arr3", "arr4")
 
@@ -247,15 +176,9 @@ renderTests = do
   where
     allDrawings = [
       drawing0,
-      superDrawing,
-      super2Drawing,
-      super3Drawing,
       fact0Drawing,
-      factLam0Drawing,
       fact1Drawing,
-      factLam1Drawing,
       fact2Drawing,
-      factLam2Drawing,
       arrowTestDrawing,
       nestedTextDrawing
       ]
