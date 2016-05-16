@@ -23,9 +23,7 @@ import Translate(drawingsFromModule)
 
 -- Refactor Translate
 -- Add documentation.
--- Have the file be a command line argument to main.
-
--- Move tests out of main.
+-- Add comments as text boxes, and use that to make a getting started guide for the README.
 
 -- TODO Later --
 -- Why is totalLengthOfLines not nesting?
@@ -53,11 +51,10 @@ import Translate(drawingsFromModule)
 -- Eliminate BranchIcon for the identity funciton "y x = x"
 -- otherwise Guard special case
 
-main5 :: IO ()
-main5 = do
+renderFile :: String -> IO (Diagram B)
+renderFile inputFilename= do
   parseResult <- Exts.parseFileWithExts [Exts.EnableExtension Exts.MultiParamTypeClasses, Exts.EnableExtension Exts.FlexibleContexts]
-    --"./app/Icons.hs"
-    "./test/test_nesting.hs"
+    inputFilename
   let
     parsedModule = Exts.fromParseResult parseResult
     drawings = drawingsFromModule parsedModule
@@ -68,8 +65,8 @@ main5 = do
   diagrams <- traverse renderDrawing drawings
   let
     vCattedDrawings = vsep 1 $ fmap alignL diagrams
-  mainWith (bgFrame 1 (backgroundC colorScheme) vCattedDrawings :: Diagram B)
+  pure (bgFrame 1 (backgroundC colorScheme) vCattedDrawings :: Diagram B)
 
 
 main :: IO ()
-main = main5
+main = mainWith renderFile
