@@ -1,4 +1,4 @@
-{-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeFamilies, RankNTypes, PartialTypeSignatures #-}
+{-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeFamilies, RankNTypes, PartialTypeSignatures, ScopedTypeVariables #-}
 module Icons
     (
     Icon(..),
@@ -7,6 +7,7 @@ module Icons
     iconToDiagram,
     nameDiagram,
     textBox,
+    multilineText,
     enclosure,
     lambdaRegion,
     resultIcon,
@@ -15,7 +16,6 @@ module Icons
     defaultLineWidth,
     ColorStyle(..),
     colorScheme,
-
     nestedApplyDia
     ) where
 
@@ -183,6 +183,16 @@ bindTextBox :: SpecialBackend b =>
   String -> SpecialQDiagram b
 bindTextBox = coloredTextBox (bindTextBoxTextC colorScheme) $ opaque (bindTextBoxC colorScheme)
 
+
+multilineText :: SpecialBackend b =>
+  Colour Double
+  -> AlphaColour Double -> String -> SpecialQDiagram b
+multilineText textColor boxColor t = lwG (0.6 * defaultLineWidth) $ textDia
+  where
+    textLines = lines t
+    textAreas = map (singleLineTextArea textColor) textLines
+    textDia = vcat textAreas
+
 -- Since the normal SVG text has no size, some hackery is needed to determine
 -- the size of the text's bounding box.
 coloredTextBox :: SpecialBackend b =>
@@ -191,6 +201,16 @@ coloredTextBox :: SpecialBackend b =>
 coloredTextBox textColor boxColor t =
   fontSize (local textBoxFontSize) (bold $ font "freemono" $ fc textColor $ text t)
   <>  lwG (0.6 * defaultLineWidth) (lcA boxColor $ rect rectangleWidth (textBoxFontSize * textBoxHeightFactor))
+  where
+    rectangleWidth = textBoxFontSize * monoLetterWidthToHeightFraction
+      * fromIntegral (length t)
+      + (textBoxFontSize * 0.2)
+
+singleLineTextArea :: SpecialBackend b =>
+  Colour Double -> String -> SpecialQDiagram b
+singleLineTextArea textColor t =
+  alignL $ fontSize (local textBoxFontSize) (font "freemono" $ fc textColor $ text t)
+  <>  rect rectangleWidth (textBoxFontSize * textBoxHeightFactor)
   where
     rectangleWidth = textBoxFontSize * monoLetterWidthToHeightFraction
       * fromIntegral (length t)
