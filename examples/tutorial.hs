@@ -153,8 +153,101 @@ which function is a parameter used. In the code below for example, it would
 probably take some time to figure out that x is only being used in an inner
 function. To address this, I hope to have Glance draw a perimiter around all
 icons inside a function (including the function's lambda icon). This would occur
-after layout so it would not make the drawing any bigger.
+after layout so it would not make the drawing any larger.
 
 f1 x y = (\z -> x + z) y
 -}
 f1 x y = (\z -> x + z) y
+
+{-Lets go back to the function apply icon. If you are used to other graphical
+visual programming languages, you may be thinking that this does not look very
+graphical. Here graphical is referring to a graph topology,
+and no it does not look graphical. The core idea is that nested function
+application has a tree topology, not a graph topology. The result of each
+sub-expression is only used once. Graph takes advantage of this tree topology
+to make its drawings more compact.
+y = foo (3 + (baz 2)) (8* (baz 9))
+-}
+y = foo (3 + (baz 2)) (8* (baz 2))
+
+{-As soon as an expression is used more than once, the tree topology is lost,
+and Glance extracts the sub-expression into a seperate (non-nested) icon.
+-}
+y = foo (3 + bazOf2) (8* bazOf2) where
+  bazOf2 = baz 2
+
+{-There are many different ways that function application trees can be represented.
+The linear layout Glance currently uses is just the simplest. Large expressions
+(just like long lines of code) become hard to read with the linear layout.
+Other tree layouts can make these large expressions much more readable.
+
+Glance's drawing of this expression is especially hard to read because the
+apply icon rectangles are all red. Cycling through different colors would probably
+help distingish each icon.
+y = (((2 + 4 * 4) - (7+ 2 + baz)*8)/21)
+-}
+y = (((2 + 4 * 4) - (7+ 2 + baz)*8)/21)
+
+{-Continuing on, here is a simple pattern match.
+(Just x) = Just 3
+-}
+(Just x) = Just 3
+
+{-
+Since constructors are functions, the match icon has the same shape as
+the apply icon. The match icon is magenta with blue text to help distinguish
+them from the apply icon. In a future iteration of the Glance icons, the match and
+apply icons should be made more dissimilar so that they can not be confused with
+each other, even when displaying Glance drawings in black and white.
+
+Now that you are fammiliar with matches, here's a simple case expression.
+y = case maybeInt of
+  Just x -> x + 1
+  Nothing -> 0
+-}
+y = case maybeInt of
+  Just x -> x + 1
+  Nothing -> 0
+
+{-The case icon in the magenta icon with three yellow circles next to it.
+The matches (the textual part left of the arrow) connect to the triangles,
+and the result for each match (the textual part to the right of the arrow) is
+indicated with the yellow circle. The result for the second match (Nothing -> 0)
+connects to the circle on the case icon since the right hand side (0) does not
+use any value from the pattern (Nothing). For the first match, since the result
+(x + 1) is topologically connected to its pattern (Just x), Glance can connect
+the result to a new yellow circle. If the result always had to be connected to
+the yellow result circle on the case icon, this would create many cycles in the
+graph, making the layout much messier.
+
+On a side note, the lambda icon also creates a cycle, but it only creates one cycle
+as opposed to the case icon which would create many cycles if remote result circles
+were not allowed.
+
+Guards and if expressions look like this:
+y | x == 0 = 1
+  | otherwise = x + 1
+-}
+y | x == 0 = 1
+  | otherwise = x + 1
+
+{-The boolean expressions (eg. x == 0) connect to the orange Ls, and the
+corresponding result expressions (eg. x + 1) connect to the triangle on the
+other side of the midline. The overall result that the guard is bound to connects
+to either the top or bottom of the midline.
+
+Currently, the guard icon and the case icon look similar since they have similar
+topology (number of connections = 1 + 2 * n), but they should look less similar
+in better icon versions.
+
+factorial x =
+  if x == 0
+    then 1
+    else x * factorial (x - 1)
+-}
+factorial x =
+  if x == 0
+    then 1
+    else x * factorial (x - 1)
+{-If expressions are rendered the same as a guard with only one boolean.
+-}

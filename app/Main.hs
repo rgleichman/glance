@@ -14,6 +14,7 @@ import Translate(drawingsFromModule)
 
 
 -- TODO Now --
+-- otherwise Guard special case
 -- Ues nesting apply icon even when the function is a line.
 -- Fix icon nesting if a non-nestable icon (eg. flatLambdaIcon) is part of the expression.
 -- - eg. y = f $ g (\x -> x)
@@ -50,7 +51,6 @@ import Translate(drawingsFromModule)
 -- Add proper RecConstr, and RecUpdate support.
 -- Eliminate BranchIcon in Alts.
 -- Eliminate BranchIcon for the identity funciton "y x = x"
--- otherwise Guard special case
 
 renderFile :: String -> String -> IO (Diagram B)
 renderFile inputFilename includeComments = do
