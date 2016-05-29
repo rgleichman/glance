@@ -240,6 +240,8 @@ Currently, the guard icon and the case icon look similar since they have similar
 topology (number of connections = 1 + 2 * n), but they should look less similar
 in better icon versions.
 
+If expressions are rendered the same as a guard with only one boolean.
+
 factorial x =
   if x == 0
     then 1
@@ -249,5 +251,3 @@ factorial x =
   if x == 0
     then 1
     else x * factorial (x - 1)
-{-If expressions are rendered the same as a guard with only one boolean.
--}
