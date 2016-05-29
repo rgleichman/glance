@@ -4,14 +4,17 @@ A visual Haskell
 To build and run:
 ```
 stack build
-stack exec glance-exe -- -o output.svg -w 600
-firefox output.svg
+stack exec glance-exe -- -o images/fact.svg -w 500 examples/fact.hs -
+firefox images/fact.svg
 ```
-Goal:
+Below is a mockup of what Glance may look like in the future
 
 <img src="examples/factorial_goal.png" alt="factorial_goal" height="300"/>
-
 </br>
-Current Status:
 
-<img src="https://cdn.rawgit.com/rgleichman/glance/77761e96112fd1640528225cb4ea242e09287187/examples/guard_factorial_1.svg" alt="guard_factorial_1" height="350"/>
+Here is a getting started guide for Glance rendered by Glance ([source here](examples/tutorial.hs)). To generate this image run
+
+`stack exec glance-exe -- -o examples/tutorial.svg -w 873 examples/tutorial.hs c`
+
+Glance is still in development, so for the time being, layout, routing, and icon design all have room for improvement.
+<img src="https://cdn.rawgit.com/rgleichman/glance/6e56b2e5d1d2d031eca88b08e1444b8987b242af/examples/tutorial.svg" alt="Introduction to Glance" />
