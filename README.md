@@ -7,12 +7,6 @@ stack build
 stack exec glance-exe -- -o images/fact.svg -w 500 examples/fact.hs -
 firefox images/fact.svg
 ```
-Below is a mockup of what Glance may look like in the future
-
-<img src="examples/factorial_goal.png" alt="factorial_goal" height="300"/>
-
-</br>
-
 Here is a getting started guide for Glance rendered by Glance itself ([source here](examples/tutorial.hs)). To generate this image run
 
 `stack exec glance-exe -- -o examples/tutorial.svg -w 873 examples/tutorial.hs c`
