@@ -96,6 +96,8 @@ strToGraphRef c str = fmap mapper (makeBox str) where
     else fmap Right gr
 
 evalQName :: QName -> EvalContext -> State IDState (IconGraph, Reference)
+-- TODO Not sure if using (mempty, Left "") is the right thing to do here for "otherwise".
+evalQName (UnQual (Ident "otherwise")) _ = pure (mempty, Left "")
 evalQName qName@(UnQual _) c = strToGraphRef c (qNameToString qName)
 evalQName qName@(Qual _ _) c = strToGraphRef c (qNameToString qName)
 evalQName qName _ = fmap Right <$> makeBox (qNameToString qName)

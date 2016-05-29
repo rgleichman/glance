@@ -25,7 +25,6 @@ import Translate(drawingsFromModule)
 
 -- Refactor Translate
 -- Add documentation.
--- Add comments as text boxes, and use that to make a getting started guide for the README.
 
 -- TODO Later --
 -- Why is totalLengthOfLines not nesting?
