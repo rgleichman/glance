@@ -7,7 +7,7 @@ module Icons
     iconToDiagram,
     nameDiagram,
     textBox,
-    multilineText,
+    multilineComment,
     enclosure,
     lambdaRegion,
     resultIcon,
@@ -184,14 +184,22 @@ bindTextBox :: SpecialBackend b =>
 bindTextBox = coloredTextBox (bindTextBoxTextC colorScheme) $ opaque (bindTextBoxC colorScheme)
 
 
-multilineText :: SpecialBackend b =>
+multilineComment :: SpecialBackend b =>
   Colour Double
   -> AlphaColour Double -> String -> SpecialQDiagram b
-multilineText textColor boxColor t = lwG (0.6 * defaultLineWidth) $ textDia
+multilineComment textColor boxColor t = lwG (0.6 * defaultLineWidth) textDia
   where
     textLines = lines t
-    textAreas = map (singleLineTextArea textColor) textLines
+    textAreas = map (commentTextArea textColor) textLines
     textDia = vcat textAreas
+
+-- | Given the number of letters in a textbox string, make a rectangle that will
+-- enclose the text box.
+rectForText :: (InSpace V2 n t, TrailLike t, OrderedField n) => Int -> t
+rectForText n = rect rectangleWidth (textBoxFontSize * textBoxHeightFactor)
+  where
+    rectangleWidth = fromIntegral n * textBoxFontSize * monoLetterWidthToHeightFraction
+      + (textBoxFontSize * 0.2)
 
 -- Since the normal SVG text has no size, some hackery is needed to determine
 -- the size of the text's bounding box.
@@ -200,21 +208,13 @@ coloredTextBox :: SpecialBackend b =>
   -> AlphaColour Double -> String -> SpecialQDiagram b
 coloredTextBox textColor boxColor t =
   fontSize (local textBoxFontSize) (bold $ font "freemono" $ fc textColor $ text t)
-  <>  lwG (0.6 * defaultLineWidth) (lcA boxColor $ rect rectangleWidth (textBoxFontSize * textBoxHeightFactor))
-  where
-    rectangleWidth = textBoxFontSize * monoLetterWidthToHeightFraction
-      * fromIntegral (length t)
-      + (textBoxFontSize * 0.2)
+  <>  lwG (0.6 * defaultLineWidth) (lcA boxColor $ rectForText (length t))
 
-singleLineTextArea :: SpecialBackend b =>
+commentTextArea :: SpecialBackend b =>
   Colour Double -> String -> SpecialQDiagram b
-singleLineTextArea textColor t =
-  alignL $ fontSize (local textBoxFontSize) (font "freemono" $ fc textColor $ text t)
-  <>  rect rectangleWidth (textBoxFontSize * textBoxHeightFactor)
-  where
-    rectangleWidth = textBoxFontSize * monoLetterWidthToHeightFraction
-      * fromIntegral (length t)
-      + (textBoxFontSize * 0.2)
+commentTextArea textColor t =
+  alignL $ fontSize (local textBoxFontSize) (font "freemono" $ fc textColor $ topLeftText t)
+  <>  alignTL (lw none $ rectForText (length t))
 
 -- ENCLOSING REGION --
 enclosure :: SpecialBackend b =>

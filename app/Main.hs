@@ -8,7 +8,7 @@ import Diagrams.Prelude hiding ((#), (&))
 import Diagrams.Backend.SVG.CmdLine
 import qualified Language.Haskell.Exts as Exts
 
-import Icons(ColorStyle(..), colorScheme, multilineText)
+import Icons(ColorStyle(..), colorScheme, multilineComment)
 import Rendering(renderDrawing)
 import Translate(drawingsFromModule)
 
@@ -69,7 +69,7 @@ renderFile inputFilename includeComments = do
 
   diagrams <- traverse renderDrawing drawings
   let
-    commentsInBoxes = fmap (\(Exts.Comment _ _ c) -> alignL $ multilineText white (opaque white) c) comments
+    commentsInBoxes = fmap (\(Exts.Comment _ _ c) -> alignL $ multilineComment white (opaque white) c) comments
     diagramsAndComments = vsep 2 $ zipWith (\x y -> x === strutY 0.4 === y) commentsInBoxes (fmap alignL diagrams)
     justDiagrams = vsep 1 $ fmap alignL diagrams
     diagramsAndMaybeComments = if includeComments == "c" then diagramsAndComments else justDiagrams

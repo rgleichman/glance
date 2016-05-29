@@ -201,9 +201,9 @@ apply icons should be made more dissimilar so that they can not be confused with
 each other, even when displaying Glance drawings in black and white.
 
 Now that you are fammiliar with matches, here's a simple case expression.
-y = case maybeInt of
-  Just x -> x + 1
-  Nothing -> 0
+--y = case maybeInt of
+--  Just x -> x + 1
+--  Nothing -> 0
 -}
 y = case maybeInt of
   Just x -> x + 1
@@ -225,8 +225,8 @@ as opposed to the case icon which would create many cycles if remote result circ
 were not allowed.
 
 Guards and if expressions look like this:
-y | x == 0 = 1
-  | otherwise = x + 1
+--y | x == 0 = 1
+---  | otherwise = x + 1
 -}
 y | x == 0 = 1
   | otherwise = x + 1
@@ -242,10 +242,10 @@ in better icon versions.
 
 If expressions are rendered the same as a guard with only one boolean.
 
-factorial x =
-  if x == 0
-    then 1
-    else x * factorial (x - 1)
+--factorial x =
+--  if x == 0
+--    then 1
+--    else x * factorial (x - 1)
 -}
 factorial x =
   if x == 0
