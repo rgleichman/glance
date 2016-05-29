@@ -16,13 +16,12 @@ import Translate(drawingsFromModule)
 -- TODO Now --
 -- Fix icon nesting if a non-nestable icon (eg. flatLambdaIcon) is part of the expression.
 -- - eg. y = f $ g (\x -> x)
--- Fix rotation missing edges to nested diagrams.
 
 -- TODO Later --
--- Why is totalLengthOfLines not nesting?
 -- Add documentation.
 
 -- Visual todos:
+-- Fix rotation missing edges to nested diagrams.
 -- Don't rotate text and nested icons, give them rectangualar bounding boxes in GraphViz. (Perhaps use a typeclass for isRotateAble)
 -- Give lines a black border to make line crossings easier to see.
 -- Give lines that cross the border of a lambda function a special color.

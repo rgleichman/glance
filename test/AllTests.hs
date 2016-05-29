@@ -148,15 +148,15 @@ arrowTestEdges = [
 arrowTestDrawing = Drawing arrowTestIcons arrowTestEdges []
 
 nestedTestIcons = toNames [
-  ("n1", NestedApply "N1" args),
+  ("n1", NestedApply (Just "N1") args),
   ("t1", TextBoxIcon "T1"),
   ("t2", TextBoxIcon "t2")
   ]
   where
-    innerArgs = [Just (toName "t", TextBoxIcon "t"), Nothing, Just (toName "n2", NestedApply "n2" [Nothing])]
+    innerArgs = [Just (toName "t", TextBoxIcon "t"), Nothing, Just (toName "n2", NestedApply (Just "n2") [Nothing])]
     args = [
       Nothing, Just (toName "foo", TextBoxIcon "3"),
-      Just (toName "in", NestedApply "inner" innerArgs)
+      Just (toName "in", NestedApply (Just "inner") innerArgs)
       ]
 
 nestedTestEdges = [
@@ -191,7 +191,10 @@ nestedTests = [
   "y = f []",
   "y = f [1]",
   "y = f [1,2]",
-  "y = f [g 3, h 5]"
+  "y = f [g 3, h 5]",
+
+  -- TODO Fix this test so that g is properly nested.
+  "y = f $ g (\\x -> x)"
   ]
 
 dollarTests = [

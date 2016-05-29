@@ -147,7 +147,7 @@ angleWithMinDist :: P2 Double -> [(P2 Double, P2 Double)] -> (Double, Double)
 angleWithMinDist myLocation edges =
   minimumBy (compare `on` snd) (map totalLength [0,(1/40)..1])
   where
-    totalLength angle = (angle, totalLenghtOfLines angle myLocation edges)
+    totalLength angle = (angle, totalLengthOfLines angle myLocation edges)
 
 getFromMapAndScale :: (Fractional a, Functor f, Ord k) => Map.Map k (f a) -> k -> f a
 getFromMapAndScale posMap name = scaleFactor *^ (posMap Map.! name)
