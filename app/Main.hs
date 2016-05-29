@@ -14,20 +14,13 @@ import Translate(drawingsFromModule)
 
 
 -- TODO Now --
--- otherwise Guard special case
--- Ues nesting apply icon even when the function is a line.
 -- Fix icon nesting if a non-nestable icon (eg. flatLambdaIcon) is part of the expression.
 -- - eg. y = f $ g (\x -> x)
 -- Fix rotation missing edges to nested diagrams.
 
--- Add a maximum nesting depth.
--- Clean up Rendering and Icons.
-
--- Refactor Translate
--- Add documentation.
-
 -- TODO Later --
 -- Why is totalLengthOfLines not nesting?
+-- Add documentation.
 
 -- Visual todos:
 -- Don't rotate text and nested icons, give them rectangualar bounding boxes in GraphViz. (Perhaps use a typeclass for isRotateAble)
@@ -50,6 +43,8 @@ import Translate(drawingsFromModule)
 -- Add proper RecConstr, and RecUpdate support.
 -- Eliminate BranchIcon in Alts.
 -- Eliminate BranchIcon for the identity funciton "y x = x"
+-- Add a maximum nesting depth.
+-- Special case for otherwise.
 
 renderFile :: String -> String -> IO (Diagram B)
 renderFile inputFilename includeComments = do

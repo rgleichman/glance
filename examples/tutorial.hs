@@ -86,7 +86,8 @@ y = (\x -> 3 * x) 7-
 y = (\x -> 3 * x) 7
 
 {-A more complex example:
-f x y =  max (2 * y) (f (x + y - 40) x*2 )
+-f x y =  let q = (f (x + y - 40) x*2 ) in
+--  max (2 * y) q
 If you have some drawing implements handy, you might want to try drawing this
 yourself before scrolling down. One place to start is to figure out how functions
 with "multiple parameters" are defined (which is of course syntactic sugar since
@@ -131,9 +132,11 @@ Drawing below:
 -
 -
 -
-f x y =  max (2 * y) (f (x + y - 40) x*2 )
+-f x y =  let q = (f (x + y - 40) x*2 ) in
+--  max (2 * y) q
 -}
-f x y =  max (2 * y) (f (x + y - 40) x*2 )
+f x y =  let q = (f (x + y - 40) x*2 ) in
+  max (2 * y) q
 
 {-Something different about Glance is that Glance does not have any code regions
 where, for example, the icons composing the body of a function would be restricted

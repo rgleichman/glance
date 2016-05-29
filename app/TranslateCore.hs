@@ -97,7 +97,7 @@ combineExpressions inPattern portExpPairs = mconcat $ fmap mkGraph portExpPairs 
 iconGraphToDrawing :: IconGraph -> Drawing
 iconGraphToDrawing (IconGraph icons edges subDrawings _ _) = Drawing icons edges subDrawings
 
-makeApplyGraph :: Bool -> DIA.Name -> (IconGraph, Reference) -> [(IconGraph, Reference)] -> Int -> (IconGraph, NameAndPort)
+makeApplyGraph :: Bool -> DIA.Name -> GraphAndRef -> [GraphAndRef] -> Int -> (IconGraph, NameAndPort)
 makeApplyGraph inPattern applyIconName funVal argVals numArgs = (newGraph <> combinedGraph, nameAndPort applyIconName 1)
   where
     argumentPorts = map (nameAndPort applyIconName) [2,3..]

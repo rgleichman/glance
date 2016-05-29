@@ -20,7 +20,7 @@ import Data.Maybe(catMaybes)
 
 import Types(Drawing(..), NameAndPort(..), IDState,
   initialIdState, Edge)
-import Util(toNames, makeSimpleEdge, nameAndPort, justName, mapFst)
+import Util(toNames, makeSimpleEdge, nameAndPort, justName, mapFst, eitherToMaybes)
 import Icons(Icon(..))
 import TranslateCore(Reference, IconGraph(..), Sink, EvalContext, GraphAndRef,
   iconGraphFromIcons, iconGraphFromIconsEdges, getUniqueName, combineExpressions,
@@ -56,7 +56,7 @@ evalPApp name patterns = do
   evaledPatterns <- mapM evalPattern patterns
   let
     constructorName = qNameToString name
-    gr = makeTextApplyGraph True patName constructorName evaledPatterns (length evaledPatterns)
+    gr = makeTextApplyGraph True patName (Left constructorName) evaledPatterns (length evaledPatterns)
   pure gr
 
 evalPLit :: Exts.Sign -> Exts.Literal -> State IDState (IconGraph, NameAndPort)
@@ -96,8 +96,6 @@ strToGraphRef c str = fmap mapper (makeBox str) where
     else fmap Right gr
 
 evalQName :: QName -> EvalContext -> State IDState (IconGraph, Reference)
--- TODO Not sure if using (mempty, Left "") is the right thing to do here for "otherwise".
-evalQName (UnQual (Ident "otherwise")) _ = pure (mempty, Left "")
 evalQName qName@(UnQual _) c = strToGraphRef c (qNameToString qName)
 evalQName qName@(Qual _ _) c = strToGraphRef c (qNameToString qName)
 evalQName qName _ = fmap Right <$> makeBox (qNameToString qName)
@@ -115,9 +113,10 @@ decideIfNested :: ((IconGraph, t1), t) ->
 decideIfNested ((IconGraph [nameAndIcon] [] [] sinks bindings, _), _) = (Nothing, Just nameAndIcon, sinks, bindings)
 decideIfNested valAndPort = (Just valAndPort, Nothing, [], [])
 
-makeTextApplyGraph :: Bool -> DIA.Name -> String -> [GraphAndRef] -> Int -> (IconGraph, NameAndPort)
-makeTextApplyGraph inPattern applyIconName funStr argVals numArgs = result
+makeTextApplyGraph :: Bool -> DIA.Name -> Either String GraphAndRef-> [GraphAndRef] -> Int -> (IconGraph, NameAndPort)
+makeTextApplyGraph inPattern applyIconName funStrOrVal argVals numArgs = result
   where
+    (funStr, maybeFunVal) = eitherToMaybes funStrOrVal
     result = nestedApplyResult
     argumentPorts = map (nameAndPort applyIconName) [2,3..]
     (unnestedArgsAndPort, nestedArgs, nestedSinks, nestedBindings) = unzip4 $ map decideIfNested (zip argVals argumentPorts)
@@ -130,8 +129,16 @@ makeTextApplyGraph inPattern applyIconName funStr argVals numArgs = result
         Left _ -> ref
         Right (NameAndPort n p) -> Right $ NameAndPort (applyIconName DIA..> n) p
 
-    combinedGraph = combineExpressions inPattern $ catMaybes unnestedArgsAndPort
-    icon = if inPattern then NestedPApp else NestedApply
+    functionPort = nameAndPort applyIconName 0
+
+    originalPortExpPairs = (catMaybes unnestedArgsAndPort)
+    portExpressionPairs = case maybeFunVal of
+      Just funVal -> (funVal, functionPort) : originalPortExpPairs
+      Nothing -> originalPortExpPairs
+    combinedGraph = combineExpressions inPattern portExpressionPairs
+    icon = if inPattern
+      then NestedPApp
+      else NestedApply
     icons = [(applyIconName, icon funStr nestedArgs)]
     newGraph = IconGraph icons [] [] qualifiedSinks qualifiedBinds
     nestedApplyResult = (newGraph <> combinedGraph, nameAndPort applyIconName 1)
@@ -160,14 +167,14 @@ evalApp c exps@(funExp, argExps) = case funExp of
       else do
         argVals <- mapM (evalExp c) argExps
         applyIconName <- DIA.toName <$> getUniqueName "app0"
-        pure $ makeTextApplyGraph False applyIconName funStr argVals (length argExps)
+        pure $ makeTextApplyGraph False applyIconName (Left funStr) argVals (length argExps)
 
 evalAppNoText :: EvalContext -> (Exp, [Exp]) -> State IDState (IconGraph, NameAndPort)
 evalAppNoText c (funExp, argExps) = do
   funVal <- evalExp c funExp
   argVals <- mapM (evalExp c) argExps
   applyIconName <- DIA.toName <$> getUniqueName "app0"
-  pure $ makeApplyGraph False applyIconName funVal argVals (length argExps)
+  pure $ makeTextApplyGraph False applyIconName (Right funVal) argVals (length argExps)
 
 qOpToExp :: QOp -> Exp
 qOpToExp (QVarOp n) = Var n
@@ -335,7 +342,7 @@ evalTuple :: EvalContext -> [Exp] -> State IDState (IconGraph, NameAndPort)
 evalTuple c exps = do
   argVals <- mapM (evalExp c) exps
   applyIconName <- DIA.toName <$> getUniqueName "tupleApp"
-  pure $ makeTextApplyGraph False applyIconName (nTupleString (length exps)) argVals (length exps)
+  pure $ makeTextApplyGraph False applyIconName (Left $ nTupleString (length exps)) argVals (length exps)
 
 makeVarExp :: String -> Exp
 makeVarExp = Var . UnQual . Ident
@@ -353,7 +360,7 @@ evalRightSection c op e = do
   applyIconName <- DIA.toName <$> getUniqueName "tupleApp"
   -- TODO: A better option would be for makeApplyGraph to take the list of expressions as Maybes.
   neverUsedPort <- Left <$> getUniqueName "unusedArgument"
-  pure $ makeTextApplyGraph False applyIconName (qOpToString op) [(mempty, neverUsedPort), expVal] 2
+  pure $ makeTextApplyGraph False applyIconName (Left $ qOpToString op) [(mempty, neverUsedPort), expVal] 2
 
 -- evalEnums is only used by evalExp
 evalEnums :: EvalContext -> String -> [Exp] -> State IDState (IconGraph, Reference)

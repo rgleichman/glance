@@ -23,6 +23,7 @@ import Diagrams.Prelude hiding ((&), (#))
 -- import Diagrams.Backend.SVG(B)
 --import Diagrams.TwoD.Text(Text)
 import Data.Typeable(Typeable)
+import Data.Maybe(fromMaybe)
 
 import Types(Icon(..), SpecialQDiagram, SpecialBackend)
 import Util(fromMaybeError)
@@ -139,18 +140,20 @@ transformCorrectedTextBox str textCol borderCol reflect angle =
     reflectIfTrue shouldReflect dia = if shouldReflect then reflectX dia else dia
 
 nestedApplyDia :: SpecialBackend b =>
-  String -> [Maybe (Name, Icon)] -> TransformableDia b
+  Maybe String -> [Maybe (Name, Icon)] -> TransformableDia b
 nestedApplyDia = generalNestedDia (textBoxC colorScheme) (apply0C colorScheme)
 
 nestedPAppDia :: SpecialBackend b =>
-  String -> [Maybe (Name, Icon)] -> TransformableDia b
+  Maybe String -> [Maybe (Name, Icon)] -> TransformableDia b
 nestedPAppDia = generalNestedDia (patternTextC colorScheme) (patternC colorScheme)
 
 generalNestedDia :: SpecialBackend b =>
-  Colour Double -> Colour Double-> String -> [Maybe (Name, Icon)] -> TransformableDia b
-generalNestedDia textCol borderCol funText args reflect angle = centerXY $  transformedText ||| centerY finalDia
+  Colour Double -> Colour Double-> Maybe String -> [Maybe (Name, Icon)] -> TransformableDia b
+generalNestedDia textCol borderCol maybeFunText args reflect angle = centerXY $  transformedText ||| centerY finalDia
   where
-    transformedText = transformCorrectedTextBox funText textCol borderCol reflect angle
+    transformedText = case maybeFunText of
+      Just funText -> transformCorrectedTextBox funText textCol borderCol reflect angle
+      Nothing -> mempty
     seperation = circleRadius * 1.5
     verticalSeperation = circleRadius
     trianglePortsCircle = hsep seperation $
