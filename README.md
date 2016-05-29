@@ -7,7 +7,7 @@ stack build
 stack exec glance-exe -- -o images/fact.svg -w 500 examples/fact.hs -
 firefox images/fact.svg
 ```
-Here is a getting started guide for Glance rendered by Glance itself ([source here](examples/tutorial.hs)). To generate this image run
+Below is a getting started guide for Glance rendered by Glance itself ([source here](examples/tutorial.hs)). To generate this image run
 
 `stack exec glance-exe -- -o examples/tutorial.svg -w 873 examples/tutorial.hs c`
 
