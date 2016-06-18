@@ -23,7 +23,7 @@ import Diagrams.Prelude hiding ((&), (#))
 -- import Diagrams.Backend.SVG(B)
 --import Diagrams.TwoD.Text(Text)
 import Data.Typeable(Typeable)
-import Data.Maybe(fromMaybe)
+--import Data.Maybe(fromMaybe)
 
 import Types(Icon(..), SpecialQDiagram, SpecialBackend)
 import Util(fromMaybeError)

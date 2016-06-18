@@ -1,11 +1,12 @@
 module TranslateCore(
   Reference,
   IconGraph(..),
+  SyntaxGraph(..),
   EvalContext,
   GraphAndRef,
   Sink,
-  iconGraphFromIcons,
-  iconGraphFromIconsEdges,
+  syntaxGraphFromNodes,
+  syntaxGraphFromNodesEdges,
   getUniqueName,
   edgesForRefPortList,
   combineExpressions,
@@ -20,15 +21,17 @@ module TranslateCore(
   coerceExpressionResult,
   makeBox,
   nTupleString,
-  nListString
+  nListString,
+  syntaxGraphToIconGraph
 ) where
 
 import Data.Semigroup(Semigroup, (<>))
 import qualified Diagrams.Prelude as DIA
 import Control.Monad.State(State)
 import Data.Either(partitionEithers)
+import Control.Arrow(second)
 
-import Types(Icon, Edge(..), EdgeOption(..), Drawing(..), NameAndPort(..), IDState,
+import Types(Icon, SyntaxNode(..), Edge(..), EdgeOption(..), Drawing(..), NameAndPort(..), IDState,
   getId)
 import Util(noEnds, nameAndPort, makeSimpleEdge, justName)
 import Icons(Icon(..))
@@ -41,6 +44,25 @@ import Icons(Icon(..))
 -- used in Translate.
 
 type Reference = Either String NameAndPort
+
+-- | SyntaxGraph is an abstract representation for Haskell syntax. SyntaxGraphs are
+-- generated from the Haskell syntax tree, and are used to generate IconGraphs
+data SyntaxGraph = SyntaxGraph {
+  sgNodes :: [(DIA.Name, SyntaxNode)],
+  sgEdges :: [Edge],
+  sgSinks :: [(String, NameAndPort)],
+  sgSources :: [(String, Reference)]
+  } deriving (Show)
+
+instance Semigroup SyntaxGraph where
+  (SyntaxGraph icons1 edges1 sinks1 sources1) <> (SyntaxGraph icons2 edges2 sinks2 sources2) =
+    SyntaxGraph (icons1 <> icons2) (edges1 <> edges2) (sinks1 <> sinks2) (sources1 <> sources2)
+
+instance Monoid SyntaxGraph where
+  mempty = SyntaxGraph mempty mempty mempty mempty
+  mappend = (<>)
+
+-- TODO remove / change due to SyntaxGraph
 -- | An IconGraph is a normal Drawing (Icons, Edges, and sub Drawings) with two additional fields:
 -- unconected sink ports (varible usage), and unconnected source ports (varible definition).
 data IconGraph = IconGraph {
@@ -51,45 +73,45 @@ data IconGraph = IconGraph {
   igBindings :: [(String, Reference)]}
   deriving (Show)
 
-type EvalContext = [String]
-type GraphAndRef = (IconGraph, Reference)
-type Sink = (String, NameAndPort)
-
 instance Semigroup IconGraph where
   (IconGraph icons1 edges1 subDrawings1 sinks1 sources1) <> (IconGraph icons2 edges2 subDrawings2 sinks2 sources2) =
     IconGraph (icons1 <> icons2) (edges1 <> edges2) (subDrawings1 <> subDrawings2) (sinks1 <> sinks2) (sources1 <> sources2)
+
+type EvalContext = [String]
+type GraphAndRef = (SyntaxGraph, Reference)
+type Sink = (String, NameAndPort)
 
 instance Monoid IconGraph where
   mempty = IconGraph mempty mempty mempty mempty mempty
   mappend = (<>)
 
-iconGraphFromIcons :: [(DIA.Name, Icon)] -> IconGraph
-iconGraphFromIcons icons = IconGraph icons mempty mempty mempty mempty
+syntaxGraphFromNodes :: [(DIA.Name, SyntaxNode)] -> SyntaxGraph
+syntaxGraphFromNodes icons = SyntaxGraph icons mempty mempty mempty
 
-iconGraphFromIconsEdges :: [(DIA.Name, Icon)] -> [Edge] -> IconGraph
-iconGraphFromIconsEdges icons edges = IconGraph icons edges mempty mempty mempty
+syntaxGraphFromNodesEdges :: [(DIA.Name, SyntaxNode)] -> [Edge] -> SyntaxGraph
+syntaxGraphFromNodesEdges icons edges = SyntaxGraph icons edges mempty mempty
 
 getUniqueName :: String -> State IDState String
 getUniqueName base = fmap ((base ++). show) getId
 
 -- TODO: Refactor with combineExpressions
-edgesForRefPortList :: Bool -> [(Reference, NameAndPort)] -> IconGraph
+edgesForRefPortList :: Bool -> [(Reference, NameAndPort)] -> SyntaxGraph
 edgesForRefPortList inPattern portExpPairs = mconcat $ fmap mkGraph portExpPairs where
   edgeOpts = if inPattern then [EdgeInPattern] else []
   mkGraph (ref, port) = case ref of
     Left str -> if inPattern
-      then IconGraph mempty mempty mempty mempty [(str, Right port)]
-      else IconGraph mempty mempty mempty [(str, port)] mempty
-    Right resultPort -> IconGraph mempty [Edge edgeOpts noEnds (resultPort, port)] mempty mempty mempty
+      then SyntaxGraph mempty mempty mempty [(str, Right port)]
+      else SyntaxGraph mempty mempty [(str, port)] mempty
+    Right resultPort -> SyntaxGraph mempty [Edge edgeOpts noEnds (resultPort, port)] mempty mempty
 
-combineExpressions :: Bool -> [(GraphAndRef, NameAndPort)] -> IconGraph
+combineExpressions :: Bool -> [(GraphAndRef, NameAndPort)] -> SyntaxGraph
 combineExpressions inPattern portExpPairs = mconcat $ fmap mkGraph portExpPairs where
   edgeOpts = if inPattern then [EdgeInPattern] else []
   mkGraph ((graph, ref), port) = graph <> case ref of
     Left str -> if inPattern
-      then IconGraph mempty mempty mempty mempty [(str, Right port)]
-      else IconGraph mempty mempty mempty [(str, port)] mempty
-    Right resultPort -> IconGraph mempty [Edge edgeOpts noEnds (resultPort, port)] mempty mempty mempty
+      then SyntaxGraph mempty mempty mempty [(str, Right port)]
+      else SyntaxGraph mempty mempty [(str, port)] mempty
+    Right resultPort -> SyntaxGraph mempty [Edge edgeOpts noEnds (resultPort, port)] mempty mempty
 
 -- qualifyNameAndPort :: String -> NameAndPort -> NameAndPort
 -- qualifyNameAndPort s (NameAndPort n p) = NameAndPort (s DIA..> n) p
@@ -97,18 +119,18 @@ combineExpressions inPattern portExpPairs = mconcat $ fmap mkGraph portExpPairs 
 iconGraphToDrawing :: IconGraph -> Drawing
 iconGraphToDrawing (IconGraph icons edges subDrawings _ _) = Drawing icons edges subDrawings
 
-makeApplyGraph :: Bool -> DIA.Name -> GraphAndRef -> [GraphAndRef] -> Int -> (IconGraph, NameAndPort)
+makeApplyGraph :: Bool -> DIA.Name -> GraphAndRef -> [GraphAndRef] -> Int -> (SyntaxGraph, NameAndPort)
 makeApplyGraph inPattern applyIconName funVal argVals numArgs = (newGraph <> combinedGraph, nameAndPort applyIconName 1)
   where
     argumentPorts = map (nameAndPort applyIconName) [2,3..]
     functionPort = nameAndPort applyIconName 0
     combinedGraph = combineExpressions inPattern $ zip (funVal:argVals) (functionPort:argumentPorts)
-    icons = [(applyIconName, ApplyAIcon numArgs)]
-    newGraph = iconGraphFromIcons icons
+    icons = [(applyIconName, ApplyNode numArgs)]
+    newGraph = syntaxGraphFromNodes icons
 
 namesInPattern :: GraphAndRef -> [String]
 namesInPattern (_, Left str) = [str]
-namesInPattern (IconGraph _ _ _ _ bindings, Right _) = fmap fst bindings
+namesInPattern (SyntaxGraph _ _ _ bindings, Right _) = fmap fst bindings
 
 -- | Recursivly find the matching reference in a list of bindings.
 -- TODO: Might want to present some indication if there is a reference cycle.
@@ -123,8 +145,8 @@ lookupReference bindings ref@(Left originalS) = lookupHelper ref where
       failIfCycle r@(Left newStr) res = if newStr == originalS then r else res
       failIfCycle _ res = res
 
-deleteBindings :: IconGraph -> IconGraph
-deleteBindings (IconGraph a b c d _) = IconGraph a b c d mempty
+deleteBindings :: SyntaxGraph -> SyntaxGraph
+deleteBindings (SyntaxGraph a b c _) = SyntaxGraph a b c mempty
 
 makeEdgesCore :: [Sink] -> [(String, Reference)] -> ([Sink], [Edge])
 makeEdgesCore sinks bindings = partitionEithers $ fmap renameOrMakeEdge sinks
@@ -136,28 +158,30 @@ makeEdgesCore sinks bindings = partitionEithers $ fmap renameOrMakeEdge sinks
         (Left newStr) -> Left (newStr, destPort)
       Nothing -> Left orig
 
-makeEdges :: IconGraph -> IconGraph
-makeEdges (IconGraph icons edges c sinks bindings) = newGraph where
+makeEdges :: SyntaxGraph -> SyntaxGraph
+makeEdges (SyntaxGraph icons edges sinks bindings) = newGraph where
   (newSinks, newEdges) = makeEdgesCore sinks bindings
-  newGraph = IconGraph icons (newEdges <> edges) c newSinks bindings
+  newGraph = SyntaxGraph icons (newEdges <> edges) newSinks bindings
 
+-- TODO: Remove BranchNode
 -- | This is used by the rhs for identity (eg. y x = x)
-coerceExpressionResult :: (IconGraph, Reference) -> State IDState (IconGraph, NameAndPort)
+coerceExpressionResult :: (SyntaxGraph, Reference) -> State IDState (SyntaxGraph, NameAndPort)
 coerceExpressionResult (_, Left str) = makeDummyRhs str where
-  makeDummyRhs :: String -> State IDState (IconGraph, NameAndPort)
+  makeDummyRhs :: String -> State IDState (SyntaxGraph, NameAndPort)
   makeDummyRhs s = do
     iconName <- getUniqueName s
     let
-      graph = IconGraph icons mempty mempty [(s, port)] mempty
-      icons = [(DIA.toName iconName, BranchIcon)]
+      graph = SyntaxGraph icons mempty [(s, port)] mempty
+      icons = [(DIA.toName iconName, BranchNode)]
       port = justName iconName
     pure (graph, port)
 coerceExpressionResult (g, Right x) = pure (g, x)
 
-makeBox :: String -> State IDState (IconGraph, NameAndPort)
+-- TODO: remove / change due toSyntaxGraph
+makeBox :: String -> State IDState (SyntaxGraph, NameAndPort)
 makeBox str = do
   name <- DIA.toName <$> getUniqueName str
-  let graph = iconGraphFromIcons [(DIA.toName name, TextBoxIcon str)]
+  let graph = syntaxGraphFromNodes [(DIA.toName name, LiteralNode str)]
   pure (graph, justName name)
 
 nTupleString :: Int -> String
@@ -167,3 +191,19 @@ nListString :: Int -> String
 -- TODO: Use something better than [_]
 nListString 1 = "[_]"
 nListString n = '[' : replicate (n -1) ',' ++ "]"
+
+nodeToIcon :: SyntaxNode -> Icon
+nodeToIcon (ApplyNode n) = ApplyAIcon n
+nodeToIcon (PatternApplyNode s n) = PAppIcon n s
+nodeToIcon (NameNode s) = TextBoxIcon s
+nodeToIcon (LiteralNode s) = TextBoxIcon s
+nodeToIcon (FunctionDefNode n) = FlatLambdaIcon n
+nodeToIcon (GuardNode n) = GuardIcon n
+nodeToIcon (CaseNode n) = CaseIcon n
+nodeToIcon BranchNode = BranchIcon
+nodeToIcon CaseResultNode = CaseResultIcon
+
+syntaxGraphToIconGraph :: SyntaxGraph -> IconGraph
+syntaxGraphToIconGraph (SyntaxGraph nodes edges sources sinks) =
+  IconGraph icons edges mempty sources sinks where
+    icons = fmap (second nodeToIcon) nodes

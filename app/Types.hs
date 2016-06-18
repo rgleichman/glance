@@ -2,6 +2,7 @@
 
 module Types (
   Icon(..),
+  SyntaxNode(..),
   NameAndPort(..),
   Connection,
   Edge(..),
@@ -32,6 +33,17 @@ data Icon = ResultIcon | BranchIcon | TextBoxIcon String | GuardIcon Int
   -- TODO: NestedApply should have the type NestedApply (Maybe (Name, Icon)) [Maybe (Name, Icon)]
   | NestedApply (Maybe String) [Maybe (Name, Icon)]
   | NestedPApp (Maybe String) [Maybe (Name, Icon)]
+  deriving (Show, Eq)
+
+data SyntaxNode = ApplyNode Int-- Function application
+  | PatternApplyNode String Int -- Destructors as used in patterns
+  | NameNode String -- Identifiers or symbols
+  | LiteralNode String -- Literal values like the string "Hello World"
+  | FunctionDefNode Int-- Function definition (ie. lambda expression)
+  | GuardNode Int
+  | CaseNode Int
+  | BranchNode -- TODO remove BranchNode
+  | CaseResultNode -- TODO remove caseResultNode
   deriving (Show, Eq)
 
 data NameAndPort = NameAndPort Name (Maybe Int) deriving (Show, Eq)

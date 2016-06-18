@@ -15,3 +15,6 @@ stack ghci glance:test:glance-test
 For all warnings (some warnings duplicated):
 stack clean
 stack build --test --no-run-tests --ghc-options -Wall
+
+To open documentation for other libraries:
+stack haddock --open <package-name>

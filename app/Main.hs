@@ -14,6 +14,8 @@ import Translate(drawingsFromModule)
 
 
 -- TODO Now --
+-- Rewrite Translate to generate an abstract computation graph that is then transformed (eg. find tree sections)
+-- - and turned into an Icon graph.
 -- Fix icon nesting if a non-nestable icon (eg. flatLambdaIcon) is part of the expression.
 -- - eg. y = f $ g (\x -> x)
 
