@@ -22,7 +22,8 @@ module TranslateCore(
   makeBox,
   nTupleString,
   nListString,
-  syntaxGraphToIconGraph
+  syntaxGraphToIconGraph,
+  syntaxGraphToFglGraph
 ) where
 
 import Data.Semigroup(Semigroup, (<>))
@@ -30,10 +31,12 @@ import qualified Diagrams.Prelude as DIA
 import Control.Monad.State(State)
 import Data.Either(partitionEithers)
 import Control.Arrow(second)
+import Data.Graph.Inductive.PatriciaTree as FGR
+import Diagrams.TwoD.GraphViz as DiaGV
 
 import Types(Icon, SyntaxNode(..), Edge(..), EdgeOption(..), Drawing(..), NameAndPort(..), IDState,
   getId)
-import Util(noEnds, nameAndPort, makeSimpleEdge, justName)
+import Util(noEnds, nameAndPort, makeSimpleEdge, justName, fromMaybeError)
 import Icons(Icon(..))
 
 -- OVERVIEW --
@@ -44,11 +47,12 @@ import Icons(Icon(..))
 -- used in Translate.
 
 type Reference = Either String NameAndPort
+type SgNamedNode = (DIA.Name, SyntaxNode)
 
 -- | SyntaxGraph is an abstract representation for Haskell syntax. SyntaxGraphs are
 -- generated from the Haskell syntax tree, and are used to generate IconGraphs
 data SyntaxGraph = SyntaxGraph {
-  sgNodes :: [(DIA.Name, SyntaxNode)],
+  sgNodes :: [SgNamedNode],
   sgEdges :: [Edge],
   sgSinks :: [(String, NameAndPort)],
   sgSources :: [(String, Reference)]
@@ -202,6 +206,18 @@ nodeToIcon (GuardNode n) = GuardIcon n
 nodeToIcon (CaseNode n) = CaseIcon n
 nodeToIcon BranchNode = BranchIcon
 nodeToIcon CaseResultNode = CaseResultIcon
+
+syntaxGraphToFglGraph :: SyntaxGraph -> FGR.Gr SgNamedNode Edge
+syntaxGraphToFglGraph (SyntaxGraph nodes edges _ _) =
+  DiaGV.mkGraph nodes labeledEdges where
+    labeledEdges = fmap makeLabeledEdge edges
+    makeLabeledEdge e@(Edge _ _ (NameAndPort name1 _, NameAndPort name2 _)) =
+      ((name1, lookupInNodes name1), (name2, lookupInNodes name2), e) where
+        lookupInNodes name = fromMaybeError errorString (lookup name nodes) where
+          errorString =
+            "syntaxGraphToFglGraph edge connects to non-existent node. Node Name ="
+            ++ show name ++ " Edge=" ++ show e
+
 
 syntaxGraphToIconGraph :: SyntaxGraph -> IconGraph
 syntaxGraphToIconGraph (SyntaxGraph nodes edges sources sinks) =

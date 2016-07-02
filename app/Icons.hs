@@ -16,7 +16,8 @@ module Icons
     defaultLineWidth,
     ColorStyle(..),
     colorScheme,
-    nestedApplyDia
+    nestedApplyDia,
+    coloredTextBox
     ) where
 
 import Diagrams.Prelude hiding ((&), (#))

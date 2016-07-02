@@ -2,7 +2,8 @@
 module Translate(
   translateString,
   drawingFromDecl,
-  drawingsFromModule
+  drawingsFromModule,
+  stringToSyntaxGraph
 ) where
 
 import qualified Diagrams.Prelude as DIA hiding ((#), (&))
@@ -474,23 +475,24 @@ evalDecl c d = evaluatedDecl where
     --TODO: Add other cases here
     _ -> pure mempty
 
+showTopLevelBinds :: SyntaxGraph -> State IDState SyntaxGraph
+showTopLevelBinds gr@(SyntaxGraph _ _ _ binds) = do
+  let
+    addBind (_, Left _) = pure mempty
+    addBind (patName, Right port) = do
+      uniquePatName <- getUniqueName patName
+      let
+        icons = toNames [(uniquePatName, NameNode patName)]
+        edges = [makeSimpleEdge (justName uniquePatName, port)]
+        edgeGraph = syntaxGraphFromNodesEdges icons edges
+      pure edgeGraph
+  newGraph <- mconcat <$> mapM addBind binds
+  pure $ newGraph <> gr
+
 drawingFromDecl :: Decl -> Drawing
 drawingFromDecl d = iconGraphToDrawing $ syntaxGraphToIconGraph $ evalState evaluatedDecl initialIdState
   where
     evaluatedDecl = evalDecl mempty d >>= showTopLevelBinds
-    showTopLevelBinds :: SyntaxGraph -> State IDState SyntaxGraph
-    showTopLevelBinds gr@(SyntaxGraph _ _ _ binds) = do
-      let
-        addBind (_, Left _) = pure mempty
-        addBind (patName, Right port) = do
-          uniquePatName <- getUniqueName patName
-          let
-            icons = toNames [(uniquePatName, NameNode patName)]
-            edges = [makeSimpleEdge (justName uniquePatName, port)]
-            edgeGraph = syntaxGraphFromNodesEdges icons edges
-          pure edgeGraph
-      newGraph <- mconcat <$> mapM addBind binds
-      pure $ newGraph <> gr
 
 -- Profiling: about 1.5% of total time.
 translateString :: String -> (Drawing, Decl)
@@ -500,3 +502,9 @@ translateString s = (drawing, decl) where
 
 drawingsFromModule :: Module -> [Drawing]
 drawingsFromModule (Module _ _ _ _ _ _ decls) = fmap drawingFromDecl decls
+
+stringToSyntaxGraph :: String -> SyntaxGraph
+stringToSyntaxGraph s = graph where
+  decl = fromParseResult (parseDecl s)
+  evaluatedDecl = evalDecl mempty decl >>= showTopLevelBinds
+  graph = evalState evaluatedDecl initialIdState

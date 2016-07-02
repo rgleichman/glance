@@ -9,6 +9,9 @@ stack build  --exec "glance-exe -o output.svg -w 500"
 
 View circle.svg with svg-preview plug-in.
 
+To use ghci for the main executable:
+stack ghci glance
+
 To use ghci with the test file:
 stack ghci glance:test:glance-test
 

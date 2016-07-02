@@ -35,6 +35,7 @@ data Icon = ResultIcon | BranchIcon | TextBoxIcon String | GuardIcon Int
   | NestedPApp (Maybe String) [Maybe (Name, Icon)]
   deriving (Show, Eq)
 
+-- TODO remove Ints from SyntaxNode data constructors.
 data SyntaxNode = ApplyNode Int-- Function application
   | PatternApplyNode String Int -- Destructors as used in patterns
   | NameNode String -- Identifiers or symbols
@@ -44,7 +45,7 @@ data SyntaxNode = ApplyNode Int-- Function application
   | CaseNode Int
   | BranchNode -- TODO remove BranchNode
   | CaseResultNode -- TODO remove caseResultNode
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord)
 
 data NameAndPort = NameAndPort Name (Maybe Int) deriving (Show, Eq)
 

@@ -2,13 +2,16 @@ import Prelude hiding (return)
 import Diagrams.Prelude hiding ((#), (&))
 import Diagrams.Backend.SVG.CmdLine
 import Diagrams.Backend.SVG (renderSVG)
+import Diagrams.TwoD.GraphViz as DiaGV
+import qualified Data.GraphViz.Attributes.Complete as GVA
 
-import Icons(textBox, colorScheme, ColorStyle(..))
+import Icons(textBox, colorScheme, ColorStyle(..), coloredTextBox)
 import Rendering(renderDrawing)
 import Util(toNames, portToPort, iconToPort, iconToIcon,
   iconToIconEnds, iconTailToPort)
 import Types(Icon(..), Drawing(..), EdgeEnd(..))
-import Translate(translateString)
+import Translate(translateString, stringToSyntaxGraph)
+import TranslateCore(syntaxGraphToFglGraph)
 
 (d0A, d0B, d0Res, d0Foo, d0Bar) = ("A", "B", "res", "foo", "bar")
 d0Icons = toNames
@@ -396,10 +399,24 @@ translateTests = do
     vCattedDrawings = vsep 1 $ zipWith (===) (fmap alignL drawings) textDrawings
   pure vCattedDrawings
 
+graphTests :: IO (Diagram B)
+graphTests = do
+  layedOutGraph <- DiaGV.layoutGraph GVA.Neato fglGraph
+  pure $ DiaGV.drawGraph
+    nodeFunc
+    (\_ _ _ _ _ p -> lc white $ stroke p)
+    layedOutGraph
+  where
+    fglGraph = syntaxGraphToFglGraph $ stringToSyntaxGraph "y = f x"
+    nodeFunc (name, syntaxNode) =
+      place (coloredTextBox white (opaque white) (show syntaxNode) :: Diagram B)
+
+
 drawingsAndNames :: [(String, IO (Diagram B))]
 drawingsAndNames = [
   ("translate-tests", translateTests),
-  ("render-tests", renderTests)
+  ("render-tests", renderTests),
+  ("graph-tests", graphTests)
   ]
 
 renderDrawings :: [(String, IO (Diagram B))] -> IO ()
