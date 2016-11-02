@@ -167,7 +167,7 @@ visual programming languages, you may be thinking that this does not look very
 graphical. Here graphical is referring to a graph topology,
 and no it does not look graphical. The core idea is that nested function
 application has a tree topology, not a graph topology. The result of each
-sub-expression is only used once. Graph takes advantage of this tree topology
+sub-expression is only used once. Glance takes advantage of this tree topology
 to make its drawings more compact.
 y = foo (3 + (baz 2)) (8* (baz 9))
 -}
