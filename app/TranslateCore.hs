@@ -34,8 +34,8 @@ import Control.Arrow(second)
 import Data.Graph.Inductive.PatriciaTree as FGR
 import Diagrams.TwoD.GraphViz as DiaGV
 
-import Types(Icon, SyntaxNode(..), Edge(..), EdgeOption(..), Drawing(..), NameAndPort(..), IDState,
-  getId)
+import Types(Icon, SyntaxNode(..), Edge(..), EdgeOption(..), Drawing(..),
+  NameAndPort(..), IDState, getId, SgNamedNode)
 import Util(noEnds, nameAndPort, makeSimpleEdge, justName, fromMaybeError)
 import Icons(Icon(..))
 
@@ -47,7 +47,6 @@ import Icons(Icon(..))
 -- used in Translate.
 
 type Reference = Either String NameAndPort
-type SgNamedNode = (DIA.Name, SyntaxNode)
 
 -- | SyntaxGraph is an abstract representation for Haskell syntax. SyntaxGraphs are
 -- generated from the Haskell syntax tree, and are used to generate IconGraphs

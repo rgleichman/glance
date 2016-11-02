@@ -12,8 +12,10 @@ module Types (
   IDState,
   SpecialQDiagram,
   SpecialBackend,
+  SgNamedNode,
   initialIdState,
-  getId
+  getId,
+  sgNamedNodeToSyntaxNode
 ) where
 
 import Diagrams.Prelude(Name, QDiagram, V2, Any, Renderable, Path)
@@ -71,6 +73,11 @@ newtype IDState = IDState Int deriving (Eq, Show)
 type SpecialBackend b = (Renderable (Path V2 Double) b, Renderable (Text Double) b)
 
 type SpecialQDiagram b = QDiagram b V2 Double Any
+
+type SgNamedNode = (Name, SyntaxNode)
+
+sgNamedNodeToSyntaxNode :: SgNamedNode -> SyntaxNode
+sgNamedNodeToSyntaxNode = snd
 
 initialIdState :: IDState
 initialIdState = IDState 0
