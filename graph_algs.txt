@@ -1,0 +1,29 @@
+-- Pseudocode for collapsing a syntax graph.
+
+-- To make the problem simpler, collapseNodes just cares about the
+collapseNodes :: SyntaxGraph -> SyntaxGraph
+collapseNodes inGraph = graphFold foldFunc initialOutputGraph inGraph where
+  initialOutputGraph = emptyGraph
+
+  foldFunc :: SyntaxGraph -> Context -> SyntaxGraph
+  foldFunc oldGraph context = let node = nodeInContext context in
+    -- The node can not be embedded, and can not embed other nodes, so it is by itself.
+    -- We thus just add it to the accumulator graph.
+    -- willEmbed is true iff the current node will embed other nodes in the graph
+    | not (willBeEmbedded context inGraph) && not (willEmbed context inGraph) = context & oldGraph
+    -- willBeEmbedded checks to see if the parent of the current node will embed the current node
+    -- In this case the current node will be embedded, and does not embed other node.
+    -- We do not add the current node since it will be embedded in its parent.
+    -- This case is not necessary. If the current node were to be added, it would simply be
+    -- removed again from the accumulation graph.
+    | willBeEmbedded context inGraph && not (willEmbed context) = oldGraph
+    -- This node will embed other nodes.
+    -- First we find our children that will be embedded. If the child is in the
+    -- oldGraph, then we also need to remove the child from the oldGraph.
+    -- If the child is not yet in the oldGraph, then we just embed it.
+    | willEmbed context inGraph =
+      newGraph where
+        (oldGraphChildren, oldGraphWithChildrenRemoved) = findAndRemoveChildren oldGraph context
+        remainingChildrem = getRemainingChildren oldGraphChildren inGraph context
+        embeddedNode = makeEmbeddedNode context oldGraphChildren remainingChildren
+        newGarph = embeddedNode & oldGraphWithChildrenRemoved

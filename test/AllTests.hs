@@ -3,15 +3,20 @@ import Diagrams.Prelude hiding ((#), (&))
 import Diagrams.Backend.SVG.CmdLine
 import Diagrams.Backend.SVG (renderSVG)
 import Diagrams.TwoD.GraphViz as DiaGV
+import qualified Data.GraphViz as GV
 import qualified Data.GraphViz.Attributes.Complete as GVA
+
+import qualified Data.Graph.Inductive.Graph as ING
+import qualified Data.Graph.Inductive.PatriciaTree as FGR
 
 import Icons(textBox, colorScheme, ColorStyle(..), coloredTextBox)
 import Rendering(renderDrawing)
 import Util(toNames, portToPort, iconToPort, iconToIcon,
   iconToIconEnds, iconTailToPort)
-import Types(Icon(..), Drawing(..), EdgeEnd(..))
+import Types(Icon(..), Drawing(..), EdgeEnd(..), SgNamedNode, Edge)
 import Translate(translateString, stringToSyntaxGraph)
 import TranslateCore(syntaxGraphToFglGraph)
+import GraphAlgorithms(collapseNodes)
 
 (d0A, d0B, d0Res, d0Foo, d0Bar) = ("A", "B", "res", "foo", "bar")
 d0Icons = toNames
@@ -399,6 +404,7 @@ translateTests = do
     vCattedDrawings = vsep 1 $ zipWith (===) (fmap alignL drawings) textDrawings
   pure vCattedDrawings
 
+-- TODO Remove graphTests
 graphTests :: IO (Diagram B)
 graphTests = do
   layedOutGraph <- DiaGV.layoutGraph GVA.Neato fglGraph
@@ -411,12 +417,59 @@ graphTests = do
     nodeFunc (name, syntaxNode) =
       place (coloredTextBox white (opaque white) (show syntaxNode) :: Diagram B)
 
+-- TODO Refactor with doGraphLayout in Rendering.hs
+renderFglGraph :: FGR.Gr SgNamedNode Edge -> IO (Diagram B)
+renderFglGraph fglGraph = do
+  layedOutGraph <- DiaGV.layoutGraph' layoutParams GVA.Neato fglGraph
+  pure $ DiaGV.drawGraph
+    nodeFunc
+    (\_ _ _ _ _ p -> lc white $ stroke p)
+    layedOutGraph
+  where
+    nodeFunc (name, syntaxNode) =
+      place (coloredTextBox white (opaque white) (show syntaxNode) :: Diagram B)
+    layoutParams :: GV.GraphvizParams Int v e () v
+    layoutParams = GV.defaultParams{
+    GV.globalAttributes = [
+      GV.NodeAttrs [GVA.Shape GVA.BoxShape]
+      --GV.NodeAttrs [GVA.Shape GVA.Circle]
+      , GV.GraphAttrs
+        [
+        --GVA.Overlap GVA.KeepOverlaps,
+        --GVA.Overlap GVA.ScaleOverlaps,
+        GVA.Overlap $ GVA.PrismOverlap (Just 5000),
+        GVA.Splines GVA.LineEdges,
+        GVA.OverlapScaling 8,
+        --GVA.OverlapScaling 4,
+        GVA.OverlapShrink True
+        ]
+      ],
+    GV.fmtEdge = const [GV.arrowTo GV.noArrow],
+    GV.fmtNode = nodeAttribute
+    }
+    nodeAttribute :: (Int, l) -> [GV.Attribute]
+    nodeAttribute (nodeInt, _) =
+      -- GVA.Width and GVA.Height have a minimum of 0.01
+      --[GVA.Width diaWidth, GVA.Height diaHeight]
+      [GVA.Width 0.01, GVA.Height 0.01]
+
+-- TODO Make this work for many input strings
+collapseTests :: IO (Diagram B)
+collapseTests = do
+  --DiaGV.simpleGraphDiagram GVA.Neato fglGraph
+  before <- renderFglGraph fglGraph
+  after <- renderFglGraph collapsedGraph
+  pure (before === after)
+  where
+    fglGraph = syntaxGraphToFglGraph $ stringToSyntaxGraph "y = f x"
+    collapsedGraph = collapseNodes fglGraph
 
 drawingsAndNames :: [(String, IO (Diagram B))]
 drawingsAndNames = [
   ("translate-tests", translateTests),
   ("render-tests", renderTests),
-  ("graph-tests", graphTests)
+  ("graph-tests", graphTests),
+  ("collapse-tests", collapseTests)
   ]
 
 renderDrawings :: [(String, IO (Diagram B))] -> IO ()
@@ -426,5 +479,17 @@ renderDrawings = mapM_ saveDrawing where
     -- TODO Replace string concatenation with proper path manipulation functions.
     renderSVG ("test/test-output/" ++ name ++ ".svg") (mkWidth 700) (bgFrame 1 (backgroundC colorScheme) dia)
 
+-- TODO Clean up this function
+testCollapse :: IO ()
+testCollapse = do
+  let
+    fglIn = syntaxGraphToFglGraph $ stringToSyntaxGraph "y = f x"
+    fglOut = collapseNodes fglIn
+  putStrLn "fglIn:"
+  ING.prettyPrint fglIn
+  putStrLn "\nfglOut:"
+  ING.prettyPrint fglOut
+
 main :: IO ()
 main = renderDrawings drawingsAndNames
+--main = testCollapse
