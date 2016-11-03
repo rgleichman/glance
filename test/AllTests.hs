@@ -438,16 +438,37 @@ renderFglGraph fglGraph = do
       --[GVA.Width diaWidth, GVA.Height diaHeight]
       [GVA.Width 0.01, GVA.Height 0.01]
 
+collapseTestStrings :: [String]
+collapseTestStrings = [
+  "y = x",
+  "y = 1.0",
+  "y = f x",
+  "y = f x1 x2"
+  ]
+
+makeCollapseTest :: String -> IO (Diagram B)
+makeCollapseTest str = do
+  before <- renderFglGraph fglGraph
+  after <- renderFglGraph collapsedGraph
+  pure $ vsep 1 $ [
+    expressionText,
+    beforeText,
+    before,
+    afterText,
+    after]
+  where
+    fglGraph = syntaxGraphToFglGraph $ stringToSyntaxGraph str
+    collapsedGraph = collapseNodes fglGraph
+    customTextBox = coloredTextBox white (opaque lime)
+    expressionText = alignL $ coloredTextBox white (opaque yellow) str :: Diagram B
+    beforeText = alignL $ customTextBox "Before:" :: Diagram B
+    afterText = alignL $ customTextBox "After:" :: Diagram B
+
 -- TODO Make this work for many input strings
 collapseTests :: IO (Diagram B)
 collapseTests = do
-  --DiaGV.simpleGraphDiagram GVA.Neato fglGraph
-  before <- renderFglGraph fglGraph
-  after <- renderFglGraph collapsedGraph
-  pure (before === after)
-  where
-    fglGraph = syntaxGraphToFglGraph $ stringToSyntaxGraph "y = f x"
-    collapsedGraph = collapseNodes fglGraph
+  drawings <- traverse makeCollapseTest collapseTestStrings
+  pure $ vsep 1 drawings
 
 drawingsAndNames :: [(String, IO (Diagram B))]
 drawingsAndNames = [
