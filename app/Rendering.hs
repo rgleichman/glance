@@ -1,7 +1,8 @@
 {-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeFamilies, PartialTypeSignatures #-}
 
 module Rendering (
-  renderDrawing
+  renderDrawing,
+  customLayoutParams
 ) where
 
 import Diagrams.Prelude hiding ((#), (&))
@@ -232,6 +233,25 @@ placeNodes layoutResult nameDiagramMap edges = mconcat placedNodes
     -- todo: Not sure if the diagrams should already be centered at this point.
     placeNode (name, diagram) = place (centerXY diagram) (scaleFactor *^ (positionMap Map.! name))
 
+customLayoutParams :: GV.GraphvizParams n v e () v
+customLayoutParams = GV.defaultParams{
+  GV.globalAttributes = [
+    GV.NodeAttrs [GVA.Shape GVA.BoxShape]
+    --GV.NodeAttrs [GVA.Shape GVA.Circle]
+    , GV.GraphAttrs
+      [
+      --GVA.Overlap GVA.KeepOverlaps,
+      --GVA.Overlap GVA.ScaleOverlaps,
+      GVA.Overlap $ GVA.PrismOverlap (Just 5000),
+      GVA.Splines GVA.LineEdges,
+      GVA.OverlapScaling 8,
+      --GVA.OverlapScaling 4,
+      GVA.OverlapShrink True
+      ]
+    ],
+  GV.fmtEdge = const [GV.arrowTo GV.noArrow]
+  }
+
 doGraphLayout :: SpecialBackend b =>
    Gr Name e
    -> [(Name, Bool -> Double -> SpecialQDiagram b)]
@@ -244,22 +264,7 @@ doGraphLayout graph nameDiagramMap edges = do
   where
     layoutParams :: GV.GraphvizParams Int v e () v
     --layoutParams :: GV.GraphvizParams Int l el Int l
-    layoutParams = GV.defaultParams{
-      GV.globalAttributes = [
-        GV.NodeAttrs [GVA.Shape GVA.BoxShape]
-        --GV.NodeAttrs [GVA.Shape GVA.Circle]
-        , GV.GraphAttrs
-          [
-          --GVA.Overlap GVA.KeepOverlaps,
-          --GVA.Overlap GVA.ScaleOverlaps,
-          GVA.Overlap $ GVA.PrismOverlap (Just 5000),
-          GVA.Splines GVA.LineEdges,
-          GVA.OverlapScaling 8,
-          --GVA.OverlapScaling 4,
-          GVA.OverlapShrink True
-          ]
-        ],
-      GV.fmtEdge = const [GV.arrowTo GV.noArrow],
+    layoutParams = customLayoutParams{
       GV.fmtNode = nodeAttribute
       }
     nodeAttribute :: (Int, l) -> [GV.Attribute]

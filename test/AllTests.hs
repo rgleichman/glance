@@ -10,7 +10,7 @@ import qualified Data.Graph.Inductive.Graph as ING
 import qualified Data.Graph.Inductive.PatriciaTree as FGR
 
 import Icons(textBox, colorScheme, ColorStyle(..), coloredTextBox)
-import Rendering(renderDrawing)
+import Rendering(renderDrawing, customLayoutParams)
 import Util(toNames, portToPort, iconToPort, iconToIcon,
   iconToIconEnds, iconTailToPort)
 import Types(Icon(..), Drawing(..), EdgeEnd(..), SgNamedNode, Edge)
@@ -417,7 +417,7 @@ graphTests = do
     nodeFunc (name, syntaxNode) =
       place (coloredTextBox white (opaque white) (show syntaxNode) :: Diagram B)
 
--- TODO Refactor with doGraphLayout in Rendering.hs
+
 renderFglGraph :: FGR.Gr SgNamedNode Edge -> IO (Diagram B)
 renderFglGraph fglGraph = do
   layedOutGraph <- DiaGV.layoutGraph' layoutParams GVA.Neato fglGraph
@@ -429,23 +429,8 @@ renderFglGraph fglGraph = do
     nodeFunc (name, syntaxNode) =
       place (coloredTextBox white (opaque white) (show syntaxNode) :: Diagram B)
     layoutParams :: GV.GraphvizParams Int v e () v
-    layoutParams = GV.defaultParams{
-    GV.globalAttributes = [
-      GV.NodeAttrs [GVA.Shape GVA.BoxShape]
-      --GV.NodeAttrs [GVA.Shape GVA.Circle]
-      , GV.GraphAttrs
-        [
-        --GVA.Overlap GVA.KeepOverlaps,
-        --GVA.Overlap GVA.ScaleOverlaps,
-        GVA.Overlap $ GVA.PrismOverlap (Just 5000),
-        GVA.Splines GVA.LineEdges,
-        GVA.OverlapScaling 8,
-        --GVA.OverlapScaling 4,
-        GVA.OverlapShrink True
-        ]
-      ],
-    GV.fmtEdge = const [GV.arrowTo GV.noArrow],
-    GV.fmtNode = nodeAttribute
+    layoutParams = customLayoutParams{
+      GV.fmtNode = nodeAttribute
     }
     nodeAttribute :: (Int, l) -> [GV.Attribute]
     nodeAttribute (nodeInt, _) =
