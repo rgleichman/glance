@@ -38,6 +38,7 @@ data Icon = ResultIcon | BranchIcon | TextBoxIcon String | GuardIcon Int
   deriving (Show, Eq)
 
 -- TODO remove Ints from SyntaxNode data constructors.
+-- TODO Add NestedApplyNode, and NestedPatternApplyNode
 data SyntaxNode = ApplyNode Int-- Function application
   | PatternApplyNode String Int -- Destructors as used in patterns
   | NameNode String -- Identifiers or symbols

@@ -1,5 +1,29 @@
 -- Pseudocode for collapsing a syntax graph.
 
+-- New stateful algorithm
+
+-- Note: Node refers to the FGL node, which is just an integer. The node label has to be looked up separately in the graph.
+-- The node label has all of the information about the node such as what SyntaxNode it represents.
+
+collapseNodes :: SyntaxGrrah -> SyntaxGraph
+collapseNodes originalGraph = finalGraph where
+  -- findTreeRoots returns a list of nodes that will embed other nodes, but are not embedded themselves.
+  -- These nodes are thus each a root of a collapsed node tree.
+  treeRoots = findTreeRoots originalGraph
+  -- Now collapse each tree of nodes
+  finalGraph = foldl' collapseTree originalGraph treeRoots
+
+collapseTree :: SyntaxGraph -> Node -> SyntaxGraph
+collapseTree oldGraph rootNode = newGraph where
+  childrenToEmbed = findChildrenToEmbed rootNode oldGraph
+
+  -- TODO
+
+findChildrenToEmbed :: Node -> SyntaxGraph -> [Node]
+findChildrenToEmbed = -- TODO
+
+
+-- OLD ALGORITHM
 -- To make the problem simpler, collapseNodes just cares about the
 collapseNodes :: SyntaxGraph -> SyntaxGraph
 collapseNodes inGraph = graphFold foldFunc initialOutputGraph inGraph where
