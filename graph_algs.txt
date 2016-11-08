@@ -5,22 +5,60 @@
 -- Note: Node refers to the FGL node, which is just an integer. The node label has to be looked up separately in the graph.
 -- The node label has all of the information about the node such as what SyntaxNode it represents.
 
+collapseRoots treeRoots = foldl' (collapseTree treeRoots)
+
 collapseNodes :: SyntaxGrrah -> SyntaxGraph
 collapseNodes originalGraph = finalGraph where
   -- findTreeRoots returns a list of nodes that will embed other nodes, but are not embedded themselves.
   -- These nodes are thus each a root of a collapsed node tree.
   treeRoots = findTreeRoots originalGraph
   -- Now collapse each tree of nodes
-  finalGraph = foldl' collapseTree originalGraph treeRoots
+  finalGraph = collapseRoots treeRoots originalGraph treeRoots
+
+-- |findTreeRoots returns a list of nodes that might embed other nodes, but are not embedded themselves.
+-- These nodes are thus each a root of a collapsed node tree.
+-- A node is a treeRoot if all of these conditions are true:
+-- 1. The SyntaxNode can embed other nodes (i.e. nodeCanEmbed is true)
+-- 2. The node has at least one parent that can not embed (i.e. the node has a parent where nodeCanEmbed is false.)
+-- Note: A treeRoot may not actually have any embeddable children, since collapseTree will do nothing in that case.
+findTreeRoots :: SyntaxGraph -> [Node]
+findTreeRoots graph = _ -- TODO
 
 collapseTree :: SyntaxGraph -> Node -> SyntaxGraph
-collapseTree oldGraph rootNode = newGraph where
-  childrenToEmbed = findChildrenToEmbed rootNode oldGraph
+collapseTree treeRoots oldGraph rootNode = case childrenToEmbed of
+  [] -> oldGraph
+  _ -> finalGraph
+  where
+    -- TODO Write pseudocode for subfunctions
+    childrenToEmbed = findChildrenToEmbed treeRoots rootNode oldGraph
+    -- Recursively collapse the children nodes
+    graphWithCollapsedChildren = collapseRoots treeRoots oldGraph childrenToEmbed
+    -- Transfer the edges of the children to rootNode
+    childEdgesToTransfer = findChildEdgesToTransfer childrenToEmbed graphWithCollapsedChildren
+    graphWithChildEdgesDeleted = deleteChildEdges childEdgesToTransfer graphWithCollapsedChildren
+    graphWithEdgesTransferred = addChildEdges rootNode childEdgesToTransfer graphWithChildEdgesDeleted
+    -- Modify the rootNode label (i.e. SyntaxNode) to incorporate the children it is embedding
+    graphWithChildrenCollapsed = embedChildSyntaxNodes rootNode childrenToEmbed graphWithEdgesTransferred
+    -- Delete the children that have been embedded
+    finalGraph = deleteChildren childrenToEmbed graphWithChildrenCollapsed
 
-  -- TODO
 
+-- | findChildrenToEmbed returns a list of the node's children that can be embedded
+-- A child can be embedded iff all of these conditions are true:
+-- 1. The node is not a treeRoot (otherwise a cycle of embedding could occur)
+-- 2. The SyntaxNode is embeddable (i.e. nodeIsEmbeddable is True)
+-- 3. The node has exactly one parent that can embed (i.e. nodeCanEmbed is True for one parent)
 findChildrenToEmbed :: Node -> SyntaxGraph -> [Node]
-findChildrenToEmbed = -- TODO
+findChildrenToEmbed treeRoots node graph = if graphNodeCanEmbed node graph
+  then childrenToEmbed
+  else []
+  where
+    childrenToEmbed = _ -- TODO
+
+-- | graphNodeCanEmbed returns true if the label (SyntaxNode) associated with the
+-- node can be embedded in other SyntaxNodes (i.e. nodeCanEmbed is True)
+graphNodeCanEmbed :: Node -> SyntaxGraph -> Bool
+graphNodeCanEmbed node graph = _
 
 
 -- OLD ALGORITHM
