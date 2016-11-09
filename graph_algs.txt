@@ -22,7 +22,23 @@ collapseNodes originalGraph = finalGraph where
 -- 2. The node has at least one parent that can not embed (i.e. the node has a parent where nodeCanEmbed is false.)
 -- Note: A treeRoot may not actually have any embeddable children, since collapseTree will do nothing in that case.
 findTreeRoots :: SyntaxGraph -> [Node]
-findTreeRoots graph = _ -- TODO
+-- filterNodes is a library function that returns a list of the nodes in the graph
+-- where the filter function is true.
+-- filterNodes :: (Node -> Bool) -> Graph -> [Node]
+findTreeRoots graph = filterNodes (isTreeRoot graph) graph
+
+isTreeRoot :: SyntaxGraph -> Node -> Bool
+isTreeRoot graph node = graphNodeCanEmbed graph node && hasAParentThatCannotEmbed where
+  hasAParentThatCannotEmbed = not $ null parentsThatCannotEmbed
+  parentsThatCannotEmbed = filter (graphNodeCanEmbed graph) (findParents graph node)
+
+findParents :: Graph -> Node -> [Node]
+findParents = _ -- TODO
+
+graphNodeCanEmbed :: Graph -> Node -> Bool
+graphNodeCanEmbed graph node = syntaxNodeCanEmbed $ lookupSyntaxNode graph node
+
+lookupSyntaxNode :: SyntaxGraph -> Node -> SyntaxNode
 
 collapseTree :: SyntaxGraph -> Node -> SyntaxGraph
 collapseTree treeRoots oldGraph rootNode = case childrenToEmbed of
