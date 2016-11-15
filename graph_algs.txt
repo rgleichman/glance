@@ -40,7 +40,7 @@ graphNodeCanEmbed graph node = syntaxNodeCanEmbed $ lookupSyntaxNode graph node
 
 lookupSyntaxNode :: SyntaxGraph -> Node -> SyntaxNode
 
-collapseTree :: SyntaxGraph -> Node -> SyntaxGraph
+collapseTree :: [Node] -> SyntaxGraph -> Node -> SyntaxGraph
 collapseTree treeRoots oldGraph rootNode = case childrenToEmbed of
   [] -> oldGraph
   _ -> finalGraph
