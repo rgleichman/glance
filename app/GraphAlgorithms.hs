@@ -86,10 +86,21 @@ findChildrenToEmbed treeRoots node graph = if graphNodeCanEmbed graph node
   where
     childrenToEmbed = _ -- TODO
 
-findChildEdgesToTransfer = _
+type LabelledGraphEdge = ING.LEdge Edge
+
+findChildEdgesToTransfer :: [ING.Node] -> SyntaxGraph gr -> [LabelledGraphEdge]
+findChildEdgesToTransfer = _ -- TODO
+
+deleteChildEdges :: [LabelledGraphEdge] -> SyntaxGraph gr -> SyntaxGraph gr
 deleteChildEdges = _
+
+addChildEdges :: ING.Node -> [LabelledGraphEdge] -> SyntaxGraph gr -> SyntaxGraph gr
 addChildEdges = _
+
+embedChildSyntaxNodes :: ING.Node -> [ING.Node] -> SyntaxGraph gr -> SyntaxGraph gr
 embedChildSyntaxNodes = _
+
+deleteChildren :: [ING.Node] -> SyntaxGraph gr -> SyntaxGraph gr
 deleteChildren = _
 
 -- TODO Remove unneeded code after here
