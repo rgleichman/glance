@@ -14,7 +14,7 @@ import Util(printSelf)
 
 type SyntaxGraph gr = gr SgNamedNode Edge
 
-collapseNodes :: (ING.DynGraph gr) => SyntaxGraph gr -> gr SgNamedNode Edge
+collapseNodes :: (ING.DynGraph gr) => SyntaxGraph gr -> SyntaxGraph gr
 collapseNodes originalGraph = originalGraph where
   -- findTreeRoots returns a list of nodes that will embed other nodes, but are not embedded themselves.
   -- These nodes are thus each a root of a collapsed node tree.
@@ -45,10 +45,17 @@ findParents :: ING.Graph gr => gr a b -> ING.Node -> [ING.Node]
 -- TODO, may need to use ING.pre or ING.neighbors instead of ING.suc'
 findParents = ING.suc
 
+findChildren :: ING.Graph gr => gr a b -> ING.Node -> [ING.Node]
+findChildren = ING.pre
+
 -- | graphNodeCanEmbed returns true if the label (SyntaxNode) associated with the
 -- node can be embedded in other SyntaxNodes (i.e. nodeCanEmbed is True)
 graphNodeCanEmbed :: ING.Graph gr => SyntaxGraph gr -> ING.Node -> Bool
 graphNodeCanEmbed graph node = maybeBoolToBool $ fmap syntaxNodeCanEmbed (lookupSyntaxNode graph node)
+
+graphNodeIsEmbeddable :: ING.Graph gr => SyntaxGraph gr -> ING.Node -> Bool
+graphNodeIsEmbeddable graph node = maybeBoolToBool $ fmap syntaxNodeIsEmbeddable (lookupSyntaxNode graph node)
+
 
 lookupSyntaxNode :: ING.Graph gr => SyntaxGraph gr -> ING.Node -> Maybe SyntaxNode
 lookupSyntaxNode gr node = fmap sgNamedNodeToSyntaxNode $ ING.lab gr node
@@ -77,38 +84,48 @@ collapseTree treeRoots oldGraph rootNode = case childrenToEmbed of
 -- | findChildrenToEmbed returns a list of the node's children that can be embedded
 -- A child can be embedded iff all of these conditions are true:
 -- 1. The node is not a treeRoot (otherwise a cycle of embedding could occur)
--- 2. The SyntaxNode is embeddable (i.e. nodeIsEmbeddable is True)
+-- 2. The SyntaxNode is embeddable (i.e. syntaxNodeIsEmbeddable is True)
 -- 3. The node has exactly one parent that can embed (i.e. nodeCanEmbed is True for one parent)
 findChildrenToEmbed :: ING.Graph gr => [ING.Node] -> ING.Node -> SyntaxGraph gr -> [ING.Node]
 findChildrenToEmbed treeRoots node graph = if graphNodeCanEmbed graph node
   then childrenToEmbed
   else []
   where
-    childrenToEmbed = _ -- TODO
+    childrenToEmbed = filter (childCanBeEmbedded treeRoots graph) (findChildren graph node)
+
+-- TODO Add type
+childCanBeEmbedded treeRoots graph child = notTreeRoot && isEmbeddable && oneParentCanEmbed where
+  notTreeRoot = notElem child treeRoots
+  isEmbeddable = graphNodeIsEmbeddable graph child
+  oneParentCanEmbed = case parentsThatCanEmbed of
+    [_] -> True
+    _ -> False
+  parentsThatCanEmbed = filter (graphNodeCanEmbed graph) (findParents graph child)
+
 
 type LabelledGraphEdge = ING.LEdge Edge
 
 findChildEdgesToTransfer :: [ING.Node] -> SyntaxGraph gr -> [LabelledGraphEdge]
-findChildEdgesToTransfer = _ -- TODO
+findChildEdgesToTransfer _ _ = [] -- TODO
 
 deleteChildEdges :: [LabelledGraphEdge] -> SyntaxGraph gr -> SyntaxGraph gr
-deleteChildEdges = _
+deleteChildEdges _ = id -- TODO
 
 addChildEdges :: ING.Node -> [LabelledGraphEdge] -> SyntaxGraph gr -> SyntaxGraph gr
-addChildEdges = _
+addChildEdges _ _ = id -- TODO
 
 embedChildSyntaxNodes :: ING.Node -> [ING.Node] -> SyntaxGraph gr -> SyntaxGraph gr
-embedChildSyntaxNodes = _
+embedChildSyntaxNodes _ _ = id -- TODO
 
 deleteChildren :: [ING.Node] -> SyntaxGraph gr -> SyntaxGraph gr
-deleteChildren = _
+deleteChildren _ = id -- TODO
 
 -- TODO Remove unneeded code after here
 collapseNodes' initialGraph = ING.ufold folder ING.empty initialGraph where
   folder context accumGraph = newGraph where
     newGraph
       -- Curnet node can not embed, and can not be embedded
-      | not (nodeIsEmbeddable currentSyntaxNode) && not (syntaxNodeCanEmbed currentSyntaxNode) = context ING.& accumGraph
+      | not (syntaxNodeIsEmbeddable currentSyntaxNode) && not (syntaxNodeCanEmbed currentSyntaxNode) = context ING.& accumGraph
       | not (willBeEmbedded context initialGraph) = context ING.& accumGraph
       | otherwise = accumGraph
     currentSyntaxNode = extractSyntaxNode $ ING.labNode' context
@@ -116,7 +133,7 @@ collapseNodes' initialGraph = ING.ufold folder ING.empty initialGraph where
 -- | True if the node in the context will be embedded in another node
 -- TODO: This case expression in willBeEmbedded is wrong and is a temporary shim for testing
 willBeEmbedded :: (ING.Graph gr) => ING.Context SgNamedNode Edge -> SyntaxGraph gr-> Bool
-willBeEmbedded context gr = nodeIsEmbeddable syntaxNode && parentCanEmbed
+willBeEmbedded context gr = syntaxNodeIsEmbeddable syntaxNode && parentCanEmbed
   where -- currentNodeEmbeddable && parentCanEmbed where
     currentNode = ING.labNode' context
     syntaxNode = printSelf $ extractSyntaxNode currentNode
@@ -136,9 +153,9 @@ nodesParent gr context =  listToMaybe connectedNodes >>= ING.lab gr where
   -- TODO, may need to use ING.pre' or ING.neighbors' instead of ING.suc'
   connectedNodes = printSelf (ING.suc' originalContext)
 
--- | A nodeIsEmbeddable if it can be collapsed into another node
-nodeIsEmbeddable :: SyntaxNode -> Bool
-nodeIsEmbeddable n = case n of
+-- | A syntaxNodeIsEmbeddable if it can be collapsed into another node
+syntaxNodeIsEmbeddable :: SyntaxNode -> Bool
+syntaxNodeIsEmbeddable n = case n of
   ApplyNode _ -> True
   PatternApplyNode _ _ -> True
   NameNode _ -> True
