@@ -9,14 +9,17 @@ import qualified Data.GraphViz.Attributes.Complete as GVA
 import qualified Data.Graph.Inductive.Graph as ING
 import qualified Data.Graph.Inductive.PatriciaTree as FGR
 
+import Test.HUnit
+
 import Icons(textBox, colorScheme, ColorStyle(..), coloredTextBox)
 import Rendering(renderDrawing, customLayoutParams)
 import Util(toNames, portToPort, iconToPort, iconToIcon,
   iconToIconEnds, iconTailToPort)
-import Types(Icon(..), Drawing(..), EdgeEnd(..), SgNamedNode, Edge)
+import Types(Icon(..), Drawing(..), EdgeEnd(..), SgNamedNode, Edge, SyntaxNode(..))
 import Translate(translateString, stringToSyntaxGraph)
 import TranslateCore(syntaxGraphToFglGraph)
 import GraphAlgorithms(collapseNodes)
+import qualified GraphAlgorithms
 
 (d0A, d0B, d0Res, d0Foo, d0Bar) = ("A", "B", "res", "foo", "bar")
 d0Icons = toNames
@@ -417,17 +420,20 @@ graphTests = do
     nodeFunc (name, syntaxNode) =
       place (coloredTextBox white (opaque white) (show syntaxNode) :: Diagram B)
 
+-- For Neato
+scaleFactor = 0.12
 
 renderFglGraph :: FGR.Gr SgNamedNode Edge -> IO (Diagram B)
 renderFglGraph fglGraph = do
   layedOutGraph <- DiaGV.layoutGraph' layoutParams GVA.Neato fglGraph
   pure $ DiaGV.drawGraph
     nodeFunc
-    (\_ _ _ _ _ p -> lc white $ stroke p)
+    --(\_ _ _ _ _ p -> lc white $ stroke p)
+    (\_ p₁ _ p₂ _ p -> lcA (withOpacity white 0.5) $ arrowBetween (scaleFactor *^ p₁) (scaleFactor *^ p₂))
     layedOutGraph
   where
-    nodeFunc (name, syntaxNode) =
-      place (coloredTextBox white (opaque white) (show syntaxNode) :: Diagram B)
+    nodeFunc (name, syntaxNode) point =
+      place (coloredTextBox white (opaque white) (show name ++ show syntaxNode) :: Diagram B) (scaleFactor *^ point)
     layoutParams :: GV.GraphvizParams Int v e () v
     layoutParams = customLayoutParams{
       GV.fmtNode = nodeAttribute
@@ -443,7 +449,8 @@ collapseTestStrings = [
   "y = x",
   "y = 1.0",
   "y = f x",
-  "y = f x1 x2"
+  "y = f x1 x2",
+  "y = f (g x)"
   ]
 
 makeCollapseTest :: String -> IO (Diagram B)
@@ -472,9 +479,9 @@ collapseTests = do
 
 drawingsAndNames :: [(String, IO (Diagram B))]
 drawingsAndNames = [
-  ("translate-tests", translateTests),
-  ("render-tests", renderTests),
-  ("graph-tests", graphTests),
+--  ("translate-tests", translateTests),
+--  ("render-tests", renderTests),
+--  ("graph-tests", graphTests),
   ("collapse-tests", collapseTests)
   ]
 
@@ -496,6 +503,23 @@ testCollapse = do
   putStrLn "\nfglOut:"
   ING.prettyPrint fglOut
 
+makeTreeRootTest (testName, expected, haskellString) = TestCase $ assertEqual testName expected actual where
+  actual = (fmap (ING.lab graph) treeRoots) where
+  graph = syntaxGraphToFglGraph $ stringToSyntaxGraph haskellString
+  treeRoots = GraphAlgorithms.findTreeRoots graph
+
+treeRootTests = TestList $ fmap makeTreeRootTest treeRootTestList where
+  treeRootTestList = [
+    ("single apply", [Just (toName "app02", ApplyNode 1)], "y = f x"),
+    ("double apply", [Just (toName "app04", ApplyNode 1)], "y = f (g x)")
+    ]
+
+collapseUnitTests = TestList[TestLabel "findTreeRoots" treeRootTests]
+
 main :: IO ()
-main = renderDrawings drawingsAndNames
+--main = print "Hello world"
+main = do
+  renderDrawings drawingsAndNames
+  runTestTT collapseUnitTests
+  pure ()
 --main = testCollapse
