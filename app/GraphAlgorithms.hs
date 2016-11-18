@@ -1,6 +1,7 @@
 module GraphAlgorithms(
   collapseNodes,
-  findTreeRoots
+  findTreeRoots,
+  childCanBeEmbedded
   ) where
 
 import qualified Data.Graph.Inductive.PatriciaTree as FGR
@@ -15,34 +16,7 @@ import Util(printSelf)
 
 type SyntaxGraph gr = gr SgNamedNode Edge
 
-collapseNodes :: (ING.DynGraph gr) => SyntaxGraph gr -> SyntaxGraph gr
-collapseNodes originalGraph = originalGraph where
-  -- findTreeRoots returns a list of nodes that will embed other nodes, but are not embedded themselves.
-  -- These nodes are thus each a root of a collapsed node tree.
-  treeRoots = findTreeRoots originalGraph
-  -- Now collapse each tree of nodes
-  finalGraph = collapseRoots treeRoots originalGraph treeRoots
-
--- |findTreeRoots returns a list of nodes that might embed other nodes, but are not embedded themselves.
--- These nodes are thus each a root of a collapsed node tree.
--- A node is a treeRoot if all of these conditions are true:
--- 1. The SyntaxNode can embed other nodes (i.e. syntaxNodeCanEmbed is true)
--- 2. The node has no parents that can embed it
--- TODO These rules should be revised to allow cycles to be embedded.
--- Note: A treeRoot may not actually have any embeddable children, since collapseTree will do nothing in that case.
-findTreeRoots :: ING.DynGraph gr => SyntaxGraph gr -> [ING.Node]
-findTreeRoots graph = filterNodes (isTreeRoot graph) graph
-
--- filterNodes returns a list of the nodes in the graph
--- where the filter function is true.
-filterNodes :: ING.DynGraph gr => (ING.Node -> Bool) -> gr a b -> [ING.Node]
-filterNodes pred gr = ING.nodes $ ING.nfilter pred gr
-
-isTreeRoot :: ING.Graph gr => SyntaxGraph gr -> ING.Node -> Bool
-isTreeRoot graph node = graphNodeCanEmbed graph node && noParentsCanEmbed where
-  noParentsCanEmbed = null parentsThatCanEmbed
-  parentsThatCanEmbed = filter (graphNodeCanEmbed graph) parents
-  parents = findParents graph node
+-- START collapseNodes helper functions --
 
 findParents :: ING.Graph gr => gr a b -> ING.Node -> [ING.Node]
 -- TODO, may need to use ING.pre or ING.neighbors instead of ING.suc'
@@ -59,9 +33,44 @@ graphNodeCanEmbed graph node = maybeBoolToBool $ fmap syntaxNodeCanEmbed (lookup
 graphNodeIsEmbeddable :: ING.Graph gr => SyntaxGraph gr -> ING.Node -> Bool
 graphNodeIsEmbeddable graph node = maybeBoolToBool $ fmap syntaxNodeIsEmbeddable (lookupSyntaxNode graph node)
 
-
 lookupSyntaxNode :: ING.Graph gr => SyntaxGraph gr -> ING.Node -> Maybe SyntaxNode
 lookupSyntaxNode gr node = fmap sgNamedNodeToSyntaxNode $ ING.lab gr node
+
+-- | filterNodes returns a list of the nodes in the graph
+-- where the filter function is true.
+filterNodes :: ING.DynGraph gr => (ING.Node -> Bool) -> gr a b -> [ING.Node]
+filterNodes pred gr = ING.nodes $ ING.nfilter pred gr
+
+-- END helper functions --
+
+collapseNodes :: (ING.DynGraph gr) => SyntaxGraph gr -> SyntaxGraph gr
+collapseNodes originalGraph = originalGraph where
+  -- findTreeRoots returns a list of nodes that will embed other nodes, but are not embedded themselves.
+  -- These nodes are thus each a root of a collapsed node tree.
+  treeRoots = findTreeRoots originalGraph
+  -- Now collapse each tree of nodes
+  finalGraph = collapseRoots treeRoots originalGraph treeRoots
+
+-- START findTreeRoots functions --
+
+-- |findTreeRoots returns a list of nodes that might embed other nodes, but are not embedded themselves.
+-- These nodes are thus each a root of a collapsed node tree.
+-- A node is a treeRoot if all of these conditions are true:
+-- 1. The SyntaxNode can embed other nodes (i.e. syntaxNodeCanEmbed is true)
+-- 2. The node has no parents that can embed it
+-- TODO These rules should be revised to allow cycles to be embedded.
+-- Note: A treeRoot may not actually have any embeddable children, since collapseTree will do nothing in that case.
+findTreeRoots :: ING.DynGraph gr => SyntaxGraph gr -> [ING.Node]
+findTreeRoots graph = filterNodes (isTreeRoot graph) graph
+
+isTreeRoot :: ING.Graph gr => SyntaxGraph gr -> ING.Node -> Bool
+isTreeRoot graph node = graphNodeCanEmbed graph node && noParentsCanEmbed where
+  noParentsCanEmbed = null parentsThatCanEmbed
+  parentsThatCanEmbed = filter (graphNodeCanEmbed graph) parents
+  parents = findParents graph node
+
+-- END findTreeRoots functions
+-- START collapseRoots functions
 
 collapseRoots :: ING.Graph gr => [ING.Node] -> SyntaxGraph gr -> [ING.Node] -> SyntaxGraph gr
 collapseRoots treeRoots = foldl' (collapseTree treeRoots)
@@ -97,6 +106,7 @@ findChildrenToEmbed treeRoots node graph = if graphNodeCanEmbed graph node
     childrenToEmbed = filter (childCanBeEmbedded treeRoots graph) (findChildren graph node)
 
 -- TODO Add type
+childCanBeEmbedded :: ING.Graph gr => [ING.Node] -> SyntaxGraph gr -> ING.Node -> Bool
 childCanBeEmbedded treeRoots graph child = notTreeRoot && isEmbeddable && oneParentCanEmbed where
   notTreeRoot = notElem child treeRoots
   isEmbeddable = graphNodeIsEmbeddable graph child
@@ -122,6 +132,8 @@ embedChildSyntaxNodes _ _ = id -- TODO
 
 deleteChildren :: [ING.Node] -> SyntaxGraph gr -> SyntaxGraph gr
 deleteChildren _ = id -- TODO
+
+-- END collapseRoots functions
 
 -- TODO Remove unneeded code after here
 collapseNodes' initialGraph = ING.ufold folder ING.empty initialGraph where
@@ -161,7 +173,7 @@ syntaxNodeIsEmbeddable :: SyntaxNode -> Bool
 syntaxNodeIsEmbeddable n = case n of
   ApplyNode _ -> True
   PatternApplyNode _ _ -> True
-  NameNode _ -> True
+  NameNode _ -> False
   LiteralNode _ -> True
   FunctionDefNode _ -> False
   GuardNode _ -> False

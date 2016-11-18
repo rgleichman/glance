@@ -503,6 +503,12 @@ testCollapse = do
   putStrLn "\nfglOut:"
   ING.prettyPrint fglOut
 
+-- 0:(toName "app02",ApplyNode 1)->[]
+-- 1:(toName "f0",LiteralNode "f")->[(Edge {edgeOptions = [], edgeEnds = (EndNone,EndNone), edgeConnection = (NameAndPort (toName "f0") Nothing,NameAndPort (toName "app02") (Just 0))},0)]
+-- 2:(toName "x1",LiteralNode "x")->[(Edge {edgeOptions = [], edgeEnds = (EndNone,EndNone), edgeConnection = (NameAndPort (toName "x1") Nothing,NameAndPort (toName "app02") (Just 2))},0)]
+-- 3:(toName "y3",NameNode "y")->[(Edge {edgeOptions = [], edgeEnds = (EndNone,EndNone), edgeConnection = (NameAndPort (toName "y3") Nothing,NameAndPort (toName "app02") (Just 1))},0)]
+singleApplyGraph = syntaxGraphToFglGraph $ stringToSyntaxGraph "y = f x"
+
 makeTreeRootTest (testName, expected, haskellString) = TestCase $ assertEqual testName expected actual where
   actual = (fmap (ING.lab graph) treeRoots) where
   graph = syntaxGraphToFglGraph $ stringToSyntaxGraph haskellString
@@ -514,11 +520,23 @@ treeRootTests = TestList $ fmap makeTreeRootTest treeRootTestList where
     ("double apply", [Just (toName "app04", ApplyNode 1)], "y = f (g x)")
     ]
 
-collapseUnitTests = TestList[TestLabel "findTreeRoots" treeRootTests]
+makeChildCanBeEmbeddedTest (testName, graph, node, expected) =TestCase $ assertEqual testName expected canBeEmbedded where
+  canBeEmbedded = GraphAlgorithms.childCanBeEmbedded [] graph node
+
+childCanBeEmbeddedTests = TestList $ fmap makeChildCanBeEmbeddedTest childCanBeEmbeddedList where
+  childCanBeEmbeddedList = [
+    ("single apply, ap", singleApplyGraph, 0, False),
+    ("single apply, f", singleApplyGraph, 1, True),
+    ("single apply, x", singleApplyGraph, 2, True),
+    ("single apply, y", singleApplyGraph, 3, False)
+    ]
+
+collapseUnitTests = TestList[TestLabel "findTreeRoots" treeRootTests, TestLabel "childCanBeEmbedded" childCanBeEmbeddedTests]
 
 main :: IO ()
 --main = print "Hello world"
 main = do
+--  ING.prettyPrint singleApplyGraph
   renderDrawings drawingsAndNames
   runTestTT collapseUnitTests
   pure ()
