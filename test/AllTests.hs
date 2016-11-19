@@ -15,7 +15,7 @@ import Icons(textBox, colorScheme, ColorStyle(..), coloredTextBox)
 import Rendering(renderDrawing, customLayoutParams)
 import Util(toNames, portToPort, iconToPort, iconToIcon,
   iconToIconEnds, iconTailToPort)
-import Types(Icon(..), Drawing(..), EdgeEnd(..), SgNamedNode, Edge, SyntaxNode(..))
+import Types(Icon(..), Drawing(..), EdgeEnd(..), SgNamedNode, Edge(..), SyntaxNode(..), NameAndPort(..))
 import Translate(translateString, stringToSyntaxGraph)
 import TranslateCore(syntaxGraphToFglGraph)
 import GraphAlgorithms(collapseNodes)
@@ -420,6 +420,14 @@ graphTests = do
     nodeFunc (name, syntaxNode) =
       place (coloredTextBox white (opaque white) (show syntaxNode) :: Diagram B)
 
+prettyPrintSyntaxNode :: SyntaxNode -> String
+prettyPrintSyntaxNode (NestedApplyNode x namedNodesAndEdges) = concat $ fmap printNameAndEdge namedNodesAndEdges
+  where
+    printNameAndEdge (namedNode, edge) = "(" ++ prettyPrintNamedNode namedNode ++ "," ++ printEdge edge ++ ")"
+    prettyPrintNamedNode = show. fst --  "(" ++ show name ++ "," ++ prettyPrintSyntaxNode syntaxNode ++ ")"
+    printEdge (Edge _ _ ((NameAndPort n1 _), NameAndPort n2 _)) = show (n1, n2)
+prettyPrintSyntaxNode x = show x
+
 -- For Neato
 scaleFactor = 0.12
 
@@ -433,7 +441,7 @@ renderFglGraph fglGraph = do
     layedOutGraph
   where
     nodeFunc (name, syntaxNode) point =
-      place (coloredTextBox white (opaque white) (show name ++ show syntaxNode) :: Diagram B) (scaleFactor *^ point)
+      place (coloredTextBox white (opaque white) (show name ++ prettyPrintSyntaxNode syntaxNode) :: Diagram B) (scaleFactor *^ point)
     layoutParams :: GV.GraphvizParams Int v e () v
     layoutParams = customLayoutParams{
       GV.fmtNode = nodeAttribute
@@ -523,6 +531,7 @@ treeRootTests = TestList $ fmap makeTreeRootTest treeRootTestList where
 makeChildCanBeEmbeddedTest (testName, graph, node, expected) =TestCase $ assertEqual testName expected canBeEmbedded where
   canBeEmbedded = GraphAlgorithms.childCanBeEmbedded [] graph node
 
+-- TODO Add more cases for childCanBeEmbeddedTests
 childCanBeEmbeddedTests = TestList $ fmap makeChildCanBeEmbeddedTest childCanBeEmbeddedList where
   childCanBeEmbeddedList = [
     ("single apply, ap", singleApplyGraph, 0, False),

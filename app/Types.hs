@@ -39,7 +39,9 @@ data Icon = ResultIcon | BranchIcon | TextBoxIcon String | GuardIcon Int
 
 -- TODO remove Ints from SyntaxNode data constructors.
 -- TODO Add NestedApplyNode, and NestedPatternApplyNode
-data SyntaxNode = ApplyNode Int-- Function application
+data SyntaxNode =
+  ApplyNode Int-- Function application
+  | NestedApplyNode Int [(SgNamedNode, Edge)]
   | PatternApplyNode String Int -- Destructors as used in patterns
   | NameNode String -- Identifiers or symbols
   | LiteralNode String -- Literal values like the string "Hello World"
@@ -50,18 +52,18 @@ data SyntaxNode = ApplyNode Int-- Function application
   | CaseResultNode -- TODO remove caseResultNode
   deriving (Show, Eq, Ord)
 
-data NameAndPort = NameAndPort Name (Maybe Int) deriving (Show, Eq)
+data NameAndPort = NameAndPort Name (Maybe Int) deriving (Show, Eq, Ord)
 
 type Connection = (NameAndPort, NameAndPort)
 
-data EdgeOption = EdgeInPattern deriving (Show, Eq)
+data EdgeOption = EdgeInPattern deriving (Show, Eq, Ord)
 
 -- | An Edge has an name of the source icon, and its optional port number,
 -- and the name of the destination icon, and its optional port number.
 data Edge = Edge {edgeOptions::[EdgeOption], edgeEnds :: (EdgeEnd, EdgeEnd), edgeConnection :: Connection}
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord)
 
-data EdgeEnd = EndAp1Result | EndAp1Arg | EndNone deriving (Show, Eq)
+data EdgeEnd = EndAp1Result | EndAp1Arg | EndNone deriving (Show, Eq, Ord)
 
 -- | A drawing is a map from names to Icons, a list of edges,
 -- and a map of names to subDrawings

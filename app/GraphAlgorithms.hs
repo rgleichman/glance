@@ -6,9 +6,10 @@ module GraphAlgorithms(
 
 import qualified Data.Graph.Inductive.PatriciaTree as FGR
 import qualified Data.Graph.Inductive.Graph as ING
-import Types(SgNamedNode, Edge, SyntaxNode(..), sgNamedNodeToSyntaxNode)
-import Data.Maybe(listToMaybe)
-import Data.List(foldl')
+import Types(SgNamedNode, Edge(..), SyntaxNode(..), sgNamedNodeToSyntaxNode, EdgeEnd(..), NameAndPort(..))
+import Data.Maybe(listToMaybe, catMaybes)
+import Data.List(foldl', find)
+import Diagrams.Prelude(toName)
 
 import Util(printSelf)
 
@@ -41,10 +42,21 @@ lookupSyntaxNode gr node = fmap sgNamedNodeToSyntaxNode $ ING.lab gr node
 filterNodes :: ING.DynGraph gr => (ING.Node -> Bool) -> gr a b -> [ING.Node]
 filterNodes pred gr = ING.nodes $ ING.nfilter pred gr
 
+-- | Replace the a node's label
+changeNodeLabel :: ING.DynGraph gr => gr a b -> ING.Node -> a -> gr a b
+changeNodeLabel graph node newLabel = case ING.match node graph of
+  (Just (inEdges, _, _, outEdges), restOfTheGraph) -> (inEdges, node, newLabel, outEdges) ING.& restOfTheGraph
+  (Nothing, _) -> graph
+
+findEdgeLabel :: ING.Graph gr => gr a b -> ING.Node -> ING.Node -> Maybe b
+findEdgeLabel graph node1 node2 = fmap fst matchingEdges where
+  labelledEdges = ING.lneighbors graph node1
+  matchingEdges = find ((== node2) . snd) labelledEdges
+
 -- END helper functions --
 
 collapseNodes :: (ING.DynGraph gr) => SyntaxGraph gr -> SyntaxGraph gr
-collapseNodes originalGraph = originalGraph where
+collapseNodes originalGraph = finalGraph where
   -- findTreeRoots returns a list of nodes that will embed other nodes, but are not embedded themselves.
   -- These nodes are thus each a root of a collapsed node tree.
   treeRoots = findTreeRoots originalGraph
@@ -72,15 +84,15 @@ isTreeRoot graph node = graphNodeCanEmbed graph node && noParentsCanEmbed where
 -- END findTreeRoots functions
 -- START collapseRoots functions
 
-collapseRoots :: ING.Graph gr => [ING.Node] -> SyntaxGraph gr -> [ING.Node] -> SyntaxGraph gr
+collapseRoots :: ING.DynGraph gr => [ING.Node] -> SyntaxGraph gr -> [ING.Node] -> SyntaxGraph gr
 collapseRoots treeRoots = foldl' (collapseTree treeRoots)
 
-collapseTree :: ING.Graph gr => [ING.Node] -> SyntaxGraph gr -> ING.Node -> SyntaxGraph gr
+collapseTree :: ING.DynGraph gr => [ING.Node] -> SyntaxGraph gr -> ING.Node -> SyntaxGraph gr
 collapseTree treeRoots oldGraph rootNode = case childrenToEmbed of
   [] -> oldGraph
   _ -> finalGraph
   where
-    -- TODO Write pseudocode for subfunctions
+    -- TODO Write code for subfunctions
     childrenToEmbed = findChildrenToEmbed treeRoots rootNode oldGraph
     -- Recursively collapse the children nodes
     graphWithCollapsedChildren = collapseRoots treeRoots oldGraph childrenToEmbed
@@ -90,7 +102,7 @@ collapseTree treeRoots oldGraph rootNode = case childrenToEmbed of
     graphWithEdgesTransferred = addChildEdges rootNode childEdgesToTransfer graphWithChildEdgesDeleted
     -- Modify the rootNode label (i.e. SyntaxNode) to incorporate the children it is embedding
     graphWithChildrenCollapsed = embedChildSyntaxNodes rootNode childrenToEmbed graphWithEdgesTransferred
-    -- Delete the children that have been embedded
+    -- Delete the children that have been embedded (and any or their remaining edges)
     finalGraph = deleteChildren childrenToEmbed graphWithChildrenCollapsed
 
 -- | findChildrenToEmbed returns a list of the node's children that can be embedded
@@ -127,8 +139,27 @@ deleteChildEdges _ = id -- TODO
 addChildEdges :: ING.Node -> [LabelledGraphEdge] -> SyntaxGraph gr -> SyntaxGraph gr
 addChildEdges _ _ = id -- TODO
 
-embedChildSyntaxNodes :: ING.Node -> [ING.Node] -> SyntaxGraph gr -> SyntaxGraph gr
-embedChildSyntaxNodes _ _ = id -- TODO
+-- | Change the node label of the parent to be nested.
+embedChildSyntaxNodes :: ING.DynGraph gr => ING.Node -> [ING.Node] -> SyntaxGraph gr -> SyntaxGraph gr
+embedChildSyntaxNodes parentNode childrenNodes oldGraph = case childrenNodes of
+  [] -> oldGraph
+  _ -> newGraph
+  where
+    maybeOldNodeLabel = ING.lab oldGraph parentNode
+    newGraph = case maybeOldNodeLabel of
+      Nothing -> oldGraph
+      Just oldNodeLabel -> changeNodeLabel oldGraph parentNode newNodeLabel
+        where
+          (nodeName, oldSyntaxNode) = oldNodeLabel
+          newNodeLabel = (nodeName, newSyntaxNode)
+          newSyntaxNode = case oldSyntaxNode of
+            -- TODO Add PatternApplyNode, and NestedApplyNode
+            ApplyNode x -> NestedApplyNode x childrenAndEdgesToParent
+            _ -> oldSyntaxNode
+    childrenAndEdgesToParent = catMaybes $ fmap findChildAndEdge childrenNodes
+    findChildAndEdge childNode =
+      (,) <$> ING.lab oldGraph childNode <*> findEdgeLabel oldGraph parentNode childNode
+
 
 deleteChildren :: [ING.Node] -> SyntaxGraph gr -> SyntaxGraph gr
 deleteChildren _ = id -- TODO
