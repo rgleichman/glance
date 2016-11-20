@@ -16,6 +16,7 @@ import Util(printSelf)
 -- See graph_algs.txt for pseudocode
 
 type SyntaxGraph gr = gr SgNamedNode Edge
+type LabelledGraphEdge = ING.LEdge Edge
 
 -- START collapseNodes helper functions --
 
@@ -96,14 +97,13 @@ collapseTree treeRoots oldGraph rootNode = case childrenToEmbed of
     childrenToEmbed = findChildrenToEmbed treeRoots rootNode oldGraph
     -- Recursively collapse the children nodes
     graphWithCollapsedChildren = collapseRoots treeRoots oldGraph childrenToEmbed
+      -- Modify the rootNode label (i.e. SyntaxNode) to incorporate the children it is embedding
+    graphWithEmbeddedChildren = embedChildSyntaxNodes rootNode childrenToEmbed graphWithCollapsedChildren
     -- Transfer the edges of the children to rootNode
-    childEdgesToTransfer = findChildEdgesToTransfer childrenToEmbed graphWithCollapsedChildren
-    graphWithChildEdgesDeleted = deleteChildEdges childEdgesToTransfer graphWithCollapsedChildren
-    graphWithEdgesTransferred = addChildEdges rootNode childEdgesToTransfer graphWithChildEdgesDeleted
-    -- Modify the rootNode label (i.e. SyntaxNode) to incorporate the children it is embedding
-    graphWithChildrenCollapsed = embedChildSyntaxNodes rootNode childrenToEmbed graphWithEdgesTransferred
+    childEdgesToTransfer = findChildEdgesToTransfer childrenToEmbed graphWithEmbeddedChildren
+    graphWithEdgesTransferred = addChildEdges rootNode childEdgesToTransfer graphWithEmbeddedChildren
     -- Delete the children that have been embedded (and any or their remaining edges)
-    finalGraph = deleteChildren childrenToEmbed graphWithChildrenCollapsed
+    finalGraph = deleteChildren childrenToEmbed graphWithEdgesTransferred
 
 -- | findChildrenToEmbed returns a list of the node's children that can be embedded
 -- A child can be embedded iff all of these conditions are true:
@@ -117,7 +117,6 @@ findChildrenToEmbed treeRoots node graph = if graphNodeCanEmbed graph node
   where
     childrenToEmbed = filter (childCanBeEmbedded treeRoots graph) (findChildren graph node)
 
--- TODO Add type
 childCanBeEmbedded :: ING.Graph gr => [ING.Node] -> SyntaxGraph gr -> ING.Node -> Bool
 childCanBeEmbedded treeRoots graph child = notTreeRoot && isEmbeddable && oneParentCanEmbed where
   notTreeRoot = notElem child treeRoots
@@ -127,14 +126,8 @@ childCanBeEmbedded treeRoots graph child = notTreeRoot && isEmbeddable && onePar
     _ -> False
   parentsThatCanEmbed = filter (graphNodeCanEmbed graph) (findParents graph child)
 
-
-type LabelledGraphEdge = ING.LEdge Edge
-
 findChildEdgesToTransfer :: [ING.Node] -> SyntaxGraph gr -> [LabelledGraphEdge]
 findChildEdgesToTransfer _ _ = [] -- TODO
-
-deleteChildEdges :: [LabelledGraphEdge] -> SyntaxGraph gr -> SyntaxGraph gr
-deleteChildEdges _ = id -- TODO
 
 addChildEdges :: ING.Node -> [LabelledGraphEdge] -> SyntaxGraph gr -> SyntaxGraph gr
 addChildEdges _ _ = id -- TODO
@@ -161,8 +154,8 @@ embedChildSyntaxNodes parentNode childrenNodes oldGraph = case childrenNodes of
       (,) <$> ING.lab oldGraph childNode <*> findEdgeLabel oldGraph parentNode childNode
 
 
-deleteChildren :: [ING.Node] -> SyntaxGraph gr -> SyntaxGraph gr
-deleteChildren _ = id -- TODO
+deleteChildren :: ING.Graph gr => [ING.Node] -> SyntaxGraph gr -> SyntaxGraph gr
+deleteChildren = ING.delNodes
 
 -- END collapseRoots functions
 
