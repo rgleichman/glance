@@ -222,3 +222,5 @@ syntaxGraphToIconGraph :: SyntaxGraph -> IconGraph
 syntaxGraphToIconGraph (SyntaxGraph nodes edges sources sinks) =
   IconGraph icons edges mempty sources sinks where
     icons = fmap (second nodeToIcon) nodes
+
+-- TODO Add ingSyntaxGraphToIconGraph :: IngSyntaxGraph gr -> IconGraph

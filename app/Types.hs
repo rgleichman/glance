@@ -13,6 +13,7 @@ module Types (
   SpecialQDiagram,
   SpecialBackend,
   SgNamedNode,
+  IngSyntaxGraph,
   initialIdState,
   getId,
   sgNamedNodeToSyntaxNode
@@ -78,6 +79,7 @@ type SpecialBackend b = (Renderable (Path V2 Double) b, Renderable (Text Double)
 type SpecialQDiagram b = QDiagram b V2 Double Any
 
 type SgNamedNode = (Name, SyntaxNode)
+type IngSyntaxGraph gr = gr SgNamedNode Edge
 
 sgNamedNodeToSyntaxNode :: SgNamedNode -> SyntaxNode
 sgNamedNodeToSyntaxNode = snd

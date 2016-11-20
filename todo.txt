@@ -1,5 +1,5 @@
 -- TODO Now --
--- Render the SyntaxGraph
+-- Render the SyntaxGraph. Add ingSyntaxGraphToIconGraph :: IngSyntaxGraph gr -> IconGraph to TranslateCore.hs
 
 -- TODO Later --
 -- Add documentation.
