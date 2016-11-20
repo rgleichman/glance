@@ -33,8 +33,8 @@ data Icon = ResultIcon | BranchIcon | TextBoxIcon String | GuardIcon Int
   | TextApplyAIcon Int String | PAppIcon Int String | CaseIcon Int | CaseResultIcon
   | BindTextBoxIcon String
   -- TODO: NestedApply should have the type NestedApply (Maybe (Name, Icon)) [Maybe (Name, Icon)]
-  | NestedApply (Maybe String) [Maybe (Name, Icon)]
-  | NestedPApp (Maybe String) [Maybe (Name, Icon)]
+  | NestedApply [Maybe (Name, Icon)]
+  | NestedPApp [Maybe (Name, Icon)]
   deriving (Show, Eq)
 
 -- TODO remove Ints from SyntaxNode data constructors.

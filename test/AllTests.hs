@@ -159,15 +159,22 @@ arrowTestEdges = [
 arrowTestDrawing = Drawing arrowTestIcons arrowTestEdges []
 
 nestedTestIcons = toNames [
-  ("n1", NestedApply (Just "N1") args),
+  ("n1", NestedApply args),
   ("t1", TextBoxIcon "T1"),
   ("t2", TextBoxIcon "t2")
   ]
   where
-    innerArgs = [Just (toName "t", TextBoxIcon "t"), Nothing, Just (toName "n2", NestedApply (Just "n2") [Nothing])]
+    innerArgs = [
+      Just (toName "_inner", TextBoxIcon "inner"),
+      Just (toName "t", TextBoxIcon "t"),
+      Nothing,
+      Just (toName "n2", NestedApply [Just (toName "_N2", TextBoxIcon "N2"), Nothing])
+      ]
     args = [
-      Nothing, Just (toName "foo", TextBoxIcon "3"),
-      Just (toName "in", NestedApply (Just "inner") innerArgs)
+      Just (toName "_N1", TextBoxIcon "N1"),
+      Nothing,
+      Just (toName "foo", TextBoxIcon "3"),
+      Just (toName "in", NestedApply innerArgs)
       ]
 
 nestedTestEdges = [
@@ -192,6 +199,7 @@ renderTests = do
       fact2Drawing,
       arrowTestDrawing,
       nestedTextDrawing
+      -- TODO Add a nested test where the function expression is nested.
       ]
 
 nestedTests = [

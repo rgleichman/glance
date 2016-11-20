@@ -51,8 +51,8 @@ iconToDiagram (GuardIcon n) _ = identDiaFunc $ guardIcon n
 iconToDiagram (CaseIcon n) _ = identDiaFunc $ caseIcon n
 iconToDiagram CaseResultIcon _ = identDiaFunc caseResult
 iconToDiagram (FlatLambdaIcon n) _ = identDiaFunc $ flatLambda n
-iconToDiagram (NestedApply s args) _ = nestedApplyDia s args
-iconToDiagram (NestedPApp s args) _ = nestedPAppDia s args
+iconToDiagram (NestedApply args) _ = nestedApplyDia args
+iconToDiagram (NestedPApp args) _ = nestedPAppDia args
 iconToDiagram (LambdaRegionIcon n diagramName) nameToSubdiagramMap =
   identDiaFunc $ lambdaRegion n dia
   where
@@ -141,34 +141,36 @@ transformCorrectedTextBox str textCol borderCol reflect angle =
     reflectIfTrue shouldReflect dia = if shouldReflect then reflectX dia else dia
 
 nestedApplyDia :: SpecialBackend b =>
-  Maybe String -> [Maybe (Name, Icon)] -> TransformableDia b
+  [Maybe (Name, Icon)] -> TransformableDia b
 nestedApplyDia = generalNestedDia (textBoxC colorScheme) (apply0C colorScheme)
 
 nestedPAppDia :: SpecialBackend b =>
-  Maybe String -> [Maybe (Name, Icon)] -> TransformableDia b
+  [Maybe (Name, Icon)] -> TransformableDia b
 nestedPAppDia = generalNestedDia (patternTextC colorScheme) (patternC colorScheme)
 
 generalNestedDia :: SpecialBackend b =>
-  Colour Double -> Colour Double-> Maybe String -> [Maybe (Name, Icon)] -> TransformableDia b
-generalNestedDia textCol borderCol maybeFunText args reflect angle = centerXY $  transformedText ||| centerY finalDia
-  where
-    transformedText = case maybeFunText of
-      Just funText -> transformCorrectedTextBox funText textCol borderCol reflect angle
-      Nothing -> mempty
-    seperation = circleRadius * 1.5
-    verticalSeperation = circleRadius
-    trianglePortsCircle = hsep seperation $
-      reflectX (fc borderCol apply0Triangle) :
-      zipWith makeInnerIcon [2,3..] args ++
-      [makePort 1 <> alignR (lc borderCol $ lwG defaultLineWidth $ fc borderCol $ circle circleRadius)]
+  Colour Double -> Colour Double -> [Maybe (Name, Icon)] -> TransformableDia b
+generalNestedDia textCol borderCol funcNameAndArgs reflect angle = case funcNameAndArgs of
+  [] -> mempty
+  (maybeFunText:args) -> centerXY $  transformedText ||| centerY finalDia
+    where
+      transformedText = case maybeFunText of
+        Just funText -> makeInnerIcon 0 maybeFunText --transformCorrectedTextBox funText textCol borderCol reflect angle
+        Nothing -> mempty
+      seperation = circleRadius * 1.5
+      verticalSeperation = circleRadius
+      trianglePortsCircle = hsep seperation $
+        reflectX (fc borderCol apply0Triangle) :
+        zipWith makeInnerIcon [2,3..] args ++
+        [makePort 1 <> alignR (lc borderCol $ lwG defaultLineWidth $ fc borderCol $ circle circleRadius)]
+  
+      allPorts = makePort 0 <> alignL trianglePortsCircle
+      topAndBottomLineWidth = width allPorts - circleRadius
+      argBox = alignL $ lwG defaultLineWidth $ lc borderCol $ rect topAndBottomLineWidth (height allPorts + verticalSeperation)
+      finalDia = argBox <> allPorts
 
-    allPorts = makePort 0 <> alignL trianglePortsCircle
-    topAndBottomLineWidth = width allPorts - circleRadius
-    argBox = alignL $ lwG defaultLineWidth $ lc borderCol $ rect topAndBottomLineWidth (height allPorts + verticalSeperation)
-    finalDia = argBox <> allPorts
-
-    makeInnerIcon portNum Nothing = makePort portNum <> portCircle
-    makeInnerIcon _ (Just (iconName, icon)) = nameDiagram iconName $ iconToDiagram icon [] reflect angle
+      makeInnerIcon portNum Nothing = makePort portNum <> portCircle
+      makeInnerIcon _ (Just (iconName, icon)) = nameDiagram iconName $ iconToDiagram icon [] reflect angle
 
 
 -- TEXT ICON --
