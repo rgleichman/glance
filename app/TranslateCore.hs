@@ -1,6 +1,5 @@
 module TranslateCore(
   Reference,
-  IconGraph(..),
   SyntaxGraph(..),
   EvalContext,
   GraphAndRef,
@@ -11,7 +10,6 @@ module TranslateCore(
   edgesForRefPortList,
   combineExpressions,
   --qualifyNameAndPort,
-  iconGraphToDrawing,
   makeApplyGraph,
   namesInPattern,
   lookupReference,
@@ -22,7 +20,7 @@ module TranslateCore(
   makeBox,
   nTupleString,
   nListString,
-  syntaxGraphToIconGraph,
+  syntaxGraphToDrawing,
   syntaxGraphToFglGraph
 ) where
 
@@ -49,7 +47,7 @@ import Icons(Icon(..))
 type Reference = Either String NameAndPort
 
 -- | SyntaxGraph is an abstract representation for Haskell syntax. SyntaxGraphs are
--- generated from the Haskell syntax tree, and are used to generate IconGraphs
+-- generated from the Haskell syntax tree, and are used to generate Drawings
 data SyntaxGraph = SyntaxGraph {
   sgNodes :: [SgNamedNode],
   sgEdges :: [Edge],
@@ -65,28 +63,9 @@ instance Monoid SyntaxGraph where
   mempty = SyntaxGraph mempty mempty mempty mempty
   mappend = (<>)
 
--- TODO remove / change due to SyntaxGraph
--- | An IconGraph is a normal Drawing (Icons, Edges, and sub Drawings) with two additional fields:
--- unconected sink ports (varible usage), and unconnected source ports (varible definition).
-data IconGraph = IconGraph {
-  igIcons :: [(DIA.Name, Icon)],
-  igEdges :: [Edge],
-  igSubDrawings :: [(DIA.Name, Drawing)],
-  igSinks :: [(String, NameAndPort)],
-  igBindings :: [(String, Reference)]}
-  deriving (Show)
-
-instance Semigroup IconGraph where
-  (IconGraph icons1 edges1 subDrawings1 sinks1 sources1) <> (IconGraph icons2 edges2 subDrawings2 sinks2 sources2) =
-    IconGraph (icons1 <> icons2) (edges1 <> edges2) (subDrawings1 <> subDrawings2) (sinks1 <> sinks2) (sources1 <> sources2)
-
 type EvalContext = [String]
 type GraphAndRef = (SyntaxGraph, Reference)
 type Sink = (String, NameAndPort)
-
-instance Monoid IconGraph where
-  mempty = IconGraph mempty mempty mempty mempty mempty
-  mappend = (<>)
 
 syntaxGraphFromNodes :: [(DIA.Name, SyntaxNode)] -> SyntaxGraph
 syntaxGraphFromNodes icons = SyntaxGraph icons mempty mempty mempty
@@ -118,9 +97,6 @@ combineExpressions inPattern portExpPairs = mconcat $ fmap mkGraph portExpPairs 
 
 -- qualifyNameAndPort :: String -> NameAndPort -> NameAndPort
 -- qualifyNameAndPort s (NameAndPort n p) = NameAndPort (s DIA..> n) p
-
-iconGraphToDrawing :: IconGraph -> Drawing
-iconGraphToDrawing (IconGraph icons edges subDrawings _ _) = Drawing icons edges subDrawings
 
 makeApplyGraph :: Bool -> DIA.Name -> GraphAndRef -> [GraphAndRef] -> Int -> (SyntaxGraph, NameAndPort)
 makeApplyGraph inPattern applyIconName funVal argVals numArgs = (newGraph <> combinedGraph, nameAndPort applyIconName 1)
@@ -218,9 +194,9 @@ syntaxGraphToFglGraph (SyntaxGraph nodes edges _ _) =
             ++ show name ++ " Edge=" ++ show e
 
 
-syntaxGraphToIconGraph :: SyntaxGraph -> IconGraph
-syntaxGraphToIconGraph (SyntaxGraph nodes edges sources sinks) =
-  IconGraph icons edges mempty sources sinks where
+syntaxGraphToDrawing :: SyntaxGraph -> Drawing
+syntaxGraphToDrawing (SyntaxGraph nodes edges sources sinks) =
+  Drawing icons edges [] where
     icons = fmap (second nodeToIcon) nodes
 
--- TODO Add ingSyntaxGraphToIconGraph :: IngSyntaxGraph gr -> IconGraph
+-- TODO Add ingSyntaxGraphToDrawing :: IngSyntaxGraph gr -> Drawing

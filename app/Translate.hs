@@ -24,9 +24,9 @@ import Types(Drawing(..), NameAndPort(..), IDState,
 import Util(toNames, makeSimpleEdge, nameAndPort, justName, mapFst)
 import TranslateCore(Reference, SyntaxGraph(..), EvalContext, GraphAndRef,
   syntaxGraphFromNodes, syntaxGraphFromNodesEdges, getUniqueName, combineExpressions,
-  edgesForRefPortList, iconGraphToDrawing, makeApplyGraph,
+  edgesForRefPortList, makeApplyGraph,
   namesInPattern, lookupReference, deleteBindings, makeEdges,
-  coerceExpressionResult, makeBox, nTupleString, nListString, syntaxGraphToIconGraph)
+  coerceExpressionResult, makeBox, nTupleString, nListString, syntaxGraphToDrawing)
 
 -- OVERVIEW --
 -- The core functions and data types used in this module are in TranslateCore.
@@ -490,7 +490,7 @@ showTopLevelBinds gr@(SyntaxGraph _ _ _ binds) = do
   pure $ newGraph <> gr
 
 drawingFromDecl :: Decl -> Drawing
-drawingFromDecl d = iconGraphToDrawing $ syntaxGraphToIconGraph $ evalState evaluatedDecl initialIdState
+drawingFromDecl d = syntaxGraphToDrawing $ evalState evaluatedDecl initialIdState
   where
     evaluatedDecl = evalDecl mempty d >>= showTopLevelBinds
 
