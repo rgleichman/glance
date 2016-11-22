@@ -1,5 +1,6 @@
 -- TODO Now --
--- Render the SyntaxGraph. Add ingSyntaxGraphToIconGraph :: IngSyntaxGraph gr -> IconGraph to TranslateCore.hs
+-- Embed PatternApplyNodes. Need to be careful that they are not embedded by ApplyNodes, and ApplyNodes do not embed PatternApplyNodes.
+-- Put the binds in a specially colored box (e.g. the y in "y = f x") should not be white text in a white box. This is a regression.
 
 -- TODO Later --
 -- Add documentation.
@@ -23,10 +24,14 @@
 -- Investigate arrows not being drawn
 
 -- Translate todos:
--- Make nested version of FlatLambdaIcon
 -- Fix test case x of {0 -> 1; y -> y}.
 -- Add proper RecConstr, and RecUpdate support.
 -- Eliminate BranchIcon in Alts.
 -- Eliminate BranchIcon for the identity funciton "y x = x"
 -- Add a maximum nesting depth.
 -- Special case for otherwise.
+-- Consider currying when embedding. E.g. "(f 3) 4)" should be translated to "f 3 4".
+
+Fix the PatternApplyNodes in these test cases not embedding.
+"y = let {fibs = cons 0 (cons 1 (zipWith (+) fibs (tail fibs)))} in fibs",
+"fibs = cons 0 (cons 1 (zipWith (+) fibs (tail fibs)))",

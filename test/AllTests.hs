@@ -211,9 +211,8 @@ nestedTests = [
   "y = f [1]",
   "y = f [1,2]",
   "y = f [g 3, h 5]",
-
-  -- TODO Fix this test so that g is properly nested.
-  "y = f $ g (\\x -> x)"
+  "y = f $ g (\\x -> x)",
+  "y = (f 3) 4"
   ]
 
 dollarTests = [
@@ -273,6 +272,7 @@ listTests = [
 caseTests = [
   "y = case x of {0 -> 1; 2 -> 3}",
   "y = case f x of {0 -> 1; 2 -> 3}",
+  -- TODO Remove the branch icon
   "y = case x of {Foo a -> a}",
   "y = case x of {Foo a -> f a; Bar a -> f a}",
   "y = case x of {F x -> x; G x -> x}",
@@ -342,6 +342,7 @@ letTests = [
   "y = let {a = b; b = a; d = f a} in d",
   "y = let {a = b; b = a} in a",
   "y = let x = x in x",
+  -- TODO fix the lack of embedding.
   "y = let {fibs = cons 0 (cons 1 (zipWith (+) fibs (tail fibs)))} in fibs",
   "fibs = cons 0 (cons 1 (zipWith (+) fibs (tail fibs)))",
   "y = let x = f x in x",
@@ -399,11 +400,16 @@ testDecls = mconcat [
 
 translateStringToDrawing :: String -> IO (Diagram B)
 translateStringToDrawing s = do
+  putStrLn $ "Translating string: " ++ s
   let
     (drawing, decl) = translateString s
+    fglGraph = syntaxGraphToFglGraph $ stringToSyntaxGraph s
+    collapsedGraph = collapseNodes fglGraph
   print decl
   putStr "\n"
   print drawing
+  putStr "\n\n"
+  print collapsedGraph
   putStr "\n\n"
   renderDrawing drawing
 
@@ -466,7 +472,9 @@ collapseTestStrings = [
   "y = 1.0",
   "y = f x",
   "y = f x1 x2",
-  "y = f (g x)"
+  "y = f (g x)",
+  "y = g (\\x -> x)",
+  "y = f $ g (\\x -> x)"
   ]
 
 makeCollapseTest :: String -> IO (Diagram B)
@@ -495,9 +503,9 @@ collapseTests = do
 
 drawingsAndNames :: [(String, IO (Diagram B))]
 drawingsAndNames = [
---  ("translate-tests", translateTests),
---  ("render-tests", renderTests),
---  ("graph-tests", graphTests),
+  ("translate-tests", translateTests),
+  ("render-tests", renderTests),
+  ("graph-tests", graphTests),
   ("collapse-tests", collapseTests)
   ]
 

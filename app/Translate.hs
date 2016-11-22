@@ -26,7 +26,9 @@ import TranslateCore(Reference, SyntaxGraph(..), EvalContext, GraphAndRef,
   syntaxGraphFromNodes, syntaxGraphFromNodesEdges, getUniqueName, combineExpressions,
   edgesForRefPortList, makeApplyGraph,
   namesInPattern, lookupReference, deleteBindings, makeEdges,
-  coerceExpressionResult, makeBox, nTupleString, nListString, syntaxGraphToDrawing)
+  coerceExpressionResult, makeBox, nTupleString, nListString, syntaxGraphToDrawing,
+  syntaxGraphToFglGraph, ingSyntaxGraphToDrawing)
+import GraphAlgorithms(collapseNodes)
 
 -- OVERVIEW --
 -- The core functions and data types used in this module are in TranslateCore.
@@ -490,9 +492,11 @@ showTopLevelBinds gr@(SyntaxGraph _ _ _ binds) = do
   pure $ newGraph <> gr
 
 drawingFromDecl :: Decl -> Drawing
-drawingFromDecl d = syntaxGraphToDrawing $ evalState evaluatedDecl initialIdState
+drawingFromDecl d = drawing
   where
     evaluatedDecl = evalDecl mempty d >>= showTopLevelBinds
+    syntaxGraph = evalState evaluatedDecl initialIdState
+    drawing = ingSyntaxGraphToDrawing $ collapseNodes $ syntaxGraphToFglGraph syntaxGraph
 
 -- Profiling: about 1.5% of total time.
 translateString :: String -> (Drawing, Decl)

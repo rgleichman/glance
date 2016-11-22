@@ -71,6 +71,7 @@ collapseNodes originalGraph = finalGraph where
 -- 1. The SyntaxNode can embed other nodes (i.e. syntaxNodeCanEmbed is true)
 -- 2. The node has no parents that can embed it
 -- TODO These rules should be revised to allow cycles to be embedded.
+-- Condition 2. should be revised such that if there is a parent that is a bind, it's a root even if other nodes can embed it.
 -- Note: A treeRoot may not actually have any embeddable children, since collapseTree will do nothing in that case.
 findTreeRoots :: ING.DynGraph gr => IngSyntaxGraph gr -> [ING.Node]
 findTreeRoots graph = filterNodes (isTreeRoot graph) graph
@@ -99,8 +100,8 @@ collapseTree treeRoots oldGraph rootNode = case childrenToEmbed of
       -- Modify the rootNode label (i.e. SyntaxNode) to incorporate the children it is embedding
     graphWithEmbeddedChildren = embedChildSyntaxNodes rootNode childrenToEmbed graphWithCollapsedChildren
     -- Transfer the edges of the children to rootNode
-    childEdgesToTransfer = findChildEdgesToTransfer childrenToEmbed graphWithEmbeddedChildren
-    graphWithEdgesTransferred = addChildEdges rootNode childEdgesToTransfer graphWithEmbeddedChildren
+    childEdgesToTransfer = findChildEdgesToTransfer rootNode childrenToEmbed graphWithEmbeddedChildren
+    graphWithEdgesTransferred = ING.insEdges childEdgesToTransfer graphWithEmbeddedChildren
     -- Delete the children that have been embedded (and any or their remaining edges)
     finalGraph = deleteChildren childrenToEmbed graphWithEdgesTransferred
 
@@ -125,11 +126,15 @@ childCanBeEmbedded treeRoots graph child = notTreeRoot && isEmbeddable && onePar
     _ -> False
   parentsThatCanEmbed = filter (graphNodeCanEmbed graph) (findParents graph child)
 
-findChildEdgesToTransfer :: [ING.Node] -> IngSyntaxGraph gr -> [LabelledGraphEdge]
-findChildEdgesToTransfer _ _ = [] -- TODO
+-- TODO findChildEdgesToTransfer might add too many edges
+findChildEdgesToTransfer :: ING.Graph gr => ING.Node -> [ING.Node] -> gr a b-> [ING.LEdge b]
+findChildEdgesToTransfer parentNode nodes graph = concatMap makeLabelledGraphEdges nodes where
+  makeLabelledGraphEdges childNode = fmap (changeEdgeToParent parentNode childNode) $ ING.inn graph childNode
 
-addChildEdges :: ING.Node -> [LabelledGraphEdge] -> IngSyntaxGraph gr -> IngSyntaxGraph gr
-addChildEdges _ _ = id -- TODO
+changeEdgeToParent :: ING.Node -> ING.Node -> ING.LEdge b -> ING.LEdge b
+changeEdgeToParent parentNode childNode (fromNode, toNode, edgeLabel)
+  | childNode == fromNode = (parentNode, toNode, edgeLabel)
+  | childNode == toNode = (fromNode, parentNode, edgeLabel)
 
 -- | Change the node label of the parent to be nested.
 embedChildSyntaxNodes :: ING.DynGraph gr => ING.Node -> [ING.Node] -> IngSyntaxGraph gr -> IngSyntaxGraph gr
@@ -195,7 +200,8 @@ nodesParent gr context =  listToMaybe connectedNodes >>= ING.lab gr where
 syntaxNodeIsEmbeddable :: SyntaxNode -> Bool
 syntaxNodeIsEmbeddable n = case n of
   ApplyNode _ -> True
-  PatternApplyNode _ _ -> True
+  -- TODO make PatternApplyNode embeddable
+  PatternApplyNode _ _ -> False
   NameNode _ -> False
   LiteralNode _ -> True
   FunctionDefNode _ -> False
@@ -210,7 +216,8 @@ syntaxNodeIsEmbeddable n = case n of
 syntaxNodeCanEmbed :: SyntaxNode -> Bool
 syntaxNodeCanEmbed n = case n of
   ApplyNode _ -> True
-  PatternApplyNode _ _ -> True
+  -- TODO make PatternApplyNode embed
+  PatternApplyNode _ _ -> False
   NameNode _ -> False
   LiteralNode _ -> False
   FunctionDefNode _ -> False
