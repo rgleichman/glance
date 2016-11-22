@@ -21,7 +21,8 @@ module TranslateCore(
   nTupleString,
   nListString,
   syntaxGraphToDrawing,
-  syntaxGraphToFglGraph
+  syntaxGraphToFglGraph,
+  ingSyntaxGraphToDrawing
 ) where
 
 import Data.Semigroup(Semigroup, (<>))
@@ -30,11 +31,13 @@ import Control.Monad.State(State)
 import Data.Either(partitionEithers)
 import Control.Arrow(second)
 import Data.Graph.Inductive.PatriciaTree as FGR
+import qualified Data.Graph.Inductive as ING
 import Diagrams.TwoD.GraphViz as DiaGV
+import Data.List(find)
 
 import Types(Icon, SyntaxNode(..), Edge(..), EdgeOption(..), Drawing(..),
-  NameAndPort(..), IDState, getId, SgNamedNode)
-import Util(noEnds, nameAndPort, makeSimpleEdge, justName, fromMaybeError)
+  NameAndPort(..), IDState, getId, SgNamedNode, IngSyntaxGraph)
+import Util(noEnds, nameAndPort, makeSimpleEdge, justName, fromMaybeError, maybeBoolToBool)
 import Icons(Icon(..))
 
 -- OVERVIEW --
@@ -173,6 +176,7 @@ nListString n = '[' : replicate (n -1) ',' ++ "]"
 
 nodeToIcon :: SyntaxNode -> Icon
 nodeToIcon (ApplyNode n) = ApplyAIcon n
+nodeToIcon (NestedApplyNode x edges) = nestedApplySyntaxNodeToIcon x edges
 nodeToIcon (PatternApplyNode s n) = PAppIcon n s
 nodeToIcon (NameNode s) = TextBoxIcon s
 nodeToIcon (LiteralNode s) = TextBoxIcon s
@@ -181,6 +185,21 @@ nodeToIcon (GuardNode n) = GuardIcon n
 nodeToIcon (CaseNode n) = CaseIcon n
 nodeToIcon BranchNode = BranchIcon
 nodeToIcon CaseResultNode = CaseResultIcon
+
+nestedApplySyntaxNodeToIcon :: Int -> [(SgNamedNode, Edge)] -> Icon
+nestedApplySyntaxNodeToIcon numArgs args = NestedApply argList where
+  -- argList should be of length numArgs + 1, since argList includes the function expression
+  -- port 0 is the function, ports 2..(numArgs+1) are the arguments
+  argList = fmap makeArg (0:[2..numArgs + 1])
+  makeArg port = case find (findArg port) args of
+    Nothing -> Nothing
+    Just ((argName, argSyntaxNode), _) -> Just (argName, nodeToIcon argSyntaxNode)
+
+findArg :: Int -> (SgNamedNode, Edge) -> Bool
+findArg currentPort ((argName, _), Edge _ _ (NameAndPort fromName fromPort, NameAndPort toName toPort))
+  | argName == fromName = maybeBoolToBool $ fmap (== currentPort) toPort
+  | argName == toName = maybeBoolToBool $ fmap (== currentPort) fromPort
+  | otherwise = False -- This case should never happen
 
 syntaxGraphToFglGraph :: SyntaxGraph -> FGR.Gr SgNamedNode Edge
 syntaxGraphToFglGraph (SyntaxGraph nodes edges _ _) =
@@ -199,4 +218,7 @@ syntaxGraphToDrawing (SyntaxGraph nodes edges sources sinks) =
   Drawing icons edges [] where
     icons = fmap (second nodeToIcon) nodes
 
--- TODO Add ingSyntaxGraphToDrawing :: IngSyntaxGraph gr -> Drawing
+ingSyntaxGraphToDrawing :: ING.Graph gr => IngSyntaxGraph gr -> Drawing
+ingSyntaxGraphToDrawing syntaxGraph = Drawing icons edges [] where
+  icons = ((second nodeToIcon) . snd) <$> ING.labNodes syntaxGraph
+  edges = ING.edgeLabel <$> ING.labEdges syntaxGraph

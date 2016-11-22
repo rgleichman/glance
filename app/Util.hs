@@ -15,7 +15,8 @@ module Util (
   fromMaybeError,
   mapFst,
   printSelf,
-  eitherToMaybes
+  eitherToMaybes,
+  maybeBoolToBool
 )where
 
 import Control.Arrow(first)
@@ -74,3 +75,7 @@ printSelf a = Debug.Trace.trace (show a ++ "\n\n") a
 eitherToMaybes :: Either a b -> (Maybe a, Maybe b)
 eitherToMaybes (Left x) = (Just x, Nothing)
 eitherToMaybes (Right y) = (Nothing, Just y)
+
+-- | (Just True) = True, Nothing = False
+maybeBoolToBool :: Maybe Bool -> Bool
+maybeBoolToBool = or
