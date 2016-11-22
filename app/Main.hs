@@ -24,8 +24,8 @@ renderFile inputFilename includeComments = do
   let
     (parsedModule, comments) = Exts.fromParseResult parseResult
     drawings = drawingsFromModule parsedModule
-  print parsedModule
-  print "\n\n"
+  --print parsedModule
+  --print "\n\n"
   --print drawings
 
   diagrams <- traverse renderDrawing drawings
@@ -34,7 +34,7 @@ renderFile inputFilename includeComments = do
     diagramsAndComments = vsep 2 $ zipWith (\x y -> x === strutY 0.4 === y) commentsInBoxes (fmap alignL diagrams)
     justDiagrams = vsep 1 $ fmap alignL diagrams
     diagramsAndMaybeComments = if includeComments == "c" then diagramsAndComments else justDiagrams
-  print comments
+  --print comments
   pure (bgFrame 1 (backgroundC colorScheme) diagramsAndMaybeComments :: Diagram B)
 
 

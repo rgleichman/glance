@@ -212,7 +212,9 @@ nestedTests = [
   "y = f [1,2]",
   "y = f [g 3, h 5]",
   "y = f $ g (\\x -> x)",
-  "y = (f 3) 4"
+  "y = (f 3) 4",
+  "y = foo (3 + bazOf2) bazOf2 where bazOf2 = baz 2",
+  "y = foo (3 + bazOf2) (8 * bazOf2) where bazOf2 = baz 2"
   ]
 
 dollarTests = [
@@ -474,7 +476,8 @@ collapseTestStrings = [
   "y = f x1 x2",
   "y = f (g x)",
   "y = g (\\x -> x)",
-  "y = f $ g (\\x -> x)"
+  "y = f $ g (\\x -> x)",
+  "y = foo (3 + bazOf2) (8 * bazOf2) where bazOf2 = baz 2"
   ]
 
 makeCollapseTest :: String -> IO (Diagram B)

@@ -58,7 +58,7 @@ extractSyntaxNode = snd . snd
 
 findParents :: ING.Graph gr => gr a b -> ING.Node -> [ING.Node]
 -- TODO, may need to use ING.pre or ING.neighbors instead of ING.suc'
-findParents = ING.suc
+findParents graph node = filter (/= node) $  ING.suc graph node
 
 findChildren :: ING.Graph gr => gr a b -> ING.Node -> [ING.Node]
 findChildren = ING.pre
@@ -107,8 +107,6 @@ collapseNodes originalGraph = finalGraph where
 -- A node is a treeRoot if all of these conditions are true:
 -- 1. The SyntaxNode can embed other nodes (i.e. syntaxNodeCanEmbed is true)
 -- 2. The node has no parents that can embed it, or 2 or more parents that can embed it.
--- TODO These rules should be revised to allow cycles to be embedded.
--- Condition 2. should be revised such that if there is a parent that is a bind, it's a root even if other nodes can embed it.
 -- Note: A treeRoot may not actually have any embeddable children, since collapseTree will do nothing in that case.
 findTreeRoots :: ING.DynGraph gr => IngSyntaxGraph gr -> [ING.Node]
 findTreeRoots graph = filterNodes (isTreeRoot graph) graph
