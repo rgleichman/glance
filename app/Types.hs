@@ -45,6 +45,7 @@ data SyntaxNode =
   | NestedApplyNode Int [(SgNamedNode, Edge)]
   | PatternApplyNode String Int -- Destructors as used in patterns
   | NameNode String -- Identifiers or symbols
+  | BindNameNode String
   | LiteralNode String -- Literal values like the string "Hello World"
   | FunctionDefNode Int-- Function definition (ie. lambda expression)
   | GuardNode Int

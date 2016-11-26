@@ -26,15 +26,8 @@ syntaxNodeIsEmbeddable n = case n of
   ApplyNode _ -> True
   -- TODO make PatternApplyNode embeddable
   PatternApplyNode _ _ -> False
-  NameNode _ -> False
   LiteralNode _ -> True
-  FunctionDefNode _ -> False
-  GuardNode _ -> False
-  CaseNode _ -> False
-  BranchNode -> False
-  CaseResultNode -> False
-  -- Don't use a catch all (i.e. irrefutable) pattern here so that if other
-  -- SyntaxNodes are added we will get a warning here.
+  _ -> False
 
 -- | A syntaxNodeCanEmbed if it can contain other nodes
 syntaxNodeCanEmbed :: SyntaxNode -> Bool
@@ -43,17 +36,8 @@ syntaxNodeCanEmbed n = case n of
   x@(NestedApplyNode _ _) -> True -- This case should not happen
   -- TODO make PatternApplyNode embed
   PatternApplyNode _ _ -> False
-  NameNode _ -> False
-  LiteralNode _ -> False
-  FunctionDefNode _ -> False
-  GuardNode _ -> False
-  CaseNode _ -> False
-  BranchNode -> False
-  CaseResultNode -> False
-  -- Don't use a catch all (i.e. irrefutable) pattern here so that if other
-  -- SyntaxNodes are added we will get a warning here.
-
-extractSyntaxNode :: ING.LNode SgNamedNode -> SyntaxNode
+  _ -> False
+  
 extractSyntaxNode = snd . snd
 
 findParents :: ING.Graph gr => gr a b -> ING.Node -> [ING.Node]

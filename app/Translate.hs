@@ -484,7 +484,7 @@ showTopLevelBinds gr@(SyntaxGraph _ _ _ binds) = do
     addBind (patName, Right port) = do
       uniquePatName <- getUniqueName patName
       let
-        icons = toNames [(uniquePatName, NameNode patName)]
+        icons = toNames [(uniquePatName, BindNameNode patName)]
         edges = [makeSimpleEdge (justName uniquePatName, port)]
         edgeGraph = syntaxGraphFromNodesEdges icons edges
       pure edgeGraph

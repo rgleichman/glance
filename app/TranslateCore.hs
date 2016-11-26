@@ -179,6 +179,7 @@ nodeToIcon (ApplyNode n) = ApplyAIcon n
 nodeToIcon (NestedApplyNode x edges) = nestedApplySyntaxNodeToIcon x edges
 nodeToIcon (PatternApplyNode s n) = PAppIcon n s
 nodeToIcon (NameNode s) = TextBoxIcon s
+nodeToIcon (BindNameNode s) = BindTextBoxIcon s
 nodeToIcon (LiteralNode s) = TextBoxIcon s
 nodeToIcon (FunctionDefNode n) = FlatLambdaIcon n
 nodeToIcon (GuardNode n) = GuardIcon n

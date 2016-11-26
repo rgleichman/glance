@@ -1,6 +1,5 @@
 -- TODO Now --
 -- Embed PatternApplyNodes. Need to be careful that they are not embedded by ApplyNodes, and ApplyNodes do not embed PatternApplyNodes.
--- Put the binds in a specially colored box (e.g. the y in "y = f x") should not be white text in a white box. This is a regression.
 
 -- TODO Later --
 -- Add documentation.
