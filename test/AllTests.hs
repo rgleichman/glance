@@ -447,11 +447,11 @@ graphTests = do
       place (coloredTextBox white (opaque white) (show syntaxNode) :: Diagram B)
 
 prettyPrintSyntaxNode :: SyntaxNode -> String
-prettyPrintSyntaxNode (NestedApplyNode x namedNodesAndEdges) = concat $ fmap printNameAndEdge namedNodesAndEdges
+prettyPrintSyntaxNode (NestedApplyNode x namedNodesAndEdges) = concatMap printNameAndEdge namedNodesAndEdges
   where
     printNameAndEdge (namedNode, edge) = "(" ++ prettyPrintNamedNode namedNode ++ "," ++ printEdge edge ++ ")"
     prettyPrintNamedNode = show. fst --  "(" ++ show name ++ "," ++ prettyPrintSyntaxNode syntaxNode ++ ")"
-    printEdge (Edge _ _ ((NameAndPort n1 _), NameAndPort n2 _)) = show (n1, n2)
+    printEdge (Edge _ _ (NameAndPort n1 _, NameAndPort n2 _)) = show (n1, n2)
 prettyPrintSyntaxNode x = show x
 
 -- For Neato
@@ -498,7 +498,7 @@ makeCollapseTest :: String -> IO (Diagram B)
 makeCollapseTest str = do
   before <- renderFglGraph fglGraph
   after <- renderFglGraph collapsedGraph
-  pure $ vsep 1 $ [
+  pure $ vsep 1 [
     expressionText,
     beforeText,
     before,
@@ -551,7 +551,7 @@ testCollapse = do
 singleApplyGraph = syntaxGraphToFglGraph $ stringToSyntaxGraph "y = f x"
 
 makeTreeRootTest (testName, expected, haskellString) = TestCase $ assertEqual testName expected actual where
-  actual = (fmap (ING.lab graph) treeRoots) where
+  actual = fmap (ING.lab graph) treeRoots
   graph = syntaxGraphToFglGraph $ stringToSyntaxGraph haskellString
   treeRoots = GraphAlgorithms.findTreeRoots graph
 

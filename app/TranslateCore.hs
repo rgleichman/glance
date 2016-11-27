@@ -231,5 +231,5 @@ syntaxGraphToDrawing (SyntaxGraph nodes edges sources sinks) =
 
 ingSyntaxGraphToDrawing :: ING.Graph gr => IngSyntaxGraph gr -> Drawing
 ingSyntaxGraphToDrawing syntaxGraph = Drawing icons edges [] where
-  icons = ((second nodeToIcon) . snd) <$> ING.labNodes syntaxGraph
+  icons = (second nodeToIcon . snd) <$> ING.labNodes syntaxGraph
   edges = ING.edgeLabel <$> ING.labEdges syntaxGraph

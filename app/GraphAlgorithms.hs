@@ -8,7 +8,7 @@ module GraphAlgorithms(
 import qualified Data.Graph.Inductive.PatriciaTree as FGR
 import qualified Data.Graph.Inductive.Graph as ING
 import Types(SgNamedNode, Edge(..), SyntaxNode(..), sgNamedNodeToSyntaxNode, EdgeEnd(..), NameAndPort(..), IngSyntaxGraph)
-import Data.Maybe(listToMaybe, catMaybes, isJust)
+import Data.Maybe(listToMaybe, catMaybes, isJust, fromMaybe)
 import Data.List(foldl', find)
 import Diagrams.Prelude(toName)
 import qualified Debug.Trace
@@ -52,7 +52,7 @@ extractSyntaxNode = snd . snd
 
 findParents :: ING.Graph gr => IngSyntaxGraph gr -> ING.Node -> [ING.Node]
 findParents graph node = filter parentFilter $  ING.suc graph node where
-  parentFilter parentNode = (parentNode /= node)
+  parentFilter parentNode = parentNode /= node
 
 findChildren :: ING.Graph gr => gr a b -> ING.Node -> [ING.Node]
 findChildren = ING.pre
@@ -66,13 +66,10 @@ graphNodeIsEmbeddable :: ING.Graph gr => ParentType -> IngSyntaxGraph gr -> ING.
 graphNodeIsEmbeddable parentType graph node = maybeBoolToBool $ fmap (syntaxNodeIsEmbeddable parentType) (lookupSyntaxNode graph node)
 
 lookupSyntaxNode :: ING.Graph gr => IngSyntaxGraph gr -> ING.Node -> Maybe SyntaxNode
-lookupSyntaxNode gr node = fmap sgNamedNodeToSyntaxNode $ ING.lab gr node
+lookupSyntaxNode gr node = sgNamedNodeToSyntaxNode <$> ING.lab gr node
 
 lookupParentType :: ING.Graph gr => IngSyntaxGraph gr -> ING.Node -> ParentType
-lookupParentType graph node =
-    case parentTypeForNode <$> lookupSyntaxNode graph node of
-      Just x -> x
-      Nothing -> NotAParent
+lookupParentType graph node = fromMaybe NotAParent $ parentTypeForNode <$> lookupSyntaxNode graph node
 
 -- | filterNodes returns a list of the nodes in the graph
 -- where the filter function is true.
@@ -171,7 +168,7 @@ childCanBeEmbedded parentNode graph child =
 
 findChildEdgesToTransfer :: ING.Graph gr => ING.Node -> [ING.Node] -> gr a b-> [ING.LEdge b]
 findChildEdgesToTransfer parentNode nodes graph = concatMap makeLabelledGraphEdges nodes where
-  makeLabelledGraphEdges childNode = fmap (changeEdgeToParent parentNode childNode) $
+  makeLabelledGraphEdges childNode = changeEdgeToParent parentNode childNode <$>
     -- TODO FIX ME. Does not work for pattern apply.
     --filter (not . edgeGoesToParent parentNode)
     --(ING.inn graph childNode ++ ING.out graph childNode)
