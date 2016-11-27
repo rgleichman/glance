@@ -178,6 +178,7 @@ nodeToIcon :: SyntaxNode -> Icon
 nodeToIcon (ApplyNode n) = ApplyAIcon n
 nodeToIcon (NestedApplyNode x edges) = nestedApplySyntaxNodeToIcon x edges
 nodeToIcon (PatternApplyNode s n) = PAppIcon n s
+nodeToIcon (NestedPatternApplyNode s n children) = nestedPatternNodeToIcon s n children
 nodeToIcon (NameNode s) = TextBoxIcon s
 nodeToIcon (BindNameNode s) = BindTextBoxIcon s
 nodeToIcon (LiteralNode s) = TextBoxIcon s
@@ -187,14 +188,23 @@ nodeToIcon (CaseNode n) = CaseIcon n
 nodeToIcon BranchNode = BranchIcon
 nodeToIcon CaseResultNode = CaseResultIcon
 
+makeArg :: [(SgNamedNode, Edge)] -> Int -> Maybe (DIA.Name, Icon)
+makeArg args port = case find (findArg port) args of
+  Nothing -> Nothing
+  Just ((argName, argSyntaxNode), _) -> Just (argName, nodeToIcon argSyntaxNode)
+
 nestedApplySyntaxNodeToIcon :: Int -> [(SgNamedNode, Edge)] -> Icon
 nestedApplySyntaxNodeToIcon numArgs args = NestedApply argList where
   -- argList should be of length numArgs + 1, since argList includes the function expression
   -- port 0 is the function, ports 2..(numArgs+1) are the arguments
-  argList = fmap makeArg (0:[2..numArgs + 1])
-  makeArg port = case find (findArg port) args of
-    Nothing -> Nothing
-    Just ((argName, argSyntaxNode), _) -> Just (argName, nodeToIcon argSyntaxNode)
+  -- TODO Don't use hardcoded port numbers
+  argList = fmap (makeArg args) (0:[2..numArgs + 1])
+
+nestedPatternNodeToIcon :: String -> Int -> [(SgNamedNode, Edge)] -> Icon
+nestedPatternNodeToIcon str numArgs args = NestedPApp argList where
+  -- TODO Using [toName ""] is probably not the best thing to do.
+  -- TODO Don't use hardcoded port numbers
+  argList = Just (DIA.toName "", TextBoxIcon str) : fmap (makeArg args) [2..numArgs + 1]
 
 findArg :: Int -> (SgNamedNode, Edge) -> Bool
 findArg currentPort ((argName, _), Edge _ _ (NameAndPort fromName fromPort, NameAndPort toName toPort))

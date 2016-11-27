@@ -1,4 +1,5 @@
 module GraphAlgorithms(
+  ParentType(..),
   collapseNodes,
   findTreeRoots,
   childCanBeEmbedded
@@ -17,32 +18,42 @@ import Util(printSelf, maybeBoolToBool)
 -- See graph_algs.txt for pseudocode
 
 type LabelledGraphEdge = ING.LEdge Edge
+data ParentType = ApplyParent | PatternParent | NotAParent
 
 -- START collapseNodes helper functions --
 
 -- | A syntaxNodeIsEmbeddable if it can be collapsed into another node
-syntaxNodeIsEmbeddable :: SyntaxNode -> Bool
-syntaxNodeIsEmbeddable n = case n of
-  ApplyNode _ -> True
-  -- TODO make PatternApplyNode embeddable
-  PatternApplyNode _ _ -> False
-  LiteralNode _ -> True
+syntaxNodeIsEmbeddable :: ParentType -> SyntaxNode -> Bool
+syntaxNodeIsEmbeddable parentType n = case (parentType, n) of
+  (ApplyParent, ApplyNode _) -> True
+  (PatternParent, PatternApplyNode _ _) -> True
+  -- TODO Allow literals in patterns to be embedded.
+  (ApplyParent, LiteralNode _) -> True
   _ -> False
 
 -- | A syntaxNodeCanEmbed if it can contain other nodes
 syntaxNodeCanEmbed :: SyntaxNode -> Bool
 syntaxNodeCanEmbed n = case n of
   ApplyNode _ -> True
-  x@(NestedApplyNode _ _) -> True -- This case should not happen
-  -- TODO make PatternApplyNode embed
-  PatternApplyNode _ _ -> False
+  NestedApplyNode _ _ -> True -- This case should not happen
+  PatternApplyNode _ _ -> True
+  NestedPatternApplyNode _ _ _ -> True -- This case should not happen
   _ -> False
+
+parentTypeForNode :: SyntaxNode -> ParentType
+parentTypeForNode n = case n of
+  ApplyNode _ -> ApplyParent
+  NestedApplyNode _ _ -> ApplyParent
+  PatternApplyNode _ _ -> PatternParent
+  -- The NotAParent case should never occur.
+  _ -> NotAParent
   
 extractSyntaxNode = snd . snd
 
-findParents :: ING.Graph gr => gr a b -> ING.Node -> [ING.Node]
--- TODO, may need to use ING.pre or ING.neighbors instead of ING.suc'
-findParents graph node = filter (/= node) $  ING.suc graph node
+findParents :: ING.Graph gr => IngSyntaxGraph gr -> ING.Node -> [ING.Node]
+findParents graph node = filter parentFilter $  ING.suc graph node where
+  -- TODO FIX ME
+  parentFilter parentNode = (parentNode /= node) -- && graphNodeIsEmbeddable (lookupParentType graph parentNode) graph node
 
 findChildren :: ING.Graph gr => gr a b -> ING.Node -> [ING.Node]
 findChildren = ING.pre
@@ -52,11 +63,17 @@ findChildren = ING.pre
 graphNodeCanEmbed :: ING.Graph gr => IngSyntaxGraph gr -> ING.Node -> Bool
 graphNodeCanEmbed graph node = maybeBoolToBool $ fmap syntaxNodeCanEmbed (lookupSyntaxNode graph node)
 
-graphNodeIsEmbeddable :: ING.Graph gr => IngSyntaxGraph gr -> ING.Node -> Bool
-graphNodeIsEmbeddable graph node = maybeBoolToBool $ fmap syntaxNodeIsEmbeddable (lookupSyntaxNode graph node)
+graphNodeIsEmbeddable :: ING.Graph gr => ParentType -> IngSyntaxGraph gr -> ING.Node -> Bool
+graphNodeIsEmbeddable parentType graph node = maybeBoolToBool $ fmap (syntaxNodeIsEmbeddable parentType) (lookupSyntaxNode graph node)
 
 lookupSyntaxNode :: ING.Graph gr => IngSyntaxGraph gr -> ING.Node -> Maybe SyntaxNode
 lookupSyntaxNode gr node = fmap sgNamedNodeToSyntaxNode $ ING.lab gr node
+
+lookupParentType :: ING.Graph gr => IngSyntaxGraph gr -> ING.Node -> ParentType
+lookupParentType graph node =
+    case parentTypeForNode <$> lookupSyntaxNode graph node of
+      Just x -> x
+      Nothing -> NotAParent
 
 -- | filterNodes returns a list of the nodes in the graph
 -- where the filter function is true.
@@ -138,21 +155,32 @@ findChildrenToEmbed treeRoots node graph = if graphNodeCanEmbed graph node
   then childrenToEmbed
   else []
   where
-    childrenToEmbed = filter (childCanBeEmbedded treeRoots graph) (findChildren graph node)
+    parentType = lookupParentType graph node
+    childrenToEmbed = filter (childCanBeEmbedded parentType treeRoots graph) (findChildren graph node)
 
-childCanBeEmbedded :: ING.Graph gr => [ING.Node] -> IngSyntaxGraph gr -> ING.Node -> Bool
-childCanBeEmbedded treeRoots graph child = notTreeRoot && isEmbeddable && oneParentCanEmbed where
+childCanBeEmbedded :: ING.Graph gr => ParentType -> [ING.Node] -> IngSyntaxGraph gr -> ING.Node -> Bool
+childCanBeEmbedded parentType treeRoots graph child = notTreeRoot && isEmbeddable && oneParentCanEmbed where
   notTreeRoot = notElem child treeRoots
-  isEmbeddable = graphNodeIsEmbeddable graph child
+  isEmbeddable = graphNodeIsEmbeddable parentType graph child
   oneParentCanEmbed = case parentsThatCanEmbed of
     [_] -> True
     _ -> False
   parentsThatCanEmbed = filter (graphNodeCanEmbed graph) (findParents graph child)
 
--- TODO findChildEdgesToTransfer might add too many edges
 findChildEdgesToTransfer :: ING.Graph gr => ING.Node -> [ING.Node] -> gr a b-> [ING.LEdge b]
 findChildEdgesToTransfer parentNode nodes graph = concatMap makeLabelledGraphEdges nodes where
-  makeLabelledGraphEdges childNode = fmap (changeEdgeToParent parentNode childNode) $ ING.inn graph childNode
+  makeLabelledGraphEdges childNode = fmap (changeEdgeToParent parentNode childNode) $
+    -- TODO FIX ME
+    --filter (not . edgeGoesToParent parentNode)
+    --(ING.inn graph childNode ++ ING.out graph childNode)
+    ING.inn graph childNode
+
+
+edgeGoesToParent :: ING.Node -> ING.LEdge b -> Bool
+edgeGoesToParent parentNode (fromNode, toNode, _)
+  | parentNode == fromNode = True
+  | parentNode == toNode = True
+  | otherwise = False
 
 changeEdgeToParent :: ING.Node -> ING.Node -> ING.LEdge b -> ING.LEdge b
 changeEdgeToParent parentNode childNode (fromNode, toNode, edgeLabel)
@@ -173,8 +201,8 @@ embedChildSyntaxNodes parentNode childrenNodes oldGraph = case childrenNodes of
           (nodeName, oldSyntaxNode) = oldNodeLabel
           newNodeLabel = (nodeName, newSyntaxNode)
           newSyntaxNode = case oldSyntaxNode of
-            -- TODO Add PatternApplyNode, and NestedApplyNode
             ApplyNode x -> NestedApplyNode x childrenAndEdgesToParent
+            PatternApplyNode str numArgs -> NestedPatternApplyNode str numArgs childrenAndEdgesToParent
             _ -> oldSyntaxNode
     childrenAndEdgesToParent = catMaybes $ fmap findChildAndEdge childrenNodes
     findChildAndEdge childNode =
