@@ -1,8 +1,11 @@
 -- TODO Now --
--- Embed PatternApplyNodes. Need to be careful that they are not embedded by ApplyNodes, and ApplyNodes do not embed PatternApplyNodes.
+Fix child edge transfer for embedded pattern apply.
 
 -- TODO Later --
 -- Add documentation.
+
+-- Testing todos:
+Fix the arrowheads being too big for SyntaxGraph darwings.
 
 -- Visual todos:
 -- Put the function name in nested apply in a colored box.
@@ -23,6 +26,10 @@
 -- Investigate arrows not being drawn
 
 -- Translate todos:
+Fix y = f (g y) embedding. See todo for findParentThatWillEmbed in GraphAlgorithms.
+
+Allow literal nodes in patterns to be embedded by adding a flag to SynatxNodes if they are in a pattern.
+
 -- Fix test case x of {0 -> 1; y -> y}.
 -- Add proper RecConstr, and RecUpdate support.
 -- Eliminate BranchIcon in Alts.
@@ -30,7 +37,3 @@
 -- Add a maximum nesting depth.
 -- Special case for otherwise.
 -- Consider currying when embedding. E.g. "(f 3) 4)" should be translated to "f 3 4".
-
-Fix the PatternApplyNodes in these test cases not embedding.
-"y = let {fibs = cons 0 (cons 1 (zipWith (+) fibs (tail fibs)))} in fibs",
-"fibs = cons 0 (cons 1 (zipWith (+) fibs (tail fibs)))",

@@ -202,6 +202,7 @@ renderTests = do
       -- TODO Add a nested test where the function expression is nested.
       ]
 
+-- | nestedTests / collapseTest
 nestedTests = [
   "y = f x",
   "y = f (g x)",
@@ -213,8 +214,17 @@ nestedTests = [
   "y = f [g 3, h 5]",
   "y = f $ g (\\x -> x)",
   "y = (f 3) 4",
+  "y = f y",
+  "y = f (g y)",
+  "fibs = cons 1 (zipWith (+) fibs (tail fibs))",
   "y = foo (3 + bazOf2) bazOf2 where bazOf2 = baz 2",
-  "y = foo (3 + bazOf2) (8 * bazOf2) where bazOf2 = baz 2"
+  "y = foo (3 + bazOf2) (8 * bazOf2) where bazOf2 = baz 2",
+  "Foo x = 1",
+  "Foo 1 x = 2",
+  "Foo (Bar x) = 1",
+  "Foo (Bar x) (Baz y) = 1",
+  "Foo (Bar x) = f 2",
+  "Foo (Bar x) = f x"
   ]
 
 dollarTests = [
@@ -477,7 +487,11 @@ collapseTestStrings = [
   "y = f (g x)",
   "y = g (\\x -> x)",
   "y = f $ g (\\x -> x)",
-  "y = foo (3 + bazOf2) (8 * bazOf2) where bazOf2 = baz 2"
+  "y = foo (3 + bazOf2) (8 * bazOf2) where bazOf2 = baz 2",
+  "Foo x = 1",
+  "Foo (Bar x) = 1",
+  "Foo 1 x = 2",
+  "Foo (Bar x) = f x"
   ]
 
 makeCollapseTest :: String -> IO (Diagram B)
@@ -544,11 +558,13 @@ makeTreeRootTest (testName, expected, haskellString) = TestCase $ assertEqual te
 treeRootTests = TestList $ fmap makeTreeRootTest treeRootTestList where
   treeRootTestList = [
     ("single apply", [Just (toName "app02", ApplyNode 1)], "y = f x"),
-    ("double apply", [Just (toName "app04", ApplyNode 1)], "y = f (g x)")
+    ("double apply", [Just (toName "app04", ApplyNode 1)], "y = f (g x)"),
+    -- TODO Fix this test, there is supposed to be one tree root for the "f" apply
+    ("recursive apply", [], "y = f (g y)")
     ]
 
 makeChildCanBeEmbeddedTest (testName, graph, node, expected) =TestCase $ assertEqual testName expected canBeEmbedded where
-  canBeEmbedded = GraphAlgorithms.childCanBeEmbedded [] graph node
+  canBeEmbedded = GraphAlgorithms.nodeWillBeEmbedded graph node
 
 -- TODO Add more cases for childCanBeEmbeddedTests
 childCanBeEmbeddedTests = TestList $ fmap makeChildCanBeEmbeddedTest childCanBeEmbeddedList where
