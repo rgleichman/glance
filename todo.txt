@@ -1,5 +1,4 @@
 -- TODO Now --
-Fix child edge transfer for embedded pattern apply.
 
 -- TODO Later --
 -- Add documentation.

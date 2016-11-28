@@ -497,13 +497,13 @@ collapseTestStrings = [
 makeCollapseTest :: String -> IO (Diagram B)
 makeCollapseTest str = do
   before <- renderFglGraph fglGraph
-  after <- renderFglGraph collapsedGraph
+  afterCollapse <- renderFglGraph collapsedGraph
   pure $ vsep 1 [
     expressionText,
     beforeText,
     before,
     afterText,
-    after]
+    afterCollapse]
   where
     fglGraph = syntaxGraphToFglGraph $ stringToSyntaxGraph str
     collapsedGraph = collapseNodes fglGraph

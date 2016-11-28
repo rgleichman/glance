@@ -166,11 +166,9 @@ childCanBeEmbedded parentNode graph child =
 findChildEdgesToTransfer :: ING.Graph gr => ING.Node -> [ING.Node] -> gr a b-> [ING.LEdge b]
 findChildEdgesToTransfer parentNode nodes graph = concatMap makeLabelledGraphEdges nodes where
   makeLabelledGraphEdges childNode = changeEdgeToParent parentNode childNode <$>
-    -- TODO FIX ME. Does not work for pattern apply.
-    --filter (not . edgeGoesToParent parentNode)
-    --(ING.inn graph childNode ++ ING.out graph childNode)
     ING.inn graph childNode
-
+    ++
+    filter (not. edgeGoesToParent parentNode) (ING.out graph childNode)
 
 edgeGoesToParent :: ING.Node -> ING.LEdge b -> Bool
 edgeGoesToParent parentNode (fromNode, toNode, _)
