@@ -81,6 +81,12 @@ arg1ResT len _ = (alignR $ circle (len / 2), mempty)
 arg1ResH :: (RealFloat n) => ArrowHT n
 arg1ResH len _ = (alignL $ circle (len / 2), mempty)
 
+bezierShaft angle1 angle2 = fromSegments [bezier3 c1 c2 x] where
+  scaleFactor = 0.5
+  x = r2 (1,0)
+  c1 = rotate angle1 (scale scaleFactor unitX)
+  c2 = rotate angle2 (scale scaleFactor unitX) ^+^ x
+
 getArrowOpts :: (RealFloat n, Typeable n) => (EdgeEnd, EdgeEnd) -> [EdgeOption]-> ArrowOpts n
 getArrowOpts (t, h) opts = arrowOptions
   where
