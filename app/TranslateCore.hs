@@ -226,10 +226,10 @@ syntaxGraphToFglGraph (SyntaxGraph nodes edges _ _) =
 
 syntaxGraphToDrawing :: SyntaxGraph -> Drawing
 syntaxGraphToDrawing (SyntaxGraph nodes edges _ _) =
-  Drawing icons edges [] where
+  Drawing icons edges where
     icons = fmap (second nodeToIcon) nodes
 
 ingSyntaxGraphToDrawing :: ING.Graph gr => IngSyntaxGraph gr -> Drawing
-ingSyntaxGraphToDrawing syntaxGraph = Drawing icons edges [] where
+ingSyntaxGraphToDrawing syntaxGraph = Drawing icons edges where
   icons = (second nodeToIcon . snd) <$> ING.labNodes syntaxGraph
   edges = ING.edgeLabel <$> ING.labEdges syntaxGraph

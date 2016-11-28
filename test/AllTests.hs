@@ -40,7 +40,7 @@ d0Edges =
   iconToPort d0Bar d0A 2
   ]
 
-drawing0 = Drawing d0Icons d0Edges []
+drawing0 = Drawing d0Icons d0Edges
 d0Name = toName "d0"
 
 
@@ -77,7 +77,7 @@ fact0Edges = [
     iconToPort fRes fG0 0
   ]
 
-fact0Drawing = Drawing fact0Icons fact0Edges []
+fact0Drawing = Drawing fact0Icons fact0Edges
 fact0Name = toName "fac0"
 
 fact1Icons = toNames
@@ -106,7 +106,7 @@ fact1Edges = [
   iconToPort fRes fG0 0
   ]
 
-fact1Drawing = Drawing fact1Icons fact1Edges []
+fact1Drawing = Drawing fact1Icons fact1Edges
 
 -- fact2 is like fact1, but uses fTimesAp port 2 to distrubute the argument,
 -- not fArg
@@ -138,7 +138,7 @@ fact2Edges = [
   iconToPort fRes fG0 0
   ]
 
-fact2Drawing = Drawing fact2Icons fact2Edges []
+fact2Drawing = Drawing fact2Icons fact2Edges
 
 (arr1, arr2, arr3, arr4) = ("arr1", "arr2", "arr3", "arr4")
 
@@ -156,7 +156,7 @@ arrowTestEdges = [
   iconToIconEnds arr1 EndAp1Arg arr4 EndAp1Arg
   ]
 
-arrowTestDrawing = Drawing arrowTestIcons arrowTestEdges []
+arrowTestDrawing = Drawing arrowTestIcons arrowTestEdges
 
 nestedTestIcons = toNames [
   ("n1", NestedApply args),
@@ -184,7 +184,7 @@ nestedTestEdges = [
   iconToPort "t2" ("n1" .> "in" .> "n2") 2
   ]
 
-nestedTextDrawing = Drawing nestedTestIcons nestedTestEdges []
+nestedTextDrawing = Drawing nestedTestIcons nestedTestEdges
 
 renderTests :: IO (Diagram B)
 renderTests = do

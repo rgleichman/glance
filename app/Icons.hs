@@ -39,24 +39,20 @@ lineCol = lineC colorScheme
 
 -- FUNCTIONS --
 -- Optimization: The apply0NDia's can be memoized.
-iconToDiagram :: SpecialBackend b => Icon -> [(Name, SpecialQDiagram b)] -> TransformableDia b
-iconToDiagram (ApplyAIcon n) _ = identDiaFunc $ applyADia n
-iconToDiagram (PAppIcon n str) _ = pAppDia n str
-iconToDiagram (TextApplyAIcon n str) _ = textApplyADia n str
-iconToDiagram ResultIcon _ = identDiaFunc resultIcon
-iconToDiagram BranchIcon _ = identDiaFunc branchIcon
-iconToDiagram (TextBoxIcon s) _ = textBox s
-iconToDiagram (BindTextBoxIcon s) _ = identDiaFunc $ bindTextBox s
-iconToDiagram (GuardIcon n) _ = identDiaFunc $ guardIcon n
-iconToDiagram (CaseIcon n) _ = identDiaFunc $ caseIcon n
-iconToDiagram CaseResultIcon _ = identDiaFunc caseResult
-iconToDiagram (FlatLambdaIcon n) _ = identDiaFunc $ flatLambda n
-iconToDiagram (NestedApply args) _ = nestedApplyDia args
-iconToDiagram (NestedPApp args) _ = nestedPAppDia args
-iconToDiagram (LambdaRegionIcon n diagramName) nameToSubdiagramMap =
-  identDiaFunc $ lambdaRegion n dia
-  where
-    dia = fromMaybeError "iconToDiagram: subdiagram not found" $ lookup diagramName nameToSubdiagramMap
+iconToDiagram :: SpecialBackend b => Icon -> TransformableDia b
+iconToDiagram (ApplyAIcon n) = identDiaFunc $ applyADia n
+iconToDiagram (PAppIcon n str) = pAppDia n str
+iconToDiagram (TextApplyAIcon n str) = textApplyADia n str
+iconToDiagram ResultIcon = identDiaFunc resultIcon
+iconToDiagram BranchIcon = identDiaFunc branchIcon
+iconToDiagram (TextBoxIcon s) = textBox s
+iconToDiagram (BindTextBoxIcon s) = identDiaFunc $ bindTextBox s
+iconToDiagram (GuardIcon n) = identDiaFunc $ guardIcon n
+iconToDiagram (CaseIcon n) = identDiaFunc $ caseIcon n
+iconToDiagram CaseResultIcon = identDiaFunc caseResult
+iconToDiagram (FlatLambdaIcon n) = identDiaFunc $ flatLambda n
+iconToDiagram (NestedApply args) = nestedApplyDia args
+iconToDiagram (NestedPApp args) = nestedPAppDia args
 
 -- Make an identity TransformableDia
 identDiaFunc :: SpecialQDiagram b -> TransformableDia b
@@ -170,7 +166,7 @@ generalNestedDia borderCol funcNameAndArgs reflect angle = case funcNameAndArgs 
       finalDia = argBox <> allPorts
 
       makeInnerIcon portNum Nothing = makePort portNum <> portCircle
-      makeInnerIcon _ (Just (iconName, icon)) = nameDiagram iconName $ iconToDiagram icon [] reflect angle
+      makeInnerIcon _ (Just (iconName, icon)) = nameDiagram iconName $ iconToDiagram icon reflect angle
 
 
 -- TEXT ICON --

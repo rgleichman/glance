@@ -30,7 +30,7 @@ import Control.Monad.State(State, state)
 -- The LambdaRegionIcon's data is the number of lambda ports, and the name of it's
 -- subdrawing.
 data Icon = ResultIcon | BranchIcon | TextBoxIcon String | GuardIcon Int
-  | LambdaRegionIcon Int Name | FlatLambdaIcon Int | ApplyAIcon Int
+  | FlatLambdaIcon Int | ApplyAIcon Int
   | TextApplyAIcon Int String | PAppIcon Int String | CaseIcon Int | CaseResultIcon
   | BindTextBoxIcon String
   -- TODO: NestedApply should have the type NestedApply (Maybe (Name, Icon)) [Maybe (Name, Icon)]
@@ -70,7 +70,7 @@ data EdgeEnd = EndAp1Result | EndAp1Arg | EndNone deriving (Show, Eq, Ord)
 
 -- | A drawing is a map from names to Icons, a list of edges,
 -- and a map of names to subDrawings
-data Drawing = Drawing [(Name, Icon)] [Edge] [(Name, Drawing)] deriving (Show, Eq)
+data Drawing = Drawing [(Name, Icon)] [Edge] deriving (Show, Eq)
 
 -- | IDState is an Abstract Data Type that is used as a state whose value is a unique id.
 newtype IDState = IDState Int deriving (Eq, Show)

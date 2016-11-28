@@ -55,9 +55,9 @@ drawingToGraphvizScaleFactor = 0.15
 -- The first argument is the subdiagram map used for the inside of lambdaIcons
 -- The second argument is the map of icons that should be converted to diagrams.
 makeNamedMap :: SpecialBackend b =>
-  [(Name, SpecialQDiagram b)] -> [(t, Icon)] -> [(t, Bool -> Double -> SpecialQDiagram b)]
-makeNamedMap subDiagramMap =
-  map (\(name, icon) -> (name, iconToDiagram icon subDiagramMap))
+  [(t, Icon)] -> [(t, Bool -> Double -> SpecialQDiagram b)]
+makeNamedMap =
+  map (\(name, icon) -> (name, iconToDiagram icon))
 
 -- Note that the name type alias is different from the Name constructor.
 getTopLevelName :: Name -> Name
@@ -294,15 +294,11 @@ doGraphLayout graph nameDiagramMap edges = do
 -- lines connecting ports and icons. IO is needed for the GraphViz layout.
 renderDrawing :: SpecialBackend b =>
   Drawing -> IO (SpecialQDiagram b)
-renderDrawing (Drawing nameIconMap edges subDrawings) = do
-  subDiagramMap <- traverse renderSubDrawing subDrawings
-  let diagramMap = makeNamedMap subDiagramMap nameIconMap
+renderDrawing (Drawing nameIconMap edges) = do
+  let diagramMap = makeNamedMap nameIconMap
   --mapM_ (putStrLn . (++"\n") . show . (map fst) . names . snd) diagramMap
   makeConnections edges <$>
     doGraphLayout (edgesToGraph iconNames connections) diagramMap connections
   where
     connections = map edgeConnection edges
     iconNames = map fst nameIconMap
-    renderSubDrawing (name, subDrawing) = do
-      subDiagram <- renderDrawing subDrawing
-      return (name, subDiagram)
