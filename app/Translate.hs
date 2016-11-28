@@ -9,26 +9,26 @@ module Translate(
 import qualified Diagrams.Prelude as DIA hiding ((#), (&))
 import Diagrams.Prelude((<>))
 
-import Language.Haskell.Exts(Decl(..), parseDecl, Name(..), Pat(..), Rhs(..),
-  Exp(..), QName(..), fromParseResult, Match(..), QOp(..), GuardedRhs(..),
-  Stmt(..), Binds(..), Alt(..), Module(..), SpecialCon(..))
-import qualified Language.Haskell.Exts as Exts
+import Control.Monad(replicateM)
 import Control.Monad.State(State, evalState)
 import Data.Either(partitionEithers)
 import Data.List(unzip4, partition)
-import Control.Monad(replicateM)
+import qualified Language.Haskell.Exts as Exts
+import Language.Haskell.Exts(Decl(..), parseDecl, Name(..), Pat(..), Rhs(..),
+  Exp(..), QName(..), fromParseResult, Match(..), QOp(..), GuardedRhs(..),
+  Stmt(..), Binds(..), Alt(..), Module(..), SpecialCon(..))
 --import Data.Maybe(catMaybes)
 
-import Types(Drawing(..), NameAndPort(..), IDState,
-  initialIdState, Edge, SyntaxNode(..))
-import Util(toNames, makeSimpleEdge, nameAndPort, justName, mapFst)
+import GraphAlgorithms(collapseNodes)
 import TranslateCore(Reference, SyntaxGraph(..), EvalContext, GraphAndRef,
   syntaxGraphFromNodes, syntaxGraphFromNodesEdges, getUniqueName, combineExpressions,
   edgesForRefPortList, makeApplyGraph,
   namesInPattern, lookupReference, deleteBindings, makeEdges,
-  coerceExpressionResult, makeBox, nTupleString, nListString, syntaxGraphToDrawing,
+  coerceExpressionResult, makeBox, nTupleString, nListString,
   syntaxGraphToFglGraph, ingSyntaxGraphToDrawing)
-import GraphAlgorithms(collapseNodes)
+import Types(Drawing(..), NameAndPort(..), IDState,
+  initialIdState, Edge, SyntaxNode(..))
+import Util(toNames, makeSimpleEdge, nameAndPort, justName, mapFst)
 
 -- OVERVIEW --
 -- The core functions and data types used in this module are in TranslateCore.
@@ -124,7 +124,7 @@ makePatternGraph applyIconName funStr argVals numArgs = (newGraph <> combinedGra
     newGraph = syntaxGraphFromNodes icons
 
 evalApp :: EvalContext -> (Exp, [Exp]) -> State IDState (SyntaxGraph, NameAndPort)
-evalApp c exps@(funExp, argExps) = do
+evalApp c (funExp, argExps) = do
   funVal <- evalExp c funExp
   argVals <- mapM (evalExp c) argExps
   applyIconName <- DIA.toName <$> getUniqueName "app0"

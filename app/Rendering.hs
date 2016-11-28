@@ -180,7 +180,7 @@ connectedPorts edges name = map edgeToPort $ filter nameInEdge edges
 -- are minimized.
 -- Precondition: the diagrams are already centered
 -- todo: confirm precondition (or use a newtype)
-rotateNodes :: SpecialBackend b =>
+rotateNodes ::
   Map.Map Name (Point V2 Double)
   -> [(Name, Bool -> Double -> SpecialQDiagram b)]
   -> [Connection]
@@ -219,7 +219,7 @@ rotateNodes positionMap nameDiagramMap edges = map rotateDiagram nameDiagramMap
           minAngle = angleWithMinDist (getFromMapAndScale positionMap name) portEdges
 
 type LayoutResult a = Gr (GV.AttributeNode Name) (GV.AttributeNode a)
-placeNodes :: SpecialBackend b =>
+placeNodes ::
    LayoutResult a
    -> [(Name, Bool -> Double -> SpecialQDiagram b)]
    -> [Connection]
@@ -252,7 +252,7 @@ customLayoutParams = GV.defaultParams{
   GV.fmtEdge = const [GV.arrowTo GV.noArrow]
   }
 
-doGraphLayout :: SpecialBackend b =>
+doGraphLayout ::
    Gr Name e
    -> [(Name, Bool -> Double -> SpecialQDiagram b)]
    -> [Connection]

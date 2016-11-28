@@ -5,19 +5,18 @@ module GraphAlgorithms(
   nodeWillBeEmbedded
   ) where
 
-import qualified Data.Graph.Inductive.PatriciaTree as FGR
-import qualified Data.Graph.Inductive.Graph as ING
-import Types(SgNamedNode, Edge(..), SyntaxNode(..), sgNamedNodeToSyntaxNode, EdgeEnd(..), NameAndPort(..), IngSyntaxGraph)
-import Data.Maybe(listToMaybe, catMaybes, isJust, fromMaybe)
-import Data.List(foldl', find)
-import Diagrams.Prelude(toName)
-import qualified Debug.Trace
+import qualified Data.Graph.Inductive as ING
 
-import Util(printSelf, maybeBoolToBool)
+import Data.List(foldl', find)
+import Data.Maybe(catMaybes, isJust, fromMaybe)
+--import qualified Debug.Trace
+
+import Types(SyntaxNode(..), sgNamedNodeToSyntaxNode, IngSyntaxGraph)
+import Util(maybeBoolToBool)
+--import Util(printSelf)
 
 -- See graph_algs.txt for pseudocode
 
-type LabelledGraphEdge = ING.LEdge Edge
 data ParentType = ApplyParent | PatternParent | NotAParent
 
 -- START HELPER functions --
@@ -48,8 +47,6 @@ parentTypeForNode n = case n of
   -- The NotAParent case should never occur.
   _ -> NotAParent
   
-extractSyntaxNode = snd . snd
-
 findParents :: ING.Graph gr => IngSyntaxGraph gr -> ING.Node -> [ING.Node]
 findParents graph node = filter parentFilter $  ING.suc graph node where
   parentFilter parentNode = parentNode /= node
@@ -74,7 +71,7 @@ lookupParentType graph node = fromMaybe NotAParent $ parentTypeForNode <$> looku
 -- | filterNodes returns a list of the nodes in the graph
 -- where the filter function is true.
 filterNodes :: ING.DynGraph gr => (ING.Node -> Bool) -> gr a b -> [ING.Node]
-filterNodes pred gr = ING.nodes $ ING.nfilter pred gr
+filterNodes condition gr = ING.nodes $ ING.nfilter condition gr
 
 -- | Replace the a node's label
 changeNodeLabel :: ING.DynGraph gr => gr a b -> ING.Node -> a -> gr a b
@@ -182,9 +179,10 @@ edgeGoesToParent parentNode (fromNode, toNode, _)
   | otherwise = False
 
 changeEdgeToParent :: ING.Node -> ING.Node -> ING.LEdge b -> ING.LEdge b
-changeEdgeToParent parentNode childNode (fromNode, toNode, edgeLabel)
+changeEdgeToParent parentNode childNode lEdge@(fromNode, toNode, edgeLabel)
   | childNode == fromNode = (parentNode, toNode, edgeLabel)
   | childNode == toNode = (fromNode, parentNode, edgeLabel)
+  | otherwise = lEdge
 
 -- | Change the node label of the parent to be nested.
 embedChildSyntaxNodes :: ING.DynGraph gr => ING.Node -> [ING.Node] -> IngSyntaxGraph gr -> IngSyntaxGraph gr

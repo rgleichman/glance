@@ -63,7 +63,7 @@ identDiaFunc :: SpecialQDiagram b -> TransformableDia b
 identDiaFunc dia _ _ = dia
 
 -- | Names the diagram and puts all sub-names in the namespace of the top level name.
-nameDiagram :: (SpecialBackend b, IsName nm) => nm -> SpecialQDiagram b -> SpecialQDiagram b
+nameDiagram :: IsName nm => nm -> SpecialQDiagram b -> SpecialQDiagram b
 nameDiagram name dia = named name (name .>> dia)
 
 -- | Make an port with an integer name. Always use <> to add a ports (not === or |||)
@@ -142,20 +142,20 @@ transformCorrectedTextBox str textCol borderCol reflect angle =
 
 nestedApplyDia :: SpecialBackend b =>
   [Maybe (Name, Icon)] -> TransformableDia b
-nestedApplyDia = generalNestedDia (textBoxC colorScheme) (apply0C colorScheme)
+nestedApplyDia = generalNestedDia (apply0C colorScheme)
 
 nestedPAppDia :: SpecialBackend b =>
   [Maybe (Name, Icon)] -> TransformableDia b
-nestedPAppDia = generalNestedDia (patternTextC colorScheme) (patternC colorScheme)
+nestedPAppDia = generalNestedDia (patternC colorScheme)
 
 generalNestedDia :: SpecialBackend b =>
-  Colour Double -> Colour Double -> [Maybe (Name, Icon)] -> TransformableDia b
-generalNestedDia textCol borderCol funcNameAndArgs reflect angle = case funcNameAndArgs of
+  Colour Double -> [Maybe (Name, Icon)] -> TransformableDia b
+generalNestedDia borderCol funcNameAndArgs reflect angle = case funcNameAndArgs of
   [] -> mempty
   (maybeFunText:args) -> centerXY $  transformedText ||| centerY finalDia
     where
       transformedText = case maybeFunText of
-        Just funText -> makeInnerIcon 0 maybeFunText --transformCorrectedTextBox funText textCol borderCol reflect angle
+        Just _ -> makeInnerIcon 0 maybeFunText
         Nothing -> mempty
       seperation = circleRadius * 1.5
       verticalSeperation = circleRadius
@@ -201,7 +201,7 @@ multilineComment textColor boxColor t = lwG (0.6 * defaultLineWidth) textDia
 
 -- | Given the number of letters in a textbox string, make a rectangle that will
 -- enclose the text box.
-rectForText :: (InSpace V2 n t, TrailLike t, OrderedField n) => Int -> t
+rectForText :: (InSpace V2 n t, TrailLike t) => Int -> t
 rectForText n = rect rectangleWidth (textBoxFontSize * textBoxHeightFactor)
   where
     rectangleWidth = fromIntegral n * textBoxFontSize * monoLetterWidthToHeightFraction

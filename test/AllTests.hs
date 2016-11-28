@@ -582,6 +582,6 @@ main :: IO ()
 main = do
 --  ING.prettyPrint singleApplyGraph
   renderDrawings drawingsAndNames
-  runTestTT collapseUnitTests
+  _ <- runTestTT collapseUnitTests
   pure ()
 --main = testCollapse

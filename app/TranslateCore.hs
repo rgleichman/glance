@@ -81,18 +81,18 @@ getUniqueName base = fmap ((base ++). show) getId
 
 -- TODO: Refactor with combineExpressions
 edgesForRefPortList :: Bool -> [(Reference, NameAndPort)] -> SyntaxGraph
-edgesForRefPortList inPattern portExpPairs = mconcat $ fmap mkGraph portExpPairs where
+edgesForRefPortList inPattern portExpPairs = mconcat $ fmap makeGraph portExpPairs where
   edgeOpts = if inPattern then [EdgeInPattern] else []
-  mkGraph (ref, port) = case ref of
+  makeGraph (ref, port) = case ref of
     Left str -> if inPattern
       then SyntaxGraph mempty mempty mempty [(str, Right port)]
       else SyntaxGraph mempty mempty [(str, port)] mempty
     Right resultPort -> SyntaxGraph mempty [Edge edgeOpts noEnds (resultPort, port)] mempty mempty
 
 combineExpressions :: Bool -> [(GraphAndRef, NameAndPort)] -> SyntaxGraph
-combineExpressions inPattern portExpPairs = mconcat $ fmap mkGraph portExpPairs where
+combineExpressions inPattern portExpPairs = mconcat $ fmap makeGraph portExpPairs where
   edgeOpts = if inPattern then [EdgeInPattern] else []
-  mkGraph ((graph, ref), port) = graph <> case ref of
+  makeGraph ((graph, ref), port) = graph <> case ref of
     Left str -> if inPattern
       then SyntaxGraph mempty mempty mempty [(str, Right port)]
       else SyntaxGraph mempty mempty [(str, port)] mempty
@@ -225,7 +225,7 @@ syntaxGraphToFglGraph (SyntaxGraph nodes edges _ _) =
 
 
 syntaxGraphToDrawing :: SyntaxGraph -> Drawing
-syntaxGraphToDrawing (SyntaxGraph nodes edges sources sinks) =
+syntaxGraphToDrawing (SyntaxGraph nodes edges _ _) =
   Drawing icons edges [] where
     icons = fmap (second nodeToIcon) nodes
 
