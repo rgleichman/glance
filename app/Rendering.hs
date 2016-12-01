@@ -55,11 +55,6 @@ drawingToGraphvizScaleFactor :: Double
 -- For Neato, PrismOverlap
 drawingToGraphvizScaleFactor = 0.15
 
--- CONVERTING Edges AND Icons TO DIAGRAMS --
-makeNamedMapFromGraph :: (SpecialBackend b, ING.Graph gr) =>
-  gr (d, Icon) e -> [(d, Icons.TransformableDia b)]
-makeNamedMapFromGraph graph = (second iconToDiagram . snd) <$> ING.labNodes graph
-
 -- Note that the name type alias is different from the Name constructor.
 getTopLevelName :: Name -> Name
 getTopLevelName (Name []) = Name []
@@ -196,15 +191,16 @@ connectedPorts edges name = map edgeToPort $ filter nameInEdge edges
 -- are minimized.
 -- Precondition: the diagrams are already centered
 -- todo: confirm precondition (or use a newtype)
-rotateNodes ::
-  Map.Map Name (Point V2 Double)
-  -> [(Name, TransformableDia b)]
+rotateNodes :: SpecialBackend b =>
+  Map.Map (Name, Icon) (Point V2 Double)
   -> [Connection]
-  -> [(Name, SpecialQDiagram b)]
-rotateNodes positionMap nameDiagramMap edges = map rotateDiagram nameDiagramMap
+  -> [((Name, Icon), SpecialQDiagram b)]
+rotateNodes positionMap edges = map rotateDiagram (Map.keys positionMap)
   where
-    rotateDiagram (name, originalDia) = (name, nameDiagram name transformedDia)
+    positionMapNameKeys = Map.mapKeys fst positionMap
+    rotateDiagram key@(name, icon) = (key, nameDiagram name transformedDia)
       where
+        originalDia = iconToDiagram icon
         transformedDia = if flippedDist < unflippedDist
           then rotateBy flippedAngle . reflectX $ originalDia True flippedAngle
           else rotateBy unflippedAngle $ originalDia False unflippedAngle
@@ -217,7 +213,7 @@ rotateNodes positionMap nameDiagramMap edges = map rotateDiagram nameDiagramMap
           namesOfPortsWithLines = connectedPorts edges name
 
           iconInMap :: (Int, Name, Maybe Int) -> Bool
-          iconInMap (_, otherIconName, _) = Map.member otherIconName positionMap
+          iconInMap (_, otherIconName, _) = Map.member otherIconName positionMapNameKeys
 
           getPortPoint :: Int -> P2 Double
           getPortPoint x =
@@ -228,24 +224,23 @@ rotateNodes positionMap nameDiagramMap edges = map rotateDiagram nameDiagramMap
 
           makePortEdge :: (Int, Name, Maybe Int) -> (P2 Double, P2 Double)
           makePortEdge (portInt, otherIconName, _) =
-            (getPortPoint portInt, getFromMapAndScale positionMap otherIconName)
+            (getPortPoint portInt, getFromMapAndScale positionMapNameKeys otherIconName)
 
           portEdges = map makePortEdge $ filter iconInMap namesOfPortsWithLines
 
-          minAngle = angleWithMinDist (getFromMapAndScale positionMap name) portEdges
+          minAngle = angleWithMinDist (getFromMapAndScale positionMapNameKeys name) portEdges
 
 
 type LayoutResult a b = Gr (GV.AttributeNode (Name, b)) (GV.AttributeNode a)
 
-placeNodes :: Ord c =>
-   LayoutResult a c
-   -> [(Name, TransformableDia b)]
+placeNodes :: SpecialBackend b =>
+   LayoutResult a Icon
    -> [Connection]
    -> SpecialQDiagram b
-placeNodes layoutResult nameDiagramMap edges = mconcat placedNodes
+placeNodes layoutResult edges = mconcat placedNodes
   where
-    positionMap = Map.mapKeys fst $ fst $ getGraph layoutResult
-    rotatedNameDiagramMap = rotateNodes positionMap nameDiagramMap edges
+    positionMap = fst $ getGraph layoutResult
+    rotatedNameDiagramMap = rotateNodes positionMap edges
     placedNodes = map placeNode rotatedNameDiagramMap
     --placedNodes = map placeNode nameDiagramMap
     -- todo: Not sure if the diagrams should already be centered at this point.
@@ -273,13 +268,12 @@ customLayoutParams = GV.defaultParams{
 doGraphLayout :: forall b e.
   SpecialBackend b =>
   Gr (Name, Icon) e
-  -> [(Name, TransformableDia b)]
   -> [Connection]
   -> IO (SpecialQDiagram b)
-doGraphLayout graph nameDiagramMap edges = do
+doGraphLayout graph edges = do
   layoutResult <- layoutGraph' layoutParams GVA.Neato graph
   --  layoutResult <- layoutGraph' layoutParams GVA.Fdp graph
-  return $ placeNodes layoutResult nameDiagramMap edges
+  return $ placeNodes layoutResult edges
   where
     layoutParams :: GV.GraphvizParams Int (Name,Icon) e () (Name,Icon)
     --layoutParams :: GV.GraphvizParams Int l el Int l
@@ -318,4 +312,4 @@ renderIconGraph iconGraph = diagramAction where
   edges = ING.edgeLabel <$> ING.labEdges iconGraph
   connections = fmap edgeConnection edges
   diagramAction = makeConnections edges <$>
-    doGraphLayout iconGraph (makeNamedMapFromGraph iconGraph) connections
+    doGraphLayout iconGraph connections
