@@ -198,7 +198,7 @@ connectedPorts edges name = map edgeToPort $ filter nameInEdge edges
 -- todo: confirm precondition (or use a newtype)
 rotateNodes ::
   Map.Map Name (Point V2 Double)
-  -> [(Name, Bool -> Double -> SpecialQDiagram b)]
+  -> [(Name, TransformableDia b)]
   -> [Connection]
   -> [(Name, SpecialQDiagram b)]
 rotateNodes positionMap nameDiagramMap edges = map rotateDiagram nameDiagramMap
@@ -239,7 +239,7 @@ type LayoutResult a b = Gr (GV.AttributeNode (Name, b)) (GV.AttributeNode a)
 
 placeNodes :: Ord c =>
    LayoutResult a c
-   -> [(Name, Bool -> Double -> SpecialQDiagram b)]
+   -> [(Name, TransformableDia b)]
    -> [Connection]
    -> SpecialQDiagram b
 placeNodes layoutResult nameDiagramMap edges = mconcat placedNodes
@@ -273,7 +273,7 @@ customLayoutParams = GV.defaultParams{
 doGraphLayout :: forall b e.
   SpecialBackend b =>
   Gr (Name, Icon) e
-  -> [(Name, Bool -> Double -> SpecialQDiagram b)]
+  -> [(Name, TransformableDia b)]
   -> [Connection]
   -> IO (SpecialQDiagram b)
 doGraphLayout graph nameDiagramMap edges = do
