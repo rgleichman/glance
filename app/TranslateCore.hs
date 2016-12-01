@@ -20,24 +20,20 @@ module TranslateCore(
   makeBox,
   nTupleString,
   nListString,
-  syntaxGraphToDrawing,
   syntaxGraphToFglGraph,
-  ingSyntaxGraphToDrawing,
   nodeToIcon
 ) where
 
-import Data.Semigroup(Semigroup, (<>))
-import qualified Diagrams.Prelude as DIA
 import Control.Monad.State(State)
 import Data.Either(partitionEithers)
-import Control.Arrow(second)
 import qualified Data.Graph.Inductive.PatriciaTree as FGR
-import qualified Data.Graph.Inductive as ING
-import Diagrams.TwoD.GraphViz as DiaGV
 import Data.List(find)
+import Data.Semigroup(Semigroup, (<>))
+import qualified Diagrams.Prelude as DIA
+import Diagrams.TwoD.GraphViz as DiaGV
 
-import Types(Icon, SyntaxNode(..), Edge(..), EdgeOption(..), Drawing(..),
-  NameAndPort(..), IDState, getId, SgNamedNode, IngSyntaxGraph)
+import Types(Icon, SyntaxNode(..), Edge(..), EdgeOption(..),
+  NameAndPort(..), IDState, getId, SgNamedNode)
 import Util(noEnds, nameAndPort, makeSimpleEdge, justName, fromMaybeError, maybeBoolToBool)
 import Icons(Icon(..))
 
@@ -223,14 +219,3 @@ syntaxGraphToFglGraph (SyntaxGraph nodes edges _ _) =
           errorString =
             "syntaxGraphToFglGraph edge connects to non-existent node. Node Name ="
             ++ show name ++ " Edge=" ++ show e
-
-
-syntaxGraphToDrawing :: SyntaxGraph -> Drawing
-syntaxGraphToDrawing (SyntaxGraph nodes edges _ _) =
-  Drawing icons edges where
-    icons = fmap (second nodeToIcon) nodes
-
-ingSyntaxGraphToDrawing :: ING.Graph gr => IngSyntaxGraph gr -> Drawing
-ingSyntaxGraphToDrawing syntaxGraph = Drawing icons edges where
-  icons = (second nodeToIcon . snd) <$> ING.labNodes syntaxGraph
-  edges = ING.edgeLabel <$> ING.labEdges syntaxGraph
