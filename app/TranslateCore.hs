@@ -22,7 +22,8 @@ module TranslateCore(
   nListString,
   syntaxGraphToDrawing,
   syntaxGraphToFglGraph,
-  ingSyntaxGraphToDrawing
+  ingSyntaxGraphToDrawing,
+  nodeToIcon
 ) where
 
 import Data.Semigroup(Semigroup, (<>))
@@ -30,7 +31,7 @@ import qualified Diagrams.Prelude as DIA
 import Control.Monad.State(State)
 import Data.Either(partitionEithers)
 import Control.Arrow(second)
-import Data.Graph.Inductive.PatriciaTree as FGR
+import qualified Data.Graph.Inductive.PatriciaTree as FGR
 import qualified Data.Graph.Inductive as ING
 import Diagrams.TwoD.GraphViz as DiaGV
 import Data.List(find)

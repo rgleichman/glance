@@ -36,7 +36,7 @@ data Icon = ResultIcon | BranchIcon | TextBoxIcon String | GuardIcon Int
   -- TODO: NestedApply should have the type NestedApply (Maybe (Name, Icon)) [Maybe (Name, Icon)]
   | NestedApply [Maybe (Name, Icon)]
   | NestedPApp [Maybe (Name, Icon)]
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord)
 
 -- TODO remove Ints from SyntaxNode data constructors.
 -- TODO Add NestedApplyNode, and NestedPatternApplyNode

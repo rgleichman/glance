@@ -1,41 +1,47 @@
-{-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeFamilies, PartialTypeSignatures #-}
+{-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeFamilies, PartialTypeSignatures, ScopedTypeVariables #-}
 
 module Rendering (
   renderDrawing,
-  customLayoutParams
+  customLayoutParams,
+  renderIngSyntaxGraph
 ) where
 
+import Diagrams.Core.Names(Name(..))
 import Diagrams.Prelude hiding ((#), (&))
 import Diagrams.TwoD.GraphViz(mkGraph, getGraph, layoutGraph')
-import Diagrams.Core.Names(Name(..))
 --import Diagrams.Backend.SVG(B)
 
 import qualified Data.GraphViz as GV
 import qualified Data.GraphViz.Attributes.Complete as GVA
---import qualified Data.GraphViz.Types
---import Data.GraphViz.Commands
 import qualified Data.Map as Map
 import Data.Maybe(isJust)
---import qualified Debug.Trace
-import Data.List(minimumBy)
+
+import Control.Arrow(second)
 import Data.Function(on)
+import qualified Data.Graph.Inductive as ING
 import Data.Graph.Inductive.PatriciaTree (Gr)
+import Data.List(minimumBy)
 import Data.Typeable(Typeable)
+
+--import qualified Data.GraphViz.Types
+--import Data.GraphViz.Commands
+--import qualified Debug.Trace
 --import Data.Word(Word16)
 
-import Icons(colorScheme, iconToDiagram, nameDiagram, defaultLineWidth, ColorStyle(..))
+import Icons(colorScheme, iconToDiagram, nameDiagram, defaultLineWidth, ColorStyle(..), TransformableDia)
+import TranslateCore(nodeToIcon)
 import Types(Edge(..), Icon, EdgeOption(..), Connection, Drawing(..), EdgeEnd(..),
-  NameAndPort(..), SpecialQDiagram, SpecialBackend)
+  NameAndPort(..), SpecialQDiagram, SpecialBackend, SyntaxNode)
 import Util(fromMaybeError)
 
 -- If the inferred types for these functions becomes unweildy,
 -- try using PartialTypeSignitures.
 
 -- CONSTANT
-scaleFactor :: (Fractional a) => a
+graphvizScaleFactor :: (Fractional a) => a
 
 -- For Neato
-scaleFactor = 0.12
+graphvizScaleFactor = 0.12
 
 -- For Fdp
 --scaleFactor = 0.09
@@ -50,27 +56,30 @@ drawingToGraphvizScaleFactor :: Double
 drawingToGraphvizScaleFactor = 0.15
 
 -- CONVERTING Edges AND Icons TO DIAGRAMS --
-
--- | Convert a map of names and icons, to a list of names and diagrams.
--- The first argument is the subdiagram map used for the inside of lambdaIcons
--- The second argument is the map of icons that should be converted to diagrams.
-makeNamedMap :: SpecialBackend b =>
-  [(t, Icon)] -> [(t, Bool -> Double -> SpecialQDiagram b)]
-makeNamedMap =
-  map (\(name, icon) -> (name, iconToDiagram icon))
+makeNamedMapFromGraph :: (SpecialBackend b, ING.Graph gr) =>
+  gr (d, Icon) e -> [(d, Icons.TransformableDia b)]
+makeNamedMapFromGraph graph = (second iconToDiagram . snd) <$> ING.labNodes graph
 
 -- Note that the name type alias is different from the Name constructor.
 getTopLevelName :: Name -> Name
 getTopLevelName (Name []) = Name []
 getTopLevelName (Name (x:_)) = Name [x]
 
+-- TODO Refactor with syntaxGraphToFglGraph in TranslateCore
+drawingToIconGraph :: Drawing -> Gr (Name, Icon) Edge
+drawingToIconGraph (Drawing nodes edges) =
+  mkGraph nodes labeledEdges where
+    labeledEdges = fmap makeLabeledEdge edges
+    makeLabeledEdge e@(Edge _ _ (NameAndPort n1 _, NameAndPort n2 _)) =
+      let name1 = getTopLevelName n1
+          name2 = getTopLevelName n2
+      in
+      ((name1, lookupInNodes name1), (name2, lookupInNodes name2), e) where
+        lookupInNodes name = fromMaybeError errorString (lookup name nodes) where
+          errorString =
+            "syntaxGraphToFglGraph edge connects to non-existent node. Node Name ="
+            ++ show name ++ " Edge=" ++ show e
 
--- TODO: Not sure if using getTopLevelName here will break the old nested lambda icon.
--- | Make an inductive Graph from a list of node names, and a list of Connections.
-edgesToGraph :: [Name] -> [(NameAndPort, NameAndPort)] -> Gr Name ()
-edgesToGraph iconNames edges = mkGraph iconNames simpleEdges
-  where
-    simpleEdges = map (\(NameAndPort a _, NameAndPort c _) -> (getTopLevelName a, getTopLevelName c, ())) edges
 
 -- | Custom arrow tail for the arg1 result circle.
 -- The ArrowHT type does not seem to be documented.
@@ -81,6 +90,7 @@ arg1ResT len _ = (alignR $ circle (len / 2), mempty)
 arg1ResH :: (RealFloat n) => ArrowHT n
 arg1ResH len _ = (alignL $ circle (len / 2), mempty)
 
+bezierShaft :: (V t ~ V2, TrailLike t) => Angle (N t) -> Angle (N t) -> t
 bezierShaft angle1 angle2 = fromSegments [bezier3 c1 c2 x] where
   scaleFactor = 0.5
   x = r2 (1,0)
@@ -169,7 +179,7 @@ angleWithMinDist myLocation edges =
     totalLength angle = (angle, totalLenghtOfLines angle myLocation edges)
 
 getFromMapAndScale :: (Fractional a, Functor f, Ord k) => Map.Map k (f a) -> k -> f a
-getFromMapAndScale posMap name = scaleFactor *^ (posMap Map.! name)
+getFromMapAndScale posMap name = graphvizScaleFactor *^ (posMap Map.! name)
 
 -- | Returns [(myport, other node, maybe other node's port)]
 connectedPorts :: [Connection] -> Name -> [(Int, Name, Maybe Int)]
@@ -224,20 +234,22 @@ rotateNodes positionMap nameDiagramMap edges = map rotateDiagram nameDiagramMap
 
           minAngle = angleWithMinDist (getFromMapAndScale positionMap name) portEdges
 
-type LayoutResult a = Gr (GV.AttributeNode Name) (GV.AttributeNode a)
-placeNodes ::
-   LayoutResult a
+
+type LayoutResult a b = Gr (GV.AttributeNode (Name, b)) (GV.AttributeNode a)
+
+placeNodes :: Ord c =>
+   LayoutResult a c
    -> [(Name, Bool -> Double -> SpecialQDiagram b)]
    -> [Connection]
    -> SpecialQDiagram b
 placeNodes layoutResult nameDiagramMap edges = mconcat placedNodes
   where
-    (positionMap, _) = getGraph layoutResult
+    positionMap = Map.mapKeys fst $ fst $ getGraph layoutResult
     rotatedNameDiagramMap = rotateNodes positionMap nameDiagramMap edges
     placedNodes = map placeNode rotatedNameDiagramMap
     --placedNodes = map placeNode nameDiagramMap
     -- todo: Not sure if the diagrams should already be centered at this point.
-    placeNode (name, diagram) = place (centerXY diagram) (scaleFactor *^ (positionMap Map.! name))
+    placeNode (name, diagram) = place (centerXY diagram) (graphvizScaleFactor *^ (positionMap Map.! name))
 
 customLayoutParams :: GV.GraphvizParams n v e () v
 customLayoutParams = GV.defaultParams{
@@ -258,47 +270,52 @@ customLayoutParams = GV.defaultParams{
   GV.fmtEdge = const [GV.arrowTo GV.noArrow]
   }
 
-doGraphLayout ::
-   Gr Name e
-   -> [(Name, Bool -> Double -> SpecialQDiagram b)]
-   -> [Connection]
-   -> IO (SpecialQDiagram b)
+doGraphLayout :: forall b e.
+  SpecialBackend b =>
+  Gr (Name, Icon) e
+  -> [(Name, Bool -> Double -> SpecialQDiagram b)]
+  -> [Connection]
+  -> IO (SpecialQDiagram b)
 doGraphLayout graph nameDiagramMap edges = do
   layoutResult <- layoutGraph' layoutParams GVA.Neato graph
   --  layoutResult <- layoutGraph' layoutParams GVA.Fdp graph
   return $ placeNodes layoutResult nameDiagramMap edges
   where
-    layoutParams :: GV.GraphvizParams Int v e () v
+    layoutParams :: GV.GraphvizParams Int (Name,Icon) e () (Name,Icon)
     --layoutParams :: GV.GraphvizParams Int l el Int l
     layoutParams = customLayoutParams{
       GV.fmtNode = nodeAttribute
       }
-    nodeAttribute :: (Int, l) -> [GV.Attribute]
-    nodeAttribute (nodeInt, _) =
+    nodeAttribute :: (Int, (Name, Icon)) -> [GV.Attribute]
+    nodeAttribute (_, (_, nodeIcon)) =
       -- GVA.Width and GVA.Height have a minimum of 0.01
       --[GVA.Width diaWidth, GVA.Height diaHeight]
       [GVA.Width circleDiameter, GVA.Height circleDiameter]
       where
-        --todo: Hack! Using (!!) here relies upon the implementation of Diagrams.TwoD.GraphViz.mkGraph
-        -- to name the nodes in order
-        (_, unTransformedDia) = nameDiagramMap !! nodeInt
-        dia = unTransformedDia False 0
+        -- This type annotation (:: SpecialQDiagram b) requires Scoped Typed Variables, which only works if the function's
+        -- type signiture has "forall b e."
+        dia = iconToDiagram nodeIcon False 0 :: SpecialQDiagram b
 
         diaWidth = drawingToGraphvizScaleFactor * width dia
         diaHeight = drawingToGraphvizScaleFactor * height dia
         circleDiameter' = max diaWidth diaHeight
         circleDiameter = if circleDiameter' <= 0.01 then error ("circleDiameter too small: " ++ show circleDiameter') else circleDiameter'
 
-
 -- | Given a Drawing, produce a Diagram complete with rotated/flipped icons and
 -- lines connecting ports and icons. IO is needed for the GraphViz layout.
-renderDrawing :: SpecialBackend b =>
+renderDrawing ::
+  SpecialBackend b =>
   Drawing -> IO (SpecialQDiagram b)
-renderDrawing (Drawing nameIconMap edges) = do
-  let diagramMap = makeNamedMap nameIconMap
-  --mapM_ (putStrLn . (++"\n") . show . (map fst) . names . snd) diagramMap
-  makeConnections edges <$>
-    doGraphLayout (edgesToGraph iconNames connections) diagramMap connections
-  where
-    connections = map edgeConnection edges
-    iconNames = map fst nameIconMap
+renderDrawing = renderIconGraph . drawingToIconGraph
+
+renderIngSyntaxGraph ::
+  SpecialBackend b =>
+  Gr (Name, SyntaxNode) Edge -> IO (SpecialQDiagram b)
+renderIngSyntaxGraph = renderIconGraph . ING.nmap (Control.Arrow.second nodeToIcon)
+
+renderIconGraph :: SpecialBackend b => Gr (Name, Icon) Edge -> IO (SpecialQDiagram b)
+renderIconGraph iconGraph = diagramAction where
+  edges = ING.edgeLabel <$> ING.labEdges iconGraph
+  connections = fmap edgeConnection edges
+  diagramAction = makeConnections edges <$>
+    doGraphLayout iconGraph (makeNamedMapFromGraph iconGraph) connections

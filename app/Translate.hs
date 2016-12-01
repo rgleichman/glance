@@ -17,6 +17,7 @@ import qualified Language.Haskell.Exts as Exts
 import Language.Haskell.Exts(Decl(..), parseDecl, Name(..), Pat(..), Rhs(..),
   Exp(..), QName(..), fromParseResult, Match(..), QOp(..), GuardedRhs(..),
   Stmt(..), Binds(..), Alt(..), Module(..), SpecialCon(..))
+import qualified Data.Graph.Inductive.PatriciaTree as FGR
 --import Data.Maybe(catMaybes)
 
 import GraphAlgorithms(collapseNodes)
@@ -25,9 +26,9 @@ import TranslateCore(Reference, SyntaxGraph(..), EvalContext, GraphAndRef,
   edgesForRefPortList, makeApplyGraph,
   namesInPattern, lookupReference, deleteBindings, makeEdges,
   coerceExpressionResult, makeBox, nTupleString, nListString,
-  syntaxGraphToFglGraph, ingSyntaxGraphToDrawing)
-import Types(Drawing(..), NameAndPort(..), IDState,
-  initialIdState, Edge, SyntaxNode(..))
+  syntaxGraphToFglGraph)
+import Types(NameAndPort(..), IDState,
+  initialIdState, Edge, SyntaxNode(..), IngSyntaxGraph)
 import Util(toNames, makeSimpleEdge, nameAndPort, justName, mapFst)
 
 -- OVERVIEW --
@@ -491,20 +492,21 @@ showTopLevelBinds gr@(SyntaxGraph _ _ _ binds) = do
   newGraph <- mconcat <$> mapM addBind binds
   pure $ newGraph <> gr
 
-drawingFromDecl :: Decl -> Drawing
+-- TODO Rename these functions to not have "drawing" in them.
+drawingFromDecl :: Decl -> IngSyntaxGraph FGR.Gr
 drawingFromDecl d = drawing
   where
     evaluatedDecl = evalDecl mempty d >>= showTopLevelBinds
     syntaxGraph = evalState evaluatedDecl initialIdState
-    drawing = ingSyntaxGraphToDrawing $ collapseNodes $ syntaxGraphToFglGraph syntaxGraph
+    drawing = collapseNodes $ syntaxGraphToFglGraph syntaxGraph
 
 -- Profiling: about 1.5% of total time.
-translateString :: String -> (Drawing, Decl)
+translateString :: String -> (IngSyntaxGraph FGR.Gr, Decl)
 translateString s = (drawing, decl) where
   decl = fromParseResult (parseDecl s) -- :: ParseResult Module
   drawing = drawingFromDecl decl
 
-drawingsFromModule :: Module -> [Drawing]
+drawingsFromModule :: Module -> [IngSyntaxGraph FGR.Gr]
 drawingsFromModule (Module _ _ _ _ _ _ decls) = fmap drawingFromDecl decls
 
 stringToSyntaxGraph :: String -> SyntaxGraph

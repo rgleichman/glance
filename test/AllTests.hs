@@ -12,57 +12,60 @@ import qualified Data.Graph.Inductive.PatriciaTree as FGR
 import Test.HUnit
 
 import Icons(textBox, colorScheme, ColorStyle(..), coloredTextBox)
-import Rendering(renderDrawing, customLayoutParams)
-import Util(toNames, portToPort, iconToPort, iconToIcon,
+import Rendering(renderDrawing, customLayoutParams, renderIngSyntaxGraph)
+import Util(toNames, portToPort, iconToPort,
   iconToIconEnds, iconTailToPort)
-import Types(Icon(..), Drawing(..), EdgeEnd(..), SgNamedNode, Edge(..), SyntaxNode(..), NameAndPort(..))
+import Types(Icon(..), Drawing(..), EdgeEnd(..), SgNamedNode, Edge(..), SyntaxNode(..), NameAndPort(..),
+             IngSyntaxGraph)
 import Translate(translateString, stringToSyntaxGraph)
 import TranslateCore(syntaxGraphToFglGraph)
 import GraphAlgorithms(collapseNodes)
 import qualified GraphAlgorithms
 
-(d0A, d0B, d0Res, d0Foo, d0Bar) = ("A", "B", "res", "foo", "bar")
-d0Icons = toNames
-  [(d0A, ApplyAIcon 1),
-  (d0B, ApplyAIcon 1),
-  (d0Res, ResultIcon),
-  (d0Foo, TextBoxIcon d0Foo),
-  (d0Bar, TextBoxIcon d0Bar)
-  ]
-
-d0Edges =
-  [
-  portToPort d0A 0 d0B 1,
-  iconToPort d0Foo d0B 0,
-  iconToPort d0Res d0A 1,
-  iconToPort d0Foo d0B 0,
-  iconToPort d0Bar d0B 2,
-  iconToPort d0Bar d0A 2
-  ]
-
-drawing0 = Drawing d0Icons d0Edges
-d0Name = toName "d0"
 
 
-(fG0, fOne, fEq0, fMinus1, fEq0Ap, fMinus1Ap, fTimes, fRecurAp, fTimesAp, fArg, fRes) =
-  ("g0", "one", "eq0", "-1", "eq0Ap", "-1Ap", "*", "recurAp", "*Ap", "arg", "res")
+drawing0 :: Drawing
+drawing0 = Drawing d0Icons d0Edges where
+  [d0A, d0B, d0Res, d0Foo, d0Bar] = ["A", "B", "res", "foo", "bar"]
+  d0Icons = toNames
+    [(d0A, ApplyAIcon 1),
+     (d0B, ApplyAIcon 1),
+     (d0Res, ResultIcon),
+     (d0Foo, TextBoxIcon d0Foo),
+     (d0Bar, TextBoxIcon d0Bar)
+    ]
+  d0Edges =
+    [
+      portToPort d0A 0 d0B 1,
+      iconToPort d0Foo d0B 0,
+      iconToPort d0Res d0A 1,
+      iconToPort d0Foo d0B 0,
+      iconToPort d0Bar d0B 2,
+      iconToPort d0Bar d0A 2
+    ]
+    
 
-fact0Icons = toNames
-  [
-  (fG0, GuardIcon 2),
-  (fOne, TextBoxIcon "1"),
-  (fEq0, TextBoxIcon "== 0"),
-  (fMinus1, TextBoxIcon fMinus1),
-  (fEq0Ap, ApplyAIcon 1),
-  (fMinus1Ap, ApplyAIcon 1),
-  (fTimes, TextBoxIcon fTimes),
-  (fRecurAp, ApplyAIcon 1),
-  (fTimesAp, ApplyAIcon 2),
-  (fArg, BranchIcon),
-  (fRes, ResultIcon)
-  ]
+fG0, fOne, fEq0, fMinus1, fEq0Ap, fMinus1Ap, fTimes, fRecurAp, fTimesAp, fArg, fRes :: String
+[fG0, fOne, fEq0, fMinus1, fEq0Ap, fMinus1Ap, fTimes, fRecurAp, fTimesAp, fArg, fRes] =
+  ["g0", "one", "eq0", "-1", "eq0Ap", "-1Ap", "*", "recurAp", "*Ap", "arg", "res"]
 
-fact0Edges = [
+fact0Drawing :: Drawing
+fact0Drawing = Drawing fact0Icons fact0Edges where
+  fact0Icons = toNames
+    [
+      (fG0, GuardIcon 2),
+      (fOne, TextBoxIcon "1"),
+      (fEq0, TextBoxIcon "== 0"),
+      (fMinus1, TextBoxIcon fMinus1),
+      (fEq0Ap, ApplyAIcon 1),
+      (fMinus1Ap, ApplyAIcon 1),
+      (fTimes, TextBoxIcon fTimes),
+      (fRecurAp, ApplyAIcon 1),
+      (fTimesAp, ApplyAIcon 2),
+      (fArg, BranchIcon),
+      (fRes, ResultIcon)
+    ]
+  fact0Edges = [
     iconToPort fEq0 fEq0Ap 0,
     portToPort fEq0Ap 1 fG0 3,
     iconToPort fMinus1 fMinus1Ap 0,
@@ -75,11 +78,10 @@ fact0Edges = [
     iconToPort fArg fTimesAp 1,
     portToPort fMinus1Ap 1 fRecurAp 2,
     iconToPort fRes fG0 0
-  ]
+    ]
 
-fact0Drawing = Drawing fact0Icons fact0Edges
-fact0Name = toName "fac0"
 
+fact1Icons :: [(Name, Icon)]
 fact1Icons = toNames
   [
   (fG0, GuardIcon 2),
@@ -93,6 +95,7 @@ fact1Icons = toNames
   (fRes, ResultIcon)
   ]
 
+fact1Edges :: [Edge]
 fact1Edges = [
   iconToIconEnds fArg EndNone fEq0 EndAp1Arg,
   iconTailToPort fEq0 EndAp1Result fG0 3,
@@ -106,10 +109,12 @@ fact1Edges = [
   iconToPort fRes fG0 0
   ]
 
+fact1Drawing :: Drawing
 fact1Drawing = Drawing fact1Icons fact1Edges
 
 -- fact2 is like fact1, but uses fTimesAp port 2 to distrubute the argument,
 -- not fArg
+fact2Icons :: [(Name, Icon)]
 fact2Icons = toNames
   [
   (fG0, GuardIcon 2),
@@ -123,6 +128,7 @@ fact2Icons = toNames
   (fRes, ResultIcon)
   ]
 
+fact2Edges :: [Edge]
 fact2Edges = [
   --iconToIconEnds fArg EndNone fEq0 EndAp1Arg,
   iconTailToPort fEq0 EndAp1Arg fTimesAp 2,
@@ -138,26 +144,27 @@ fact2Edges = [
   iconToPort fRes fG0 0
   ]
 
+fact2Drawing :: Drawing
 fact2Drawing = Drawing fact2Icons fact2Edges
 
-(arr1, arr2, arr3, arr4) = ("arr1", "arr2", "arr3", "arr4")
+arrowTestDrawing :: Drawing
+arrowTestDrawing = Drawing arrowTestIcons arrowTestEdges where
+  [arr1, arr2, arr3, arr4] = ["arr1", "arr2", "arr3", "arr4"]
+  arrowTestIcons = toNames [
+    (arr1, TextBoxIcon "1"),
+    (arr2, TextBoxIcon "2"),
+    (arr3, TextBoxIcon "3"),
+    (arr4, TextBoxIcon "4")
+    ]
+  arrowTestEdges = [
+    iconToIconEnds arr1 EndAp1Arg arr2 EndAp1Result,
+    iconToIconEnds arr1 EndAp1Result arr3 EndAp1Arg,
+    iconToIconEnds arr2 EndAp1Result arr3 EndAp1Result,
+    iconToIconEnds arr1 EndAp1Arg arr4 EndAp1Arg
+    ]
+    
 
-arrowTestIcons = toNames [
-  (arr1, TextBoxIcon "1"),
-  (arr2, TextBoxIcon "2"),
-  (arr3, TextBoxIcon "3"),
-  (arr4, TextBoxIcon "4")
-  ]
-
-arrowTestEdges = [
-  iconToIconEnds arr1 EndAp1Arg arr2 EndAp1Result,
-  iconToIconEnds arr1 EndAp1Result arr3 EndAp1Arg,
-  iconToIconEnds arr2 EndAp1Result arr3 EndAp1Result,
-  iconToIconEnds arr1 EndAp1Arg arr4 EndAp1Arg
-  ]
-
-arrowTestDrawing = Drawing arrowTestIcons arrowTestEdges
-
+nestedTestIcons :: [(Name, Icon)]
 nestedTestIcons = toNames [
   ("n1", NestedApply args),
   ("t1", TextBoxIcon "T1"),
@@ -177,6 +184,7 @@ nestedTestIcons = toNames [
       Just (toName "in", NestedApply innerArgs)
       ]
 
+nestedTestEdges :: [Edge]
 nestedTestEdges = [
   iconToPort "t1" "n1" 2,
   --iconToPort "t1" "in" 1,
@@ -184,6 +192,7 @@ nestedTestEdges = [
   iconToPort "t2" ("n1" .> "in" .> "n2") 2
   ]
 
+nestedTextDrawing :: Drawing
 nestedTextDrawing = Drawing nestedTestIcons nestedTestEdges
 
 renderTests :: IO (Diagram B)
@@ -203,6 +212,7 @@ renderTests = do
       ]
 
 -- | nestedTests / collapseTest
+nestedTests :: [String]
 nestedTests = [
   "y = f x",
   "y = f (g x)",
@@ -227,11 +237,13 @@ nestedTests = [
   "Foo (Bar x) = f x"
   ]
 
+dollarTests :: [String]
 dollarTests = [
   "y = f $ g 3",
   " y = f 1 $ g 2 "
   ]
 
+specialTests :: [String]
 specialTests = [
   "lookupTail EndAp1Arg = (arrowTail .~ dart')",
   "y = x .~ y",
@@ -241,12 +253,14 @@ specialTests = [
   "yyyyy = fffff xxxxx"
   ]
 
+negateTests :: [String]
 negateTests = [
   "y = -1",
   "y = -1/2",
   "y = -x"
   ]
 
+doTests :: [String]
 doTests = [
   "y = do {x1}",
   "y = do {x1; x2}",
@@ -257,6 +271,7 @@ doTests = [
   "y = do {let {x = 1}; x2 <- x; f x2}"
   ]
 
+enumTests :: [String]
 enumTests = [
   "y = [1..]",
   "y = [1,2..]",
@@ -264,12 +279,14 @@ enumTests = [
   "y = [0,1..10]"
   ]
 
+tupleTests :: [String]
 tupleTests = [
   "y = ()",
   "(x, y) = (1,2)",
   "(x, y, z) = (1,2,3)"
   ]
 
+listTests :: [String]
 listTests = [
   "y = []",
   "y = [1]",
@@ -281,6 +298,7 @@ listTests = [
   -- TODO: Add this test "(x:y) = 3"
   ]
 
+caseTests :: [String]
 caseTests = [
   "y = case x of {0 -> 1; 2 -> 3}",
   "y = case f x of {0 -> 1; 2 -> 3}",
@@ -292,6 +310,7 @@ caseTests = [
   "z = case x of {0 -> 1; y -> y}"
   ]
 
+guardTests :: [String]
 guardTests = [
   "y x\n\
   \  | x == 0 = 1",
@@ -300,6 +319,7 @@ guardTests = [
   \  | otherwise = 2"
   ]
 
+patternTests :: [String]
 patternTests = [
   "Foo _ x = 3",
   "y (F x) = x",
@@ -319,6 +339,7 @@ patternTests = [
   "(x:y) = 2"
   ]
 
+lambdaTests :: [String]
 lambdaTests = [
   "y = (\\x -> (\\x -> (\\x -> x) x) x)",
   "y = (\\x -> (\\x -> (\\x -> x)))",
@@ -343,6 +364,7 @@ lambdaTests = [
   "y x = z where z = f x y"
   ]
 
+letTests :: [String]
 letTests = [
   "y = let {z = (\\x -> y x)} in z",
   "y = let {z x = y x} in z ",
@@ -368,12 +390,14 @@ letTests = [
   "y x = let z = x in z"
   ]
 
+operatorTests :: [String]
 operatorTests = [
   "y = 1 + 2",
   "y = map (1 ++) 3",
   "y = map (++ 1) 3"
   ]
 
+otherTests :: [String]
 otherTests = [
   "y = f 1 'c' 2.3 \"foobar\"",
   "fact x = if (x == 0) then 1 else (x * fact (x - 1))",
@@ -391,6 +415,7 @@ otherTests = [
   "y = Foo.bar"
   ]
 
+testDecls :: [String]
 testDecls = mconcat [
   dollarTests
   ,nestedTests
@@ -423,7 +448,7 @@ translateStringToDrawing s = do
   putStr "\n\n"
   print collapsedGraph
   putStr "\n\n"
-  renderDrawing drawing
+  renderIngSyntaxGraph drawing
 
 translateTests :: IO (Diagram B)
 translateTests = do
@@ -443,19 +468,16 @@ graphTests = do
     layedOutGraph
   where
     fglGraph = syntaxGraphToFglGraph $ stringToSyntaxGraph "y = f x"
-    nodeFunc (name, syntaxNode) =
+    nodeFunc (_, syntaxNode) =
       place (coloredTextBox white (opaque white) (show syntaxNode) :: Diagram B)
 
 prettyPrintSyntaxNode :: SyntaxNode -> String
-prettyPrintSyntaxNode (NestedApplyNode x namedNodesAndEdges) = concatMap printNameAndEdge namedNodesAndEdges
+prettyPrintSyntaxNode (NestedApplyNode _ namedNodesAndEdges) = concatMap printNameAndEdge namedNodesAndEdges
   where
     printNameAndEdge (namedNode, edge) = "(" ++ prettyPrintNamedNode namedNode ++ "," ++ printEdge edge ++ ")"
     prettyPrintNamedNode = show. fst --  "(" ++ show name ++ "," ++ prettyPrintSyntaxNode syntaxNode ++ ")"
     printEdge (Edge _ _ (NameAndPort n1 _, NameAndPort n2 _)) = show (n1, n2)
 prettyPrintSyntaxNode x = show x
-
--- For Neato
-scaleFactor = 0.12
 
 renderFglGraph :: FGR.Gr SgNamedNode Edge -> IO (Diagram B)
 renderFglGraph fglGraph = do
@@ -463,9 +485,10 @@ renderFglGraph fglGraph = do
   pure $ DiaGV.drawGraph
     nodeFunc
     --(\_ _ _ _ _ p -> lc white $ stroke p)
-    (\_ p₁ _ p₂ _ p -> lcA (withOpacity white 0.5) $ arrowBetween (scaleFactor *^ p₁) (scaleFactor *^ p₂))
+    (\_ point1 _ point2 _ _ -> lcA (withOpacity white 0.5) $ arrowBetween (scaleFactor *^ point1) (scaleFactor *^ point2))
     layedOutGraph
   where
+    scaleFactor = 0.12
     nodeFunc (name, syntaxNode) point =
       place (coloredTextBox white (opaque white) (show name ++ prettyPrintSyntaxNode syntaxNode) :: Diagram B) (scaleFactor *^ point)
     layoutParams :: GV.GraphvizParams Int v e () v
@@ -473,7 +496,7 @@ renderFglGraph fglGraph = do
       GV.fmtNode = nodeAttribute
     }
     nodeAttribute :: (Int, l) -> [GV.Attribute]
-    nodeAttribute (nodeInt, _) =
+    nodeAttribute _ =
       -- GVA.Width and GVA.Height have a minimum of 0.01
       --[GVA.Width diaWidth, GVA.Height diaHeight]
       [GVA.Width 0.01, GVA.Height 0.01]
@@ -533,28 +556,20 @@ renderDrawings = mapM_ saveDrawing where
     -- TODO Replace string concatenation with proper path manipulation functions.
     renderSVG ("test/test-output/" ++ name ++ ".svg") (mkWidth 700) (bgFrame 1 (backgroundC colorScheme) dia)
 
--- TODO Clean up this function
-testCollapse :: IO ()
-testCollapse = do
-  let
-    fglIn = syntaxGraphToFglGraph $ stringToSyntaxGraph "y = f x"
-    fglOut = collapseNodes fglIn
-  putStrLn "fglIn:"
-  ING.prettyPrint fglIn
-  putStrLn "\nfglOut:"
-  ING.prettyPrint fglOut
-
 -- 0:(toName "app02",ApplyNode 1)->[]
 -- 1:(toName "f0",LiteralNode "f")->[(Edge {edgeOptions = [], edgeEnds = (EndNone,EndNone), edgeConnection = (NameAndPort (toName "f0") Nothing,NameAndPort (toName "app02") (Just 0))},0)]
 -- 2:(toName "x1",LiteralNode "x")->[(Edge {edgeOptions = [], edgeEnds = (EndNone,EndNone), edgeConnection = (NameAndPort (toName "x1") Nothing,NameAndPort (toName "app02") (Just 2))},0)]
 -- 3:(toName "y3",NameNode "y")->[(Edge {edgeOptions = [], edgeEnds = (EndNone,EndNone), edgeConnection = (NameAndPort (toName "y3") Nothing,NameAndPort (toName "app02") (Just 1))},0)]
+singleApplyGraph :: FGR.Gr SgNamedNode Edge
 singleApplyGraph = syntaxGraphToFglGraph $ stringToSyntaxGraph "y = f x"
 
+makeTreeRootTest :: (String, [Maybe SgNamedNode], String) -> Test
 makeTreeRootTest (testName, expected, haskellString) = TestCase $ assertEqual testName expected actual where
   actual = fmap (ING.lab graph) treeRoots
   graph = syntaxGraphToFglGraph $ stringToSyntaxGraph haskellString
   treeRoots = GraphAlgorithms.findTreeRoots graph
 
+treeRootTests :: Test
 treeRootTests = TestList $ fmap makeTreeRootTest treeRootTestList where
   treeRootTestList = [
     ("single apply", [Just (toName "app02", ApplyNode 1)], "y = f x"),
@@ -563,10 +578,14 @@ treeRootTests = TestList $ fmap makeTreeRootTest treeRootTestList where
     ("recursive apply", [], "y = f (g y)")
     ]
 
+makeChildCanBeEmbeddedTest ::
+  ING.Graph gr =>
+  (String, IngSyntaxGraph gr, ING.Node, Bool) -> Test
 makeChildCanBeEmbeddedTest (testName, graph, node, expected) =TestCase $ assertEqual testName expected canBeEmbedded where
   canBeEmbedded = GraphAlgorithms.nodeWillBeEmbedded graph node
 
 -- TODO Add more cases for childCanBeEmbeddedTests
+childCanBeEmbeddedTests :: Test
 childCanBeEmbeddedTests = TestList $ fmap makeChildCanBeEmbeddedTest childCanBeEmbeddedList where
   childCanBeEmbeddedList = [
     ("single apply, ap", singleApplyGraph, 0, False),
@@ -575,6 +594,7 @@ childCanBeEmbeddedTests = TestList $ fmap makeChildCanBeEmbeddedTest childCanBeE
     ("single apply, y", singleApplyGraph, 3, False)
     ]
 
+collapseUnitTests :: Test
 collapseUnitTests = TestList[TestLabel "findTreeRoots" treeRootTests, TestLabel "childCanBeEmbedded" childCanBeEmbeddedTests]
 
 main :: IO ()
@@ -584,4 +604,3 @@ main = do
   renderDrawings drawingsAndNames
   _ <- runTestTT collapseUnitTests
   pure ()
---main = testCollapse

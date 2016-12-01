@@ -2,6 +2,7 @@
 module Icons
     (
     Icon(..),
+    TransformableDia,
     applyADia,
     flatLambda,
     iconToDiagram,
@@ -27,7 +28,6 @@ import Data.Typeable(Typeable)
 --import Data.Maybe(fromMaybe)
 
 import Types(Icon(..), SpecialQDiagram, SpecialBackend)
-import Util(fromMaybeError)
 import DrawingColors(colorScheme, ColorStyle(..))
 
 -- TYPES --
