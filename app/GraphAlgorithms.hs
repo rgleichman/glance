@@ -26,7 +26,7 @@ syntaxNodeIsEmbeddable :: ParentType -> SyntaxNode -> Bool
 syntaxNodeIsEmbeddable parentType n = case (parentType, n) of
   (ApplyParent, ApplyNode _) -> True
   (PatternParent, PatternApplyNode _ _) -> True
-  -- TODO Allow literals in patterns to be embedded.
+  (PatternParent, LiteralNode _) -> True
   (ApplyParent, LiteralNode _) -> True
   _ -> False
 

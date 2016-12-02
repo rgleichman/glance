@@ -28,8 +28,6 @@ Fix edges overlapping making it hard to match up the ends of the edges. Differen
 -- Translate todos:
 Fix y = f (g y) embedding. See todo for findParentThatWillEmbed in GraphAlgorithms.
 
-Allow literal nodes in patterns to be embedded by adding a flag to SynatxNodes if they are in a pattern.
-
 -- Fix test case x of {0 -> 1; y -> y}.
 -- Add proper RecConstr, and RecUpdate support.
 -- Eliminate BranchIcon in Alts.
