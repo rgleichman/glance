@@ -163,16 +163,17 @@ makeEdge graph dia (node0, node1, edge@(Edge _ _ (namePort0, namePort1))) =
       ING.lab graph node0
     node1label = fromMaybeError ("node0 is not in graph. node1: " ++ show node1) $
       ING.lab graph node1
-    icon0Angle = pickClosestAngle (0 @@ turn) shaftAngle shaftAngle $ findPortAngles node0label namePort0
-
-    shaftAnglePlusOneHalf = (+) <$> shaftAngle <*> (1/2 @@ turn)
-    icon1Angle = pickClosestAngle (1/2 @@ turn) shaftAnglePlusOneHalf shaftAngle $ findPortAngles node1label namePort1
 
     diaNamePointMap = names dia
     port0Point = getPortPoint $ nameAndPortToName namePort0
     port1Point = getPortPoint $ nameAndPortToName namePort1
     shaftVector = port1Point .-. port0Point
     shaftAngle = signedAngleBetween shaftVector unitX
+
+    icon0Angle = pickClosestAngle (0 @@ turn) shaftAngle shaftAngle $ findPortAngles node0label namePort0
+
+    shaftAnglePlusOneHalf = (+) <$> shaftAngle <*> (1/2 @@ turn)
+    icon1Angle = pickClosestAngle (1/2 @@ turn) shaftAnglePlusOneHalf shaftAngle $ findPortAngles node1label namePort1
 
     getPortPoint n = head $ fromMaybeError
       ("makeEdge: port not found. Port: " ++ show n ++ ". Valid ports: " ++ show diaNamePointMap)
@@ -249,12 +250,12 @@ rotateNodes positionMap edges = map rotateDiagram (Map.keys positionMap)
     positionMapNameKeys = Map.mapKeys fst positionMap
     rotateDiagram key@(name, icon) = (key, transformedDia)
       where
-        originalDia = iconToDiagram icon
+        originalDia = iconToDiagram icon name
         transformedDia = if flippedDist < unflippedDist
-          then rotateBy flippedAngle . reflectX $ originalDia True flippedAngle name
-          else rotateBy unflippedAngle $ originalDia False unflippedAngle name
-        (unflippedAngle, unflippedDist) = minAngleForDia (originalDia False 0 name)
-        (flippedAngle, flippedDist) = minAngleForDia (reflectX $ originalDia True 0 name)
+          then rotateBy flippedAngle . reflectX $ originalDia True flippedAngle
+          else rotateBy unflippedAngle $ originalDia False unflippedAngle
+        (unflippedAngle, unflippedDist) = minAngleForDia (originalDia False 0)
+        (flippedAngle, flippedDist) = minAngleForDia (reflectX $ originalDia True 0)
         --minAngleForDia :: QDiagram b V2 Double m -> (Double, Double)
         minAngleForDia dia = minAngle where
         --ports = Debug.Trace.trace ((show $ names dia) ++ "\n") $ names dia
@@ -292,7 +293,7 @@ placeNodes layoutResult edges = mconcat placedNodes
     positionMap = fst $ getGraph layoutResult
     --rotatedNameDiagramMap = rotateNodes positionMap connections
     --placedNodes = map placeNode rotatedNameDiagramMap
-    placedNodes = map placeNode $ (\key@(name, icon) -> (key, iconToDiagram icon False 0 name)) <$> Map.keys positionMap
+    placedNodes = map placeNode $ (\key@(name, icon) -> (key, iconToDiagram icon name False 0)) <$> Map.keys positionMap
     -- todo: Not sure if the diagrams should already be centered at this point.
     placeNode (name, diagram) = place (centerXY diagram) (graphvizScaleFactor *^ (positionMap Map.! name))
 
@@ -338,7 +339,7 @@ doGraphLayout graph edges = do
       where
         -- This type annotation (:: SpecialQDiagram b) requires Scoped Typed Variables, which only works if the function's
         -- type signiture has "forall b e."
-        dia = iconToDiagram nodeIcon False 0 (toName ""):: SpecialQDiagram b
+        dia = iconToDiagram nodeIcon (toName "") False 0 :: SpecialQDiagram b
 
         diaWidth = drawingToGraphvizScaleFactor * width dia
         diaHeight = drawingToGraphvizScaleFactor * height dia

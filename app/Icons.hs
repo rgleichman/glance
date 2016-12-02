@@ -35,9 +35,7 @@ import Types(Icon(..), SpecialQDiagram, SpecialBackend)
 import DrawingColors(colorScheme, ColorStyle(..))
 
 -- TYPES --
--- TODO Consider changing the order to
--- (Name -> Bool -> Double -> SpecialQDiagram b)
-type TransformableDia b = (Bool -> Double -> Name -> SpecialQDiagram b)
+type TransformableDia b = (Name -> Bool -> Double -> SpecialQDiagram b)
 
 -- COLORS --
 lineCol :: Colour Double
@@ -113,8 +111,11 @@ portAngles icon port maybeName = case icon of
 -- END FUNCTIONS --
 
 -- Make an identity TransformableDia
+
+-- Warning: the first argument to nameDiagram can be almost any type,
+-- so be careful with the parameter order.
 identDiaFunc :: SpecialQDiagram b -> TransformableDia b
-identDiaFunc dia _ _ name = nameDiagram name dia
+identDiaFunc dia name _ _ = nameDiagram name dia
 
 -- | Names the diagram and puts all sub-names in the namespace of the top level name.
 nameDiagram :: IsName nm => nm -> SpecialQDiagram b -> SpecialQDiagram b
@@ -181,7 +182,7 @@ reduceAngleRange x = x - fromInteger (floor x)
 
 generalTextAppDia :: SpecialBackend b =>
   Colour Double -> Colour Double -> Int -> String -> TransformableDia b
-generalTextAppDia textCol borderCol numArgs str reflect angle name = nameDiagram name rotateDia where
+generalTextAppDia textCol borderCol numArgs str name reflect angle = nameDiagram name rotateDia where
   rotateDia = transformCorrectedTextBox str textCol borderCol reflect angle |||
     coloredApplyADia borderCol numArgs
 
@@ -204,7 +205,7 @@ nestedPAppDia = generalNestedDia (patternC colorScheme)
 
 generalNestedDia :: SpecialBackend b =>
   Colour Double -> [Maybe (Name, Icon)] -> TransformableDia b
-generalNestedDia borderCol funcNameAndArgs reflect angle name = named name $ case funcNameAndArgs of
+generalNestedDia borderCol funcNameAndArgs name reflect angle = named name $ case funcNameAndArgs of
   [] -> mempty
   (maybeFunText:args) -> centerXY $  transformedText ||| centerY finalDia
     where
@@ -225,7 +226,7 @@ generalNestedDia borderCol funcNameAndArgs reflect angle name = named name $ cas
       finalDia = argBox <> allPorts
 
       makeInnerIcon portNum Nothing = makeQualifiedPort portNum <> portCircle
-      makeInnerIcon _ (Just (iconName, icon)) = iconToDiagram icon reflect angle iconName
+      makeInnerIcon _ (Just (iconName, icon)) = iconToDiagram icon iconName reflect angle
 
 
 -- TEXT ICON --
@@ -238,7 +239,7 @@ textBoxHeightFactor = 1.1
 
 textBox :: SpecialBackend b =>
   String -> TransformableDia b
-textBox t reflect rotate name = nameDiagram name $ transformCorrectedTextBox t (textBoxTextC colorScheme) (textBoxC colorScheme) reflect rotate
+textBox t name reflect rotate = nameDiagram name $ transformCorrectedTextBox t (textBoxTextC colorScheme) (textBoxC colorScheme) reflect rotate
 
 bindTextBox :: SpecialBackend b =>
   String -> SpecialQDiagram b
