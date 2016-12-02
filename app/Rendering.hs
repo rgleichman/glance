@@ -143,6 +143,14 @@ findPortAngles (nodeName, nodeIcon) (NameAndPort diaName mPort) = case mPort of
     mName = if nodeName == diaName then Nothing else Just diaName
     foundAngles = portAngles nodeIcon port mName
 
+-- TODO Clean up the Angle arithmatic
+pickClosestAngle :: Angle Double -> Angle Double -> Angle Double -> [Angle Double] -> Angle Double
+pickClosestAngle emptyCase target shaftAngle angles = case angles of
+  [] -> emptyCase
+  _ -> ((fst (minimumBy (compare `on` snd) $ fmap angleDiff angles) ^. rad) - (shaftAngle ^. rad)) @@ rad
+    where
+      angleDiff angle = (angle, angleBetween (angleV target) (angleV angle))
+
 makeEdge :: (SpecialBackend b, ING.Graph gr) =>
   gr (Name, Icon) Edge -> SpecialQDiagram b -> ING.LEdge Edge -> SpecialQDiagram b -> SpecialQDiagram b
 makeEdge graph dia (node0, node1, edge@(Edge _ _ (namePort0, namePort1))) =
@@ -152,12 +160,8 @@ makeEdge graph dia (node0, node1, edge@(Edge _ _ (namePort0, namePort1))) =
       ING.lab graph node0
     node1label = fromMaybeError ("node0 is not in graph. node1: " ++ show node1) $
       ING.lab graph node1
-    icon0Angle = case findPortAngles node0label namePort0 of
-      [] -> 0 @@ turn
-      (x:_) -> ((x ^. turn) - (shaftAngle ^. turn)) @@ turn
-    icon1Angle =  case findPortAngles node1label namePort1 of
-      [] -> 1/2 @@ turn
-      (x:_) -> ((x ^. turn) - (shaftAngle ^. turn)) @@ turn
+    icon0Angle = pickClosestAngle (0 @@ turn) shaftAngle shaftAngle $ findPortAngles node0label namePort0
+    icon1Angle = pickClosestAngle (1/2 @@ turn) ((shaftAngle ^. rad) + ((1/2 @@ turn) ^. rad) @@ rad) shaftAngle $ findPortAngles node1label namePort1
 
     diaNamePointMap = names dia
     port0Point = getPortPoint $ nameAndPortToName namePort0
@@ -178,7 +182,7 @@ addEdges :: (SpecialBackend b, ING.Graph gr) =>
   gr (Name, Icon) Edge -> SpecialQDiagram b -> SpecialQDiagram b
 addEdges graph dia = applyAll connections dia
   where
-    connections = fmap (makeEdge graph dia) $ ING.labEdges graph
+    connections = makeEdge graph dia <$> ING.labEdges graph
 
 -- ROTATING/FLIPPING ICONS --
 
