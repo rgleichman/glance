@@ -3,10 +3,10 @@ module Icons
     (
     Icon(..),
     TransformableDia,
+    portAngles,
     applyADia,
     flatLambda,
     iconToDiagram,
-    nameDiagram,
     textBox,
     multilineComment,
     enclosure,
@@ -22,27 +22,31 @@ module Icons
     ) where
 
 import Diagrams.Prelude hiding ((&), (#))
+
+import Data.List(find)
+import Data.Maybe(catMaybes, listToMaybe)
+import Data.Typeable(Typeable)
+
 -- import Diagrams.Backend.SVG(B)
 --import Diagrams.TwoD.Text(Text)
-import Data.Typeable(Typeable)
 --import Data.Maybe(fromMaybe)
 
 import Types(Icon(..), SpecialQDiagram, SpecialBackend)
 import DrawingColors(colorScheme, ColorStyle(..))
 
 -- TYPES --
-type TransformableDia b = (Bool -> Double -> SpecialQDiagram b)
+-- TODO Consider changing the order to
+-- (Name -> Bool -> Double -> SpecialQDiagram b)
+type TransformableDia b = (Bool -> Double -> Name -> SpecialQDiagram b)
 
 -- COLORS --
 lineCol :: Colour Double
 lineCol = lineC colorScheme
 
 -- FUNCTIONS --
--- Optimization: The apply0NDia's can be memoized.
 iconToDiagram :: SpecialBackend b => Icon -> TransformableDia b
 iconToDiagram (ApplyAIcon n) = identDiaFunc $ applyADia n
 iconToDiagram (PAppIcon n str) = pAppDia n str
-iconToDiagram (TextApplyAIcon n str) = textApplyADia n str
 iconToDiagram ResultIcon = identDiaFunc resultIcon
 iconToDiagram BranchIcon = identDiaFunc branchIcon
 iconToDiagram (TextBoxIcon s) = textBox s
@@ -54,9 +58,63 @@ iconToDiagram (FlatLambdaIcon n) = identDiaFunc $ flatLambda n
 iconToDiagram (NestedApply args) = nestedApplyDia args
 iconToDiagram (NestedPApp args) = nestedPAppDia args
 
+applyPortAngles :: (Integral a, Floating n) => a -> [Angle n]
+applyPortAngles x = case x of
+  0 -> [1/2 @@ turn]
+  1 -> [0 @@ turn]
+  _ -> fmap (@@ turn) [1/4, 3/4]
+
+guardPortAngles :: (Integral a, Floating n) => a -> [Angle n]
+guardPortAngles port = case port of
+  0 -> [1/4 @@ turn]
+  1 -> [3/4 @@ turn]
+  _ -> otherAngles where otherAngles
+                           | even port = [0 @@ turn]
+                           | otherwise = [1/2 @@ turn]
+
+findNestedIcon :: Name -> Icon -> Maybe Icon
+findNestedIcon name icon = case icon of
+  NestedApply args -> findIcon name args
+  NestedPApp args -> findIcon name args
+  _ -> Nothing
+
+findIcon :: Name -> [Maybe (Name, Icon)] -> Maybe Icon
+findIcon name args = icon where
+  filteredArgs = catMaybes args
+  nameMatches (n, _) = n == name
+  icon = case filteredArgs of
+    [] -> Nothing
+    _ ->  case find nameMatches filteredArgs of
+      Nothing -> listToMaybe $ catMaybes $ fmap (findNestedIcon name . snd) filteredArgs
+      Just (_, finalIcon) -> Just finalIcon
+  
+nestedApplyPortAngles :: (Integral a, Floating n) => [Maybe (Name, Icon)] -> a -> Maybe Name -> [Angle n]
+nestedApplyPortAngles args port maybeName = case maybeName of
+  Nothing -> applyPortAngles port
+  Just name -> case findIcon name args of
+    Nothing -> []
+    Just icon -> portAngles icon port Nothing
+
+portAngles :: (Integral a, Floating n) => Icon -> a -> Maybe Name -> [Angle n]
+portAngles icon port maybeName = case icon of
+  ApplyAIcon _ -> applyPortAngles port
+  PAppIcon _ _ -> applyPortAngles port
+  ResultIcon -> []
+  BranchIcon -> []
+  TextBoxIcon _ -> []
+  BindTextBoxIcon _ -> []
+  GuardIcon _ -> guardPortAngles port
+  CaseIcon _ -> guardPortAngles port
+  CaseResultIcon -> []
+  FlatLambdaIcon _ -> applyPortAngles port
+  NestedApply args -> nestedApplyPortAngles args port maybeName
+  NestedPApp args -> nestedApplyPortAngles args port maybeName
+
+-- END FUNCTIONS --
+
 -- Make an identity TransformableDia
 identDiaFunc :: SpecialQDiagram b -> TransformableDia b
-identDiaFunc dia _ _ = dia
+identDiaFunc dia _ _ name = nameDiagram name dia
 
 -- | Names the diagram and puts all sub-names in the namespace of the top level name.
 nameDiagram :: IsName nm => nm -> SpecialQDiagram b -> SpecialQDiagram b
@@ -122,13 +180,13 @@ reduceAngleRange :: Double -> Double
 reduceAngleRange x = x - fromInteger (floor x)
 
 generalTextAppDia :: SpecialBackend b =>
-  Colour Double -> Colour Double -> Int -> String -> Bool -> Double -> SpecialQDiagram b
-generalTextAppDia textCol borderCol numArgs str reflect angle = rotateDia where
+  Colour Double -> Colour Double -> Int -> String -> TransformableDia b
+generalTextAppDia textCol borderCol numArgs str reflect angle name = nameDiagram name rotateDia where
   rotateDia = transformCorrectedTextBox str textCol borderCol reflect angle |||
     coloredApplyADia borderCol numArgs
 
 transformCorrectedTextBox :: SpecialBackend b =>
-  String -> Colour Double -> Colour Double -> TransformableDia b
+  String -> Colour Double -> Colour Double -> Bool -> Double -> SpecialQDiagram b
 transformCorrectedTextBox str textCol borderCol reflect angle =
   rotateBy textBoxRotation (reflectIfTrue reflect (coloredTextBox textCol (opaque borderCol) str))
   where
@@ -146,10 +204,11 @@ nestedPAppDia = generalNestedDia (patternC colorScheme)
 
 generalNestedDia :: SpecialBackend b =>
   Colour Double -> [Maybe (Name, Icon)] -> TransformableDia b
-generalNestedDia borderCol funcNameAndArgs reflect angle = case funcNameAndArgs of
+generalNestedDia borderCol funcNameAndArgs reflect angle name = named name $ case funcNameAndArgs of
   [] -> mempty
   (maybeFunText:args) -> centerXY $  transformedText ||| centerY finalDia
     where
+      makeQualifiedPort x = name .>> makePort x
       transformedText = case maybeFunText of
         Just _ -> makeInnerIcon 0 maybeFunText
         Nothing -> mempty
@@ -158,15 +217,15 @@ generalNestedDia borderCol funcNameAndArgs reflect angle = case funcNameAndArgs 
       trianglePortsCircle = hsep seperation $
         reflectX (fc borderCol apply0Triangle) :
         zipWith makeInnerIcon [2,3..] args ++
-        [makePort 1 <> alignR (lc borderCol $ lwG defaultLineWidth $ fc borderCol $ circle circleRadius)]
+        [makeQualifiedPort 1 <> alignR (lc borderCol $ lwG defaultLineWidth $ fc borderCol $ circle circleRadius)]
   
-      allPorts = makePort 0 <> alignL trianglePortsCircle
+      allPorts = makeQualifiedPort 0 <> alignL trianglePortsCircle
       topAndBottomLineWidth = width allPorts - circleRadius
       argBox = alignL $ lwG defaultLineWidth $ lc borderCol $ rect topAndBottomLineWidth (height allPorts + verticalSeperation)
       finalDia = argBox <> allPorts
 
-      makeInnerIcon portNum Nothing = makePort portNum <> portCircle
-      makeInnerIcon _ (Just (iconName, icon)) = nameDiagram iconName $ iconToDiagram icon reflect angle
+      makeInnerIcon portNum Nothing = makeQualifiedPort portNum <> portCircle
+      makeInnerIcon _ (Just (iconName, icon)) = iconToDiagram icon reflect angle iconName
 
 
 -- TEXT ICON --
@@ -179,7 +238,7 @@ textBoxHeightFactor = 1.1
 
 textBox :: SpecialBackend b =>
   String -> TransformableDia b
-textBox t = transformCorrectedTextBox t (textBoxTextC colorScheme) $ textBoxC colorScheme
+textBox t reflect rotate name = nameDiagram name $ transformCorrectedTextBox t (textBoxTextC colorScheme) (textBoxC colorScheme) reflect rotate
 
 bindTextBox :: SpecialBackend b =>
   String -> SpecialQDiagram b
@@ -268,6 +327,11 @@ guardLBracket x = alignL (alignT ell) <> makePort x
     ellShape = fromOffsets $ map r2 [(0, guardSize), (-guardSize,0)]
     ell = lineJoin LineJoinRound $ lwG defaultLineWidth $ lc (boolC colorScheme) (strokeLine ellShape)
 
+-- | generalGuardIcon port layout:
+-- 0 -> top
+-- 1 -> bottom
+-- odds -> left
+-- evens -> right
 generalGuardIcon :: SpecialBackend b =>
   Colour Double -> (Int -> SpecialQDiagram b) -> SpecialQDiagram b -> Int -> SpecialQDiagram b
 generalGuardIcon triangleColor lBracket bottomDia n = centerXY $ alignT (bottomDia <> makePort 1) <> alignB (bigVerticalLine <> guardDia <> makePort 0)

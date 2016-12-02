@@ -9,6 +9,9 @@
 Fix the arrowheads being too big for SyntaxGraph darwings.
 
 -- Visual todos:
+Pick the best port angle
+Fix the port angle of the function port of nested apply. It should be [1/4, 3/4], not [1/2]
+
 -- Consider putting the function name in nested apply and pattern apply in a colored box.
 -- Make an icon font/library with labeled ports. E.g. the apply icon would have text labels "function", "result", "arg 0", "arg 1", etc.
 -- Fix rotation missing edges to nested diagrams.

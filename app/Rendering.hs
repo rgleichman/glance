@@ -28,7 +28,7 @@ import Data.Typeable(Typeable)
 --import qualified Debug.Trace
 --import Data.Word(Word16)
 
-import Icons(colorScheme, iconToDiagram, nameDiagram, defaultLineWidth, ColorStyle(..), TransformableDia)
+import Icons(colorScheme, iconToDiagram, defaultLineWidth, ColorStyle(..), portAngles)
 import TranslateCore(nodeToIcon)
 import Types(Edge(..), Icon, EdgeOption(..), Connection, Drawing(..), EdgeEnd(..),
   NameAndPort(..), SpecialQDiagram, SpecialBackend, SyntaxNode)
@@ -92,8 +92,8 @@ bezierShaft angle1 angle2 = fromSegments [bezier3 c1 c2 x] where
   c1 = rotate angle1 (scale scaleFactor unitX)
   c2 = rotate angle2 (scale scaleFactor unitX) ^+^ x
 
-getArrowOpts :: (RealFloat n, Typeable n) => (EdgeEnd, EdgeEnd) -> [EdgeOption]-> ArrowOpts n
-getArrowOpts (t, h) opts = arrowOptions
+getArrowOpts :: (RealFloat n, Typeable n) => (EdgeEnd, EdgeEnd) -> [EdgeOption] -> (Angle n, Angle n) -> ArrowOpts n
+getArrowOpts (t, h) opts (fromAngle, toAngle) = arrowOptions
   where
     shaftColor = if EdgeInPattern `elem` opts then patternC else lineC
     ap1ArgTexture = solid (backgroundC colorScheme)
@@ -113,30 +113,72 @@ getArrowOpts (t, h) opts = arrowOptions
     arrowOptions =
       arrowHead .~ noHead $
       arrowTail .~ noTail $
+      arrowShaft .~ bezierShaft fromAngle toAngle $
       lengths .~ global 0.75 $
-      shaftStyle %~ (lwG defaultLineWidth . lc (shaftColor colorScheme)) $
+      shaftStyle %~ (lwG defaultLineWidth . lcA (withOpacity (shaftColor colorScheme) 0.7)) $
       lookupHead h $ lookupTail t with
 
 -- | Given an Edge, return a transformation on Diagrams that will draw a line.
-connectMaybePorts :: SpecialBackend b =>
-  Edge -> SpecialQDiagram b -> SpecialQDiagram b
-connectMaybePorts (Edge opts ends (NameAndPort icon0 (Just port0), NameAndPort icon1 (Just port1))) =
-  connect'
-  (getArrowOpts ends opts)
-  (icon0 .> port0)
-  (icon1 .> port1)
-connectMaybePorts (Edge opts ends (NameAndPort icon0 Nothing, NameAndPort icon1 (Just port1))) =
-  connectOutside' (getArrowOpts ends opts) icon0 (icon1 .> port1)
-connectMaybePorts (Edge opts ends (NameAndPort icon0 (Just port0), NameAndPort icon1 Nothing)) =
-  connectOutside' (getArrowOpts ends opts) (icon0 .> port0) icon1
-connectMaybePorts (Edge opts ends (NameAndPort icon0 Nothing, NameAndPort icon1 Nothing)) =
-  connectOutside' (getArrowOpts ends opts) icon0 icon1
+--connectMaybePorts :: SpecialBackend b =>
+--  a -> Edge -> SpecialQDiagram b -> SpecialQDiagram b
+connectMaybePorts :: (Floating n, SpecialBackend b) =>
+  (Angle Double, Angle Double)-> Edge -> SpecialQDiagram b -> SpecialQDiagram b
+connectMaybePorts portAngles (Edge opts ends (NameAndPort name0 mPort1, NameAndPort name1 mPort2)) =
+  connectFunc (getArrowOpts ends opts portAngles) qPort0 qPort1 where
+  (connectFunc, qPort0, qPort1) = case (mPort1, mPort2) of
+    (Just port0, Just port1) -> (connect', name0 .> port0, name1 .> port1)
+    (Nothing, Just port1) -> (connectOutside', name0, name1 .> port1)
+    (Just port0, Nothing) -> (connectOutside', name0 .> port0, name1)
+    (_, _) -> (connectOutside', name0, name1)
 
-makeConnections :: SpecialBackend b =>
-  [Edge] -> SpecialQDiagram b -> SpecialQDiagram b
-makeConnections edges = applyAll connections
+-- START addEdges --
+nameAndPortToName (NameAndPort name mPort) = case mPort of
+  Nothing -> name
+  Just port -> name .> port
+
+findPortAngles :: Floating n => (Name, Icon) -> NameAndPort -> [Angle n]
+findPortAngles (nodeName, nodeIcon) (NameAndPort diaName mPort) = case mPort of
+  Nothing -> []
+  Just port -> foundAngles where
+    mName = if nodeName == diaName then Nothing else Just diaName
+    foundAngles = portAngles nodeIcon port mName
+
+makeEdge :: (SpecialBackend b, ING.Graph gr) =>
+  gr (Name, Icon) Edge -> SpecialQDiagram b -> ING.LEdge Edge -> SpecialQDiagram b -> SpecialQDiagram b
+makeEdge graph dia (node0, node1, edge@(Edge _ _ (namePort0, namePort1))) =
+  connectMaybePorts portAngles edge
   where
-    connections = map connectMaybePorts edges
+    node0label = fromMaybeError ("node0 is not in graph. node0: " ++ show node0) $
+      ING.lab graph node0
+    node1label = fromMaybeError ("node0 is not in graph. node1: " ++ show node1) $
+      ING.lab graph node1
+    icon0Angle = case findPortAngles node0label namePort0 of
+      [] -> 0 @@ turn
+      (x:_) -> ((x ^. turn) - (shaftAngle ^. turn)) @@ turn
+    icon1Angle =  case findPortAngles node1label namePort1 of
+      [] -> 1/2 @@ turn
+      (x:_) -> ((x ^. turn) - (shaftAngle ^. turn)) @@ turn
+
+    diaNamePointMap = names dia
+    port0Point = getPortPoint $ nameAndPortToName namePort0
+    port1Point = getPortPoint $ nameAndPortToName namePort1
+    shaftVector = port1Point .-. port0Point
+    shaftAngle = signedAngleBetween shaftVector unitX
+    --fromAngle = icon0Angle - shaftAngle
+    --toAngle = icon1Angle - shaftAngle
+
+    getPortPoint n = head $ fromMaybeError
+      ("makeEdge: port not found. Port: " ++ show n ++ ". Valid ports: " ++ show diaNamePointMap)
+      (lookup n diaNamePointMap)
+    
+    portAngles = (icon0Angle, icon1Angle)
+
+
+addEdges :: (SpecialBackend b, ING.Graph gr) =>
+  gr (Name, Icon) Edge -> SpecialQDiagram b -> SpecialQDiagram b
+addEdges graph dia = applyAll connections dia
+  where
+    connections = fmap (makeEdge graph dia) $ ING.labEdges graph
 
 -- ROTATING/FLIPPING ICONS --
 
@@ -198,14 +240,14 @@ rotateNodes :: SpecialBackend b =>
 rotateNodes positionMap edges = map rotateDiagram (Map.keys positionMap)
   where
     positionMapNameKeys = Map.mapKeys fst positionMap
-    rotateDiagram key@(name, icon) = (key, nameDiagram name transformedDia)
+    rotateDiagram key@(name, icon) = (key, transformedDia)
       where
         originalDia = iconToDiagram icon
         transformedDia = if flippedDist < unflippedDist
-          then rotateBy flippedAngle . reflectX $ originalDia True flippedAngle
-          else rotateBy unflippedAngle $ originalDia False unflippedAngle
-        (unflippedAngle, unflippedDist) = minAngleForDia (originalDia False 0)
-        (flippedAngle, flippedDist) = minAngleForDia (reflectX $ originalDia True 0)
+          then rotateBy flippedAngle . reflectX $ originalDia True flippedAngle name
+          else rotateBy unflippedAngle $ originalDia False unflippedAngle name
+        (unflippedAngle, unflippedDist) = minAngleForDia (originalDia False 0 name)
+        (flippedAngle, flippedDist) = minAngleForDia (reflectX $ originalDia True 0 name)
         --minAngleForDia :: QDiagram b V2 Double m -> (Double, Double)
         minAngleForDia dia = minAngle where
         --ports = Debug.Trace.trace ((show $ names dia) ++ "\n") $ names dia
@@ -235,14 +277,15 @@ type LayoutResult a b = Gr (GV.AttributeNode (Name, b)) (GV.AttributeNode a)
 
 placeNodes :: SpecialBackend b =>
    LayoutResult a Icon
-   -> [Connection]
+   -> [Edge]
    -> SpecialQDiagram b
 placeNodes layoutResult edges = mconcat placedNodes
   where
+    connections = fmap edgeConnection edges
     positionMap = fst $ getGraph layoutResult
-    rotatedNameDiagramMap = rotateNodes positionMap edges
-    placedNodes = map placeNode rotatedNameDiagramMap
-    --placedNodes = map placeNode nameDiagramMap
+    --rotatedNameDiagramMap = rotateNodes positionMap connections
+    --placedNodes = map placeNode rotatedNameDiagramMap
+    placedNodes = map placeNode $ (\key@(name, icon) -> (key, iconToDiagram icon False 0 name)) <$> Map.keys positionMap
     -- todo: Not sure if the diagrams should already be centered at this point.
     placeNode (name, diagram) = place (centerXY diagram) (graphvizScaleFactor *^ (positionMap Map.! name))
 
@@ -265,15 +308,15 @@ customLayoutParams = GV.defaultParams{
   GV.fmtEdge = const [GV.arrowTo GV.noArrow]
   }
 
-doGraphLayout :: forall b e.
+doGraphLayout :: forall b.
   SpecialBackend b =>
-  Gr (Name, Icon) e
-  -> [Connection]
+  Gr (Name, Icon) Edge
+  -> [Edge]
   -> IO (SpecialQDiagram b)
 doGraphLayout graph edges = do
   layoutResult <- layoutGraph' layoutParams GVA.Neato graph
   --  layoutResult <- layoutGraph' layoutParams GVA.Fdp graph
-  return $ placeNodes layoutResult edges
+  pure $ addEdges graph $ placeNodes layoutResult edges
   where
     layoutParams :: GV.GraphvizParams Int (Name,Icon) e () (Name,Icon)
     --layoutParams :: GV.GraphvizParams Int l el Int l
@@ -288,7 +331,7 @@ doGraphLayout graph edges = do
       where
         -- This type annotation (:: SpecialQDiagram b) requires Scoped Typed Variables, which only works if the function's
         -- type signiture has "forall b e."
-        dia = iconToDiagram nodeIcon False 0 :: SpecialQDiagram b
+        dia = iconToDiagram nodeIcon False 0 (toName ""):: SpecialQDiagram b
 
         diaWidth = drawingToGraphvizScaleFactor * width dia
         diaHeight = drawingToGraphvizScaleFactor * height dia
@@ -310,6 +353,4 @@ renderIngSyntaxGraph = renderIconGraph . ING.nmap (Control.Arrow.second nodeToIc
 renderIconGraph :: SpecialBackend b => Gr (Name, Icon) Edge -> IO (SpecialQDiagram b)
 renderIconGraph iconGraph = diagramAction where
   edges = ING.edgeLabel <$> ING.labEdges iconGraph
-  connections = fmap edgeConnection edges
-  diagramAction = makeConnections edges <$>
-    doGraphLayout iconGraph connections
+  diagramAction = doGraphLayout iconGraph edges

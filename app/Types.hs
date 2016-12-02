@@ -31,7 +31,7 @@ import Control.Monad.State(State, state)
 -- subdrawing.
 data Icon = ResultIcon | BranchIcon | TextBoxIcon String | GuardIcon Int
   | FlatLambdaIcon Int | ApplyAIcon Int
-  | TextApplyAIcon Int String | PAppIcon Int String | CaseIcon Int | CaseResultIcon
+  | PAppIcon Int String | CaseIcon Int | CaseResultIcon
   | BindTextBoxIcon String
   -- TODO: NestedApply should have the type NestedApply (Maybe (Name, Icon)) [Maybe (Name, Icon)]
   | NestedApply [Maybe (Name, Icon)]
