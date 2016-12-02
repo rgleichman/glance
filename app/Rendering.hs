@@ -147,7 +147,10 @@ findPortAngles (nodeName, nodeIcon) (NameAndPort diaName mPort) = case mPort of
 pickClosestAngle :: Angle Double -> Angle Double -> Angle Double -> [Angle Double] -> Angle Double
 pickClosestAngle emptyCase target shaftAngle angles = case angles of
   [] -> emptyCase
-  _ -> ((fst (minimumBy (compare `on` snd) $ fmap angleDiff angles) ^. rad) - (shaftAngle ^. rad)) @@ rad
+  _ -> (-) <$>
+    fst (minimumBy (compare `on` snd) $ fmap angleDiff angles)
+    <*>
+    shaftAngle
     where
       angleDiff angle = (angle, angleBetween (angleV target) (angleV angle))
 
@@ -161,15 +164,15 @@ makeEdge graph dia (node0, node1, edge@(Edge _ _ (namePort0, namePort1))) =
     node1label = fromMaybeError ("node0 is not in graph. node1: " ++ show node1) $
       ING.lab graph node1
     icon0Angle = pickClosestAngle (0 @@ turn) shaftAngle shaftAngle $ findPortAngles node0label namePort0
-    icon1Angle = pickClosestAngle (1/2 @@ turn) ((shaftAngle ^. rad) + ((1/2 @@ turn) ^. rad) @@ rad) shaftAngle $ findPortAngles node1label namePort1
+
+    shaftAnglePlusOneHalf = (+) <$> shaftAngle <*> (1/2 @@ turn)
+    icon1Angle = pickClosestAngle (1/2 @@ turn) shaftAnglePlusOneHalf shaftAngle $ findPortAngles node1label namePort1
 
     diaNamePointMap = names dia
     port0Point = getPortPoint $ nameAndPortToName namePort0
     port1Point = getPortPoint $ nameAndPortToName namePort1
     shaftVector = port1Point .-. port0Point
     shaftAngle = signedAngleBetween shaftVector unitX
-    --fromAngle = icon0Angle - shaftAngle
-    --toAngle = icon1Angle - shaftAngle
 
     getPortPoint n = head $ fromMaybeError
       ("makeEdge: port not found. Port: " ++ show n ++ ". Valid ports: " ++ show diaNamePointMap)
