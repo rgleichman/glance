@@ -20,4 +20,4 @@ Below is a getting started guide for Glance rendered by Glance itself ([source h
 `stack exec glance-exe -- -o examples/tutorial.svg -w 873 examples/tutorial.hs c`
 
 Glance is still in development, so for the time being, layout, routing, and icon design all have much room for improvement.
-<img src="https://cdn.rawgit.com/rgleichman/glance/a7f2330d5dbacc1b8e9c2a09d55064333f26be98/examples/tutorial.svg" alt="Introduction to Glance" />
+<img src="https://cdn.rawgit.com/rgleichman/glance/4ab82128f7966941e504401206624d2446bdea40/examples/tutorial.svg" alt="Introduction to Glance" />
