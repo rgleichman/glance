@@ -28,7 +28,7 @@ import Data.Typeable(Typeable)
 --import qualified Debug.Trace
 --import Data.Word(Word16)
 
-import Icons(colorScheme, iconToDiagram, defaultLineWidth, ColorStyle(..), portAngles)
+import Icons(colorScheme, iconToDiagram, defaultLineWidth, ColorStyle(..), getPortAngles)
 import TranslateCore(nodeToIcon)
 import Types(Edge(..), Icon, EdgeOption(..), Connection, Drawing(..), EdgeEnd(..),
   NameAndPort(..), SpecialQDiagram, SpecialBackend, SyntaxNode, SpecialNum)
@@ -131,6 +131,7 @@ connectMaybePorts portAngles (Edge opts ends (NameAndPort name0 mPort1, NameAndP
     (_, _) -> (connectOutside', name0, name1)
 
 -- START addEdges --
+nameAndPortToName :: NameAndPort -> Name
 nameAndPortToName (NameAndPort name mPort) = case mPort of
   Nothing -> name
   Just port -> name .> port
@@ -140,7 +141,7 @@ findPortAngles (nodeName, nodeIcon) (NameAndPort diaName mPort) = case mPort of
   Nothing -> []
   Just port -> foundAngles where
     mName = if nodeName == diaName then Nothing else Just diaName
-    foundAngles = portAngles nodeIcon port mName
+    foundAngles = getPortAngles nodeIcon port mName
 
 -- TODO Clean up the Angle arithmatic
 pickClosestAngle :: SpecialNum n => (Bool, Angle n) -> Angle n -> Angle n -> Angle n -> [Angle n] -> Angle n
@@ -160,8 +161,8 @@ pickClosestAngle (nodeFlip, nodeAngle) emptyCase target shaftAngle angles = case
         (+) <$> angle <*> nodeAngle
 
 
-nodeAngle ::  Show n => [((Name, Icon), (Bool, Angle n))] -> (Name, Icon) -> (Bool, Angle n)
-nodeAngle rotationMap key =
+lookupNodeAngle ::  Show n => [((Name, Icon), (Bool, Angle n))] -> (Name, Icon) -> (Bool, Angle n)
+lookupNodeAngle rotationMap key =
   fromMaybeError ("nodeVector: key not in rotaionMap. key = " ++ show key ++ "\n\n rotationMap = " ++ show rotationMap)
   $ lookup key rotationMap
 
@@ -177,8 +178,8 @@ makeEdge graph dia rotationMap (node0, node1, edge@(Edge _ _ (namePort0, namePor
     node1label = fromMaybeError ("node0 is not in graph. node1: " ++ show node1) $
       ING.lab graph node1
 
-    node0Angle = nodeAngle rotationMap node0label
-    node1Angle = nodeAngle rotationMap node1label
+    node0Angle = lookupNodeAngle rotationMap node0label
+    node1Angle = lookupNodeAngle rotationMap node1label
 
     diaNamePointMap = names dia
     port0Point = getPortPoint $ nameAndPortToName namePort0
@@ -264,13 +265,13 @@ rotateNodes :: SpecialBackend b n =>
 rotateNodes positionMap edges = map rotateDiagram (Map.keys positionMap)
   where
     positionMapNameKeys = Map.mapKeys fst positionMap
-    rotateDiagram key@(name, icon) = (key, transformedDia, (flip, angle))
+    rotateDiagram key@(name, icon) = (key, transformedDia, (reflected, angle))
       where
         originalDia = iconToDiagram icon name
-        flip = flippedDist < unflippedDist
-        angle = (if flip then flippedAngle else unflippedAngle) @@ turn
-        internallTransformedDia = originalDia flip angle
-        transformedDia = rotate angle $ (if flip then reflectX else id) internallTransformedDia
+        reflected = flippedDist < unflippedDist
+        angle = (if reflected then flippedAngle else unflippedAngle) @@ turn
+        internallTransformedDia = originalDia reflected angle
+        transformedDia = rotate angle $ (if reflected then reflectX else id) internallTransformedDia
 
         (unflippedAngle, unflippedDist) = minAngleForDia (originalDia False mempty)
         (flippedAngle, flippedDist) = minAngleForDia (reflectX $ originalDia True mempty)
@@ -337,7 +338,7 @@ customLayoutParams = GV.defaultParams{
   GV.fmtEdge = const [GV.arrowTo GV.noArrow]
   }
 
-doGraphLayout :: forall b n.
+doGraphLayout :: forall b.
   SpecialBackend b Double =>
   Gr (Name, Icon) Edge
   -> [Edge]

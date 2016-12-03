@@ -3,7 +3,7 @@ module Icons
     (
     Icon(..),
     TransformableDia,
-    portAngles,
+    getPortAngles,
     applyADia,
     flatLambda,
     iconToDiagram,
@@ -25,7 +25,6 @@ import Diagrams.Prelude hiding ((&), (#))
 
 import Data.List(find)
 import Data.Maybe(catMaybes, listToMaybe)
-import Data.Typeable(Typeable)
 
 -- import Diagrams.Backend.SVG(B)
 --import Diagrams.TwoD.Text(Text)
@@ -91,10 +90,10 @@ nestedApplyPortAngles args port maybeName = case maybeName of
   Nothing -> applyPortAngles port
   Just name -> case findIcon name args of
     Nothing -> []
-    Just icon -> portAngles icon port Nothing
+    Just icon -> getPortAngles icon port Nothing
 
-portAngles :: (Integral a, Floating n) => Icon -> a -> Maybe Name -> [Angle n]
-portAngles icon port maybeName = case icon of
+getPortAngles :: (Integral a, Floating n) => Icon -> a -> Maybe Name -> [Angle n]
+getPortAngles icon port maybeName = case icon of
   ApplyAIcon _ -> applyPortAngles port
   PAppIcon _ _ -> applyPortAngles port
   ResultIcon -> []
@@ -165,9 +164,9 @@ coloredApplyADia appColor n = centerXY finalDia where
 applyADia :: SpecialBackend b n => Int -> SpecialQDiagram b n
 applyADia = coloredApplyADia (apply0C colorScheme)
 
-textApplyADia :: SpecialBackend b n =>
-  Int -> String -> TransformableDia b n
-textApplyADia = generalTextAppDia (textBoxTextC colorScheme) (apply0C colorScheme)
+--textApplyADia :: SpecialBackend b n =>
+--  Int -> String -> TransformableDia b n
+--textApplyADia = generalTextAppDia (textBoxTextC colorScheme) (apply0C colorScheme)
 
 pAppDia :: SpecialBackend b n =>
   Int -> String -> TransformableDia b n
