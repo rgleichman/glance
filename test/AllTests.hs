@@ -189,7 +189,9 @@ nestedTestEdges = [
   iconToPort "t1" "n1" 2,
   --iconToPort "t1" "in" 1,
   --iconToPort "t2" ("n1" .> "in") 3,
-  iconToPort "t2" ("n1" .> "in" .> "n2") 2
+  --iconToPort "t2" ("n1" .> "in" .> "n2") 2
+  -- TODO This edge is not drawn currently. See todo in drawingToIconGraph in Rendering.
+  iconToPort "t2" "n2" 2
   ]
 
 nestedTextDrawing :: Drawing
@@ -442,12 +444,15 @@ translateStringToDrawing s = do
     (drawing, decl) = translateString s
     fglGraph = syntaxGraphToFglGraph $ stringToSyntaxGraph s
     collapsedGraph = collapseNodes fglGraph
-  print decl
-  putStr "\n"
-  print drawing
-  putStr "\n\n"
-  print collapsedGraph
-  putStr "\n\n"
+  let
+    printAction = do
+      print decl
+      putStr "\n"
+      print drawing
+      putStr "\n\n"
+      print collapsedGraph
+      putStr "\n\n"
+  --printAction
   renderIngSyntaxGraph drawing
 
 translateTests :: IO (Diagram B)

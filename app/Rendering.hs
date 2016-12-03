@@ -61,6 +61,7 @@ getTopLevelName (Name []) = Name []
 getTopLevelName (Name (x:_)) = Name [x]
 
 -- TODO Refactor with syntaxGraphToFglGraph in TranslateCore
+-- TODO Make this work with nested icons now that names are not qualified.
 drawingToIconGraph :: Drawing -> Gr (Name, Icon) Edge
 drawingToIconGraph (Drawing nodes edges) =
   mkGraph nodes labeledEdges where
@@ -144,19 +145,33 @@ findPortAngles (nodeName, nodeIcon) (NameAndPort diaName mPort) = case mPort of
     foundAngles = portAngles nodeIcon port mName
 
 -- TODO Clean up the Angle arithmatic
-pickClosestAngle :: Angle Double -> Angle Double -> Angle Double -> [Angle Double] -> Angle Double
-pickClosestAngle emptyCase target shaftAngle angles = case angles of
+pickClosestAngle :: (Bool, Angle Double) -> Angle Double -> Angle Double -> Angle Double -> [Angle Double] -> Angle Double
+pickClosestAngle (nodeFlip, nodeAngle) emptyCase target shaftAngle angles = case angles of
   [] -> emptyCase
   _ -> (-) <$>
-    fst (minimumBy (compare `on` snd) $ fmap angleDiff angles)
+    fst (minimumBy (compare `on` snd) $ fmap angleDiff adjustedAngles)
     <*>
     shaftAngle
     where
+      adjustedAngles = fmap adjustAngle angles
       angleDiff angle = (angle, angleBetween (angleV target) (angleV angle))
 
+      adjustAngle angle = if nodeFlip then
+        signedAngleBetween (rotate nodeAngle $ reflectX (angleV angle)) unitX
+        else
+        (+) <$> angle <*> nodeAngle
+
+
+nodeAngle ::  [((Name, Icon), (Bool, Angle Double))] -> (Name, Icon) -> (Bool, Angle Double)
+nodeAngle rotationMap key =
+  fromMaybeError ("nodeVector: key not in rotaionMap. key = " ++ show key ++ "\n\n rotationMap = " ++ show rotationMap)
+  $ lookup key rotationMap
+
+
 makeEdge :: (SpecialBackend b, ING.Graph gr) =>
-  gr (Name, Icon) Edge -> SpecialQDiagram b -> ING.LEdge Edge -> SpecialQDiagram b -> SpecialQDiagram b
-makeEdge graph dia (node0, node1, edge@(Edge _ _ (namePort0, namePort1))) =
+  gr (Name, Icon) Edge -> SpecialQDiagram b -> [((Name, Icon), (Bool, Angle Double))] ->
+  ING.LEdge Edge -> SpecialQDiagram b -> SpecialQDiagram b
+makeEdge graph dia rotationMap (node0, node1, edge@(Edge _ _ (namePort0, namePort1))) =
   connectMaybePorts portAngles edge
   where
     node0label = fromMaybeError ("node0 is not in graph. node0: " ++ show node0) $
@@ -164,29 +179,32 @@ makeEdge graph dia (node0, node1, edge@(Edge _ _ (namePort0, namePort1))) =
     node1label = fromMaybeError ("node0 is not in graph. node1: " ++ show node1) $
       ING.lab graph node1
 
+    node0Angle = nodeAngle rotationMap node0label
+    node1Angle = nodeAngle rotationMap node1label
+
     diaNamePointMap = names dia
     port0Point = getPortPoint $ nameAndPortToName namePort0
     port1Point = getPortPoint $ nameAndPortToName namePort1
     shaftVector = port1Point .-. port0Point
     shaftAngle = signedAngleBetween shaftVector unitX
 
-    icon0Angle = pickClosestAngle (0 @@ turn) shaftAngle shaftAngle $ findPortAngles node0label namePort0
+    icon0PortAngle = pickClosestAngle node0Angle (0 @@ turn) shaftAngle shaftAngle $ findPortAngles node0label namePort0
 
     shaftAnglePlusOneHalf = (+) <$> shaftAngle <*> (1/2 @@ turn)
-    icon1Angle = pickClosestAngle (1/2 @@ turn) shaftAnglePlusOneHalf shaftAngle $ findPortAngles node1label namePort1
+    icon1PortAngle = pickClosestAngle node1Angle (1/2 @@ turn) shaftAnglePlusOneHalf shaftAngle $ findPortAngles node1label namePort1
 
     getPortPoint n = head $ fromMaybeError
       ("makeEdge: port not found. Port: " ++ show n ++ ". Valid ports: " ++ show diaNamePointMap)
       (lookup n diaNamePointMap)
     
-    portAngles = (icon0Angle, icon1Angle)
+    portAngles = (icon0PortAngle, icon1PortAngle)
 
 
 addEdges :: (SpecialBackend b, ING.Graph gr) =>
-  gr (Name, Icon) Edge -> SpecialQDiagram b -> SpecialQDiagram b
-addEdges graph dia = applyAll connections dia
+  gr (Name, Icon) Edge -> (SpecialQDiagram b, [((Name, Icon), (Bool, Angle Double))])-> SpecialQDiagram b
+addEdges graph (dia, rotationMap) = applyAll connections dia
   where
-    connections = makeEdge graph dia <$> ING.labEdges graph
+    connections = makeEdge graph dia rotationMap <$> ING.labEdges graph
 
 -- ROTATING/FLIPPING ICONS --
 
@@ -219,7 +237,7 @@ totalLenghtOfLines angle myLocation edges = sum $ map edgeDist edges
 -- todo: Return 0 immediatly if edges == [].
 angleWithMinDist :: P2 Double -> [(P2 Double, P2 Double)] -> (Double, Double)
 angleWithMinDist myLocation edges =
-  minimumBy (compare `on` snd) $ map totalLength [0,(1/40)..1]
+  minimumBy (compare `on` snd) $ map totalLength [0,(1/12)..1]
   where
     totalLength angle = (angle, totalLenghtOfLines angle myLocation edges)
 
@@ -244,16 +262,18 @@ connectedPorts edges name = map edgeToPort $ filter nameInEdge edges
 rotateNodes :: SpecialBackend b =>
   Map.Map (Name, Icon) (Point V2 Double)
   -> [Connection]
-  -> [((Name, Icon), SpecialQDiagram b)]
+  -> [((Name, Icon), SpecialQDiagram b, (Bool, Angle Double))]
 rotateNodes positionMap edges = map rotateDiagram (Map.keys positionMap)
   where
     positionMapNameKeys = Map.mapKeys fst positionMap
-    rotateDiagram key@(name, icon) = (key, transformedDia)
+    rotateDiagram key@(name, icon) = (key, transformedDia, (flip, angle @@ turn))
       where
         originalDia = iconToDiagram icon name
-        transformedDia = if flippedDist < unflippedDist
-          then rotateBy flippedAngle . reflectX $ originalDia True flippedAngle
-          else rotateBy unflippedAngle $ originalDia False unflippedAngle
+        flip = flippedDist < unflippedDist
+        angle = if flip then flippedAngle else unflippedAngle
+        internallTransformedDia = originalDia flip angle
+        transformedDia = rotateBy angle $ (if flip then reflectX else id) internallTransformedDia
+
         (unflippedAngle, unflippedDist) = minAngleForDia (originalDia False 0)
         (flippedAngle, flippedDist) = minAngleForDia (reflectX $ originalDia True 0)
         --minAngleForDia :: QDiagram b V2 Double m -> (Double, Double)
@@ -270,7 +290,7 @@ rotateNodes positionMap edges = map rotateDiagram (Map.keys positionMap)
             -- TODO remove partial function head.
             head $ fromMaybeError
               ("rotateNodes: port not found. Port: " ++ show x ++ ". Valid ports: " ++ show ports)
-              (lookup (toName x) ports)
+              (lookup (name .> toName x) ports)
 
           makePortEdge :: (Int, Name, Maybe Int) -> (P2 Double, P2 Double)
           makePortEdge (portInt, otherIconName, _) =
@@ -283,19 +303,22 @@ rotateNodes positionMap edges = map rotateDiagram (Map.keys positionMap)
 
 type LayoutResult a b = Gr (GV.AttributeNode (Name, b)) (GV.AttributeNode a)
 
-placeNodes :: SpecialBackend b =>
+placeNodes :: forall a b. SpecialBackend b =>
    LayoutResult a Icon
    -> [Edge]
-   -> SpecialQDiagram b
-placeNodes layoutResult edges = mconcat placedNodes
+   -> (SpecialQDiagram b, [((Name, Icon), (Bool, Angle Double))])
+placeNodes layoutResult edges = (mconcat placedNodes, rotationMap)
   where
     connections = fmap edgeConnection edges
     positionMap = fst $ getGraph layoutResult
-    --rotatedNameDiagramMap = rotateNodes positionMap connections
-    --placedNodes = map placeNode rotatedNameDiagramMap
-    placedNodes = map placeNode $ (\key@(name, icon) -> (key, iconToDiagram icon name False 0)) <$> Map.keys positionMap
+    -- The type annotation for rotatedNameDiagramMap is necessary here
+    rotatedNameDiagramMap = rotateNodes positionMap connections :: [((Name, Icon), SpecialQDiagram b, (Bool, Angle Double))]
+    rotationMap = fmap (\(x, _, z) -> (x, z)) rotatedNameDiagramMap
+
+    placedNodes = map placeNode rotatedNameDiagramMap
+    --placedNodes = map placeNode $ (\key@(name, icon) -> (key, iconToDiagram icon name False 0)) <$> Map.keys positionMap
     -- todo: Not sure if the diagrams should already be centered at this point.
-    placeNode (name, diagram) = place (centerXY diagram) (graphvizScaleFactor *^ (positionMap Map.! name))
+    placeNode (key, diagram, _) = place (centerXY diagram) (graphvizScaleFactor *^ (positionMap Map.! key))
 
 customLayoutParams :: GV.GraphvizParams n v e () v
 customLayoutParams = GV.defaultParams{

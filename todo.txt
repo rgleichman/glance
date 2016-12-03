@@ -1,6 +1,4 @@
 -- TODO Now --
--- Improve line routing. Draw curved lines with outgoing lines at fixed angles.
---  - connectPerim might be useful for this.
 
 -- TODO Later --
 -- Add documentation.
