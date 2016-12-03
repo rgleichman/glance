@@ -12,6 +12,7 @@ module Types (
   IDState,
   SpecialQDiagram,
   SpecialBackend,
+  SpecialNum,
   SgNamedNode,
   IngSyntaxGraph,
   initialIdState,
@@ -21,7 +22,9 @@ module Types (
 
 import Diagrams.Prelude(Name, QDiagram, V2, Any, Renderable, Path)
 import Diagrams.TwoD.Text(Text)
+
 import Control.Monad.State(State, state)
+import Data.Typeable(Typeable)
 
 -- TYPES --
 -- | A datatype that represents an icon.
@@ -75,10 +78,12 @@ data Drawing = Drawing [(Name, Icon)] [Edge] deriving (Show, Eq)
 -- | IDState is an Abstract Data Type that is used as a state whose value is a unique id.
 newtype IDState = IDState Int deriving (Eq, Show)
 
--- Note that SpecialBackend is a constraint synonym, not a type synonym.
-type SpecialBackend b = (Renderable (Path V2 Double) b, Renderable (Text Double) b)
+type SpecialNum n = (Floating n, RealFrac n, RealFloat n, Typeable n, Show n, Enum n)
 
-type SpecialQDiagram b = QDiagram b V2 Double Any
+-- Note that SpecialBackend is a constraint synonym, not a type synonym.
+type SpecialBackend b n = (SpecialNum n, Renderable (Path V2 n) b, Renderable (Text n) b)
+
+type SpecialQDiagram b n = QDiagram b V2 n Any
 
 type SgNamedNode = (Name, SyntaxNode)
 type IngSyntaxGraph gr = gr SgNamedNode Edge

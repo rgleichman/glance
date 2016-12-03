@@ -31,7 +31,7 @@ import Data.Typeable(Typeable)
 import Icons(colorScheme, iconToDiagram, defaultLineWidth, ColorStyle(..), portAngles)
 import TranslateCore(nodeToIcon)
 import Types(Edge(..), Icon, EdgeOption(..), Connection, Drawing(..), EdgeEnd(..),
-  NameAndPort(..), SpecialQDiagram, SpecialBackend, SyntaxNode)
+  NameAndPort(..), SpecialQDiagram, SpecialBackend, SyntaxNode, SpecialNum)
 import Util(fromMaybeError)
 
 -- If the inferred types for these functions becomes unweildy,
@@ -48,7 +48,7 @@ graphvizScaleFactor = 0.12
 
 --scaleFactor = 0.04
 
-drawingToGraphvizScaleFactor :: Double
+drawingToGraphvizScaleFactor :: Fractional a => a
 -- For Neato, ScaleOverlaps
 --drawingToGraphvizScaleFactor = 0.08
 
@@ -120,10 +120,8 @@ getArrowOpts (t, h) opts (fromAngle, toAngle) = arrowOptions
       lookupHead h $ lookupTail t with
 
 -- | Given an Edge, return a transformation on Diagrams that will draw a line.
---connectMaybePorts :: SpecialBackend b =>
---  a -> Edge -> SpecialQDiagram b -> SpecialQDiagram b
-connectMaybePorts :: (Floating n, SpecialBackend b) =>
-  (Angle Double, Angle Double)-> Edge -> SpecialQDiagram b -> SpecialQDiagram b
+connectMaybePorts :: SpecialBackend b n =>
+  (Angle n, Angle n)-> Edge -> SpecialQDiagram b n -> SpecialQDiagram b n
 connectMaybePorts portAngles (Edge opts ends (NameAndPort name0 mPort1, NameAndPort name1 mPort2)) =
   connectFunc (getArrowOpts ends opts portAngles) qPort0 qPort1 where
   (connectFunc, qPort0, qPort1) = case (mPort1, mPort2) of
@@ -145,7 +143,7 @@ findPortAngles (nodeName, nodeIcon) (NameAndPort diaName mPort) = case mPort of
     foundAngles = portAngles nodeIcon port mName
 
 -- TODO Clean up the Angle arithmatic
-pickClosestAngle :: (Bool, Angle Double) -> Angle Double -> Angle Double -> Angle Double -> [Angle Double] -> Angle Double
+pickClosestAngle :: SpecialNum n => (Bool, Angle n) -> Angle n -> Angle n -> Angle n -> [Angle n] -> Angle n
 pickClosestAngle (nodeFlip, nodeAngle) emptyCase target shaftAngle angles = case angles of
   [] -> emptyCase
   _ -> (-) <$>
@@ -162,15 +160,15 @@ pickClosestAngle (nodeFlip, nodeAngle) emptyCase target shaftAngle angles = case
         (+) <$> angle <*> nodeAngle
 
 
-nodeAngle ::  [((Name, Icon), (Bool, Angle Double))] -> (Name, Icon) -> (Bool, Angle Double)
+nodeAngle ::  Show n => [((Name, Icon), (Bool, Angle n))] -> (Name, Icon) -> (Bool, Angle n)
 nodeAngle rotationMap key =
   fromMaybeError ("nodeVector: key not in rotaionMap. key = " ++ show key ++ "\n\n rotationMap = " ++ show rotationMap)
   $ lookup key rotationMap
 
 
-makeEdge :: (SpecialBackend b, ING.Graph gr) =>
-  gr (Name, Icon) Edge -> SpecialQDiagram b -> [((Name, Icon), (Bool, Angle Double))] ->
-  ING.LEdge Edge -> SpecialQDiagram b -> SpecialQDiagram b
+makeEdge :: (SpecialBackend b n, ING.Graph gr) =>
+  gr (Name, Icon) Edge -> SpecialQDiagram b n -> [((Name, Icon), (Bool, Angle n))] ->
+  ING.LEdge Edge -> SpecialQDiagram b n -> SpecialQDiagram b n
 makeEdge graph dia rotationMap (node0, node1, edge@(Edge _ _ (namePort0, namePort1))) =
   connectMaybePorts portAngles edge
   where
@@ -188,7 +186,7 @@ makeEdge graph dia rotationMap (node0, node1, edge@(Edge _ _ (namePort0, namePor
     shaftVector = port1Point .-. port0Point
     shaftAngle = signedAngleBetween shaftVector unitX
 
-    icon0PortAngle = pickClosestAngle node0Angle (0 @@ turn) shaftAngle shaftAngle $ findPortAngles node0label namePort0
+    icon0PortAngle = pickClosestAngle node0Angle mempty shaftAngle shaftAngle $ findPortAngles node0label namePort0
 
     shaftAnglePlusOneHalf = (+) <$> shaftAngle <*> (1/2 @@ turn)
     icon1PortAngle = pickClosestAngle node1Angle (1/2 @@ turn) shaftAnglePlusOneHalf shaftAngle $ findPortAngles node1label namePort1
@@ -200,8 +198,8 @@ makeEdge graph dia rotationMap (node0, node1, edge@(Edge _ _ (namePort0, namePor
     portAngles = (icon0PortAngle, icon1PortAngle)
 
 
-addEdges :: (SpecialBackend b, ING.Graph gr) =>
-  gr (Name, Icon) Edge -> (SpecialQDiagram b, [((Name, Icon), (Bool, Angle Double))])-> SpecialQDiagram b
+addEdges :: (SpecialBackend b n, ING.Graph gr) =>
+  gr (Name, Icon) Edge -> (SpecialQDiagram b n, [((Name, Icon), (Bool, Angle n))]) -> SpecialQDiagram b n
 addEdges graph (dia, rotationMap) = applyAll connections dia
   where
     connections = makeEdge graph dia rotationMap <$> ING.labEdges graph
@@ -217,10 +215,10 @@ addEdges graph (dia, rotationMap) = applyAll connections dia
 -- of (this icon's port, icon that connects to this port), return the sum of the
 -- distances (possibly squared) between the ports and the icons they connect to.
 -- This function is used to find that angle that minimizes the sum of distances.
-totalLenghtOfLines :: Double -> P2 Double -> [(P2 Double, P2 Double)] -> Double
+totalLenghtOfLines :: Floating a => a -> P2 a -> [(P2 a, P2 a)] -> a
 totalLenghtOfLines angle myLocation edges = sum $ map edgeDist edges
   where
-    edgeDist :: (P2 Double, P2 Double) -> Double
+    --edgeDist :: (P2 Double, P2 Double) -> Double
     edgeDist (relativePortLocation, iconLocation) =
       -- The squaring here is arbitrary. Distance should be replaced with angle diff.
       (norm $  absPortVec ^-^ iconLocationVec) ** 2
@@ -235,7 +233,7 @@ totalLenghtOfLines angle myLocation edges = sum $ map edgeDist edges
 -- minimizes the the sum of the distances (possibly squared) between the ports
 -- and the icons they connect to. Returns (angle, sum of distances).
 -- todo: Return 0 immediatly if edges == [].
-angleWithMinDist :: P2 Double -> [(P2 Double, P2 Double)] -> (Double, Double)
+angleWithMinDist :: SpecialNum a => P2 a -> [(P2 a, P2 a)] -> (a, a)
 angleWithMinDist myLocation edges =
   minimumBy (compare `on` snd) $ map totalLength [0,(1/12)..1]
   where
@@ -259,40 +257,40 @@ connectedPorts edges name = map edgeToPort $ filter nameInEdge edges
 -- are minimized.
 -- Precondition: the diagrams are already centered
 -- todo: confirm precondition (or use a newtype)
-rotateNodes :: SpecialBackend b =>
-  Map.Map (Name, Icon) (Point V2 Double)
+rotateNodes :: SpecialBackend b n =>
+  Map.Map (Name, Icon) (Point V2 n)
   -> [Connection]
-  -> [((Name, Icon), SpecialQDiagram b, (Bool, Angle Double))]
+  -> [((Name, Icon), SpecialQDiagram b n, (Bool, Angle n))]
 rotateNodes positionMap edges = map rotateDiagram (Map.keys positionMap)
   where
     positionMapNameKeys = Map.mapKeys fst positionMap
-    rotateDiagram key@(name, icon) = (key, transformedDia, (flip, angle @@ turn))
+    rotateDiagram key@(name, icon) = (key, transformedDia, (flip, angle))
       where
         originalDia = iconToDiagram icon name
         flip = flippedDist < unflippedDist
-        angle = if flip then flippedAngle else unflippedAngle
+        angle = (if flip then flippedAngle else unflippedAngle) @@ turn
         internallTransformedDia = originalDia flip angle
-        transformedDia = rotateBy angle $ (if flip then reflectX else id) internallTransformedDia
+        transformedDia = rotate angle $ (if flip then reflectX else id) internallTransformedDia
 
-        (unflippedAngle, unflippedDist) = minAngleForDia (originalDia False 0)
-        (flippedAngle, flippedDist) = minAngleForDia (reflectX $ originalDia True 0)
+        (unflippedAngle, unflippedDist) = minAngleForDia (originalDia False mempty)
+        (flippedAngle, flippedDist) = minAngleForDia (reflectX $ originalDia True mempty)
         --minAngleForDia :: QDiagram b V2 Double m -> (Double, Double)
         minAngleForDia dia = minAngle where
         --ports = Debug.Trace.trace ((show $ names dia) ++ "\n") $ names dia
           ports = names dia
           namesOfPortsWithLines = connectedPorts edges name
 
-          iconInMap :: (Int, Name, Maybe Int) -> Bool
+          --iconInMap :: (Int, Name, Maybe Int) -> Bool
           iconInMap (_, otherIconName, _) = Map.member otherIconName positionMapNameKeys
 
-          getPortPoint :: Int -> P2 Double
+          --getPortPoint :: Int -> P2 Double
           getPortPoint x =
             -- TODO remove partial function head.
             head $ fromMaybeError
               ("rotateNodes: port not found. Port: " ++ show x ++ ". Valid ports: " ++ show ports)
               (lookup (name .> toName x) ports)
 
-          makePortEdge :: (Int, Name, Maybe Int) -> (P2 Double, P2 Double)
+          --makePortEdge :: (Int, Name, Maybe Int) -> (P2 Double, P2 Double)
           makePortEdge (portInt, otherIconName, _) =
             (getPortPoint portInt, getFromMapAndScale positionMapNameKeys otherIconName)
 
@@ -303,16 +301,16 @@ rotateNodes positionMap edges = map rotateDiagram (Map.keys positionMap)
 
 type LayoutResult a b = Gr (GV.AttributeNode (Name, b)) (GV.AttributeNode a)
 
-placeNodes :: forall a b. SpecialBackend b =>
+placeNodes :: forall a b. SpecialBackend b Double =>
    LayoutResult a Icon
    -> [Edge]
-   -> (SpecialQDiagram b, [((Name, Icon), (Bool, Angle Double))])
+   -> (SpecialQDiagram b Double, [((Name, Icon), (Bool, Angle Double))])
 placeNodes layoutResult edges = (mconcat placedNodes, rotationMap)
   where
     connections = fmap edgeConnection edges
     positionMap = fst $ getGraph layoutResult
     -- The type annotation for rotatedNameDiagramMap is necessary here
-    rotatedNameDiagramMap = rotateNodes positionMap connections :: [((Name, Icon), SpecialQDiagram b, (Bool, Angle Double))]
+    rotatedNameDiagramMap = rotateNodes positionMap connections :: [((Name, Icon), SpecialQDiagram b Double, (Bool, Angle Double))]
     rotationMap = fmap (\(x, _, z) -> (x, z)) rotatedNameDiagramMap
 
     placedNodes = map placeNode rotatedNameDiagramMap
@@ -339,11 +337,11 @@ customLayoutParams = GV.defaultParams{
   GV.fmtEdge = const [GV.arrowTo GV.noArrow]
   }
 
-doGraphLayout :: forall b.
-  SpecialBackend b =>
+doGraphLayout :: forall b n.
+  SpecialBackend b Double =>
   Gr (Name, Icon) Edge
   -> [Edge]
-  -> IO (SpecialQDiagram b)
+  -> IO (SpecialQDiagram b Double)
 doGraphLayout graph edges = do
   layoutResult <- layoutGraph' layoutParams GVA.Neato graph
   --  layoutResult <- layoutGraph' layoutParams GVA.Fdp graph
@@ -360,9 +358,9 @@ doGraphLayout graph edges = do
       --[GVA.Width diaWidth, GVA.Height diaHeight]
       [GVA.Width circleDiameter, GVA.Height circleDiameter]
       where
-        -- This type annotation (:: SpecialQDiagram b) requires Scoped Typed Variables, which only works if the function's
+        -- This type annotation (:: SpecialQDiagram b n) requires Scoped Typed Variables, which only works if the function's
         -- type signiture has "forall b e."
-        dia = iconToDiagram nodeIcon (toName "") False 0 :: SpecialQDiagram b
+        dia = iconToDiagram nodeIcon (toName "") False mempty :: SpecialQDiagram b Double
 
         diaWidth = drawingToGraphvizScaleFactor * width dia
         diaHeight = drawingToGraphvizScaleFactor * height dia
@@ -372,16 +370,16 @@ doGraphLayout graph edges = do
 -- | Given a Drawing, produce a Diagram complete with rotated/flipped icons and
 -- lines connecting ports and icons. IO is needed for the GraphViz layout.
 renderDrawing ::
-  SpecialBackend b =>
-  Drawing -> IO (SpecialQDiagram b)
+  SpecialBackend b Double =>
+  Drawing -> IO (SpecialQDiagram b Double)
 renderDrawing = renderIconGraph . drawingToIconGraph
 
 renderIngSyntaxGraph ::
-  SpecialBackend b =>
-  Gr (Name, SyntaxNode) Edge -> IO (SpecialQDiagram b)
+  SpecialBackend b Double =>
+  Gr (Name, SyntaxNode) Edge -> IO (SpecialQDiagram b Double)
 renderIngSyntaxGraph = renderIconGraph . ING.nmap (Control.Arrow.second nodeToIcon)
 
-renderIconGraph :: SpecialBackend b => Gr (Name, Icon) Edge -> IO (SpecialQDiagram b)
+renderIconGraph :: SpecialBackend b Double => Gr (Name, Icon) Edge -> IO (SpecialQDiagram b Double)
 renderIconGraph iconGraph = diagramAction where
   edges = ING.edgeLabel <$> ING.labEdges iconGraph
   diagramAction = doGraphLayout iconGraph edges

@@ -459,7 +459,7 @@ translateTests :: IO (Diagram B)
 translateTests = do
   drawings <- traverse translateStringToDrawing testDecls
   let
-    textDrawings = fmap (\t -> alignL $ textBox t (toName "") False 0) testDecls
+    textDrawings = fmap (\t -> alignL $ textBox t (toName "") False mempty) testDecls
     vCattedDrawings = vsep 1 $ zipWith (===) (fmap alignL drawings) textDrawings
   pure vCattedDrawings
 
