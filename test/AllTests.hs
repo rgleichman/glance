@@ -6,6 +6,7 @@ import Diagrams.TwoD.GraphViz as DiaGV
 import qualified Data.GraphViz as GV
 import qualified Data.GraphViz.Attributes.Complete as GVA
 
+import Data.List(intercalate)
 import qualified Data.Graph.Inductive.Graph as ING
 import qualified Data.Graph.Inductive.PatriciaTree as FGR
 
@@ -18,7 +19,7 @@ import Util(toNames, portToPort, iconToPort,
 import Types(Icon(..), Drawing(..), EdgeEnd(..), SgNamedNode, Edge(..), SyntaxNode(..), NameAndPort(..),
              IngSyntaxGraph)
 import Translate(translateString, stringToSyntaxGraph)
-import TranslateCore(syntaxGraphToFglGraph)
+import TranslateCore(syntaxGraphToFglGraph, SyntaxGraph(..))
 import GraphAlgorithms(collapseNodes)
 import qualified GraphAlgorithms
 
@@ -442,15 +443,17 @@ translateStringToDrawing :: String -> IO (Diagram B)
 translateStringToDrawing s = do
   putStrLn $ "Translating string: " ++ s
   let
-    (drawing, decl) = translateString s
-    fglGraph = syntaxGraphToFglGraph $ stringToSyntaxGraph s
+    syntaxGraph = stringToSyntaxGraph s
+    fglGraph = syntaxGraphToFglGraph syntaxGraph
     collapsedGraph = collapseNodes fglGraph
   let
     printAction = do
       print decl
-      putStr "\n"
-      print drawing
-      putStr "\n\n"
+      putStr "\nSyntax Graph:\n"
+      putStrLn $ prettyShowSyntaxGraph syntaxGraph
+      putStr "\nFGL Graph:\n"
+      ING.prettyPrint fglGraph
+      putStr "\nCollapsed Graph:\n"
       print collapsedGraph
       putStr "\n\n"
   --printAction
@@ -476,6 +479,20 @@ graphTests = do
     fglGraph = syntaxGraphToFglGraph $ stringToSyntaxGraph "y = f x"
     nodeFunc (_, syntaxNode) =
       place (coloredTextBox white (opaque white) (show syntaxNode) :: Diagram B)
+
+prettyShowList :: Show a => [a] -> String
+prettyShowList ls = intercalate "\n" $ fmap show ls
+
+prettyShowSyntaxGraph :: SyntaxGraph -> String
+prettyShowSyntaxGraph (SyntaxGraph nodes edges sinks sources) =
+  "SyntaxGraph nodes:\n" ++
+  prettyShowList nodes ++
+  "\nSyntaxGraph edges:\n" ++
+  prettyShowList edges ++
+  "\nSyntaxGRaph sinks:\n" ++
+  prettyShowList sinks ++
+  "\nSyntaxGraph sources:\n" ++
+  prettyShowList sources
 
 prettyPrintSyntaxNode :: SyntaxNode -> String
 prettyPrintSyntaxNode (NestedApplyNode _ namedNodesAndEdges) = concatMap printNameAndEdge namedNodesAndEdges
