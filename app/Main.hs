@@ -6,6 +6,7 @@ import Prelude hiding (return)
 -- - an special case when translating when Glance is run on its own source code.
 import Diagrams.Prelude hiding ((#), (&))
 import Diagrams.Backend.SVG.CmdLine
+--import Diagrams.Backend.Rasterific.CmdLine
 import qualified Language.Haskell.Exts as Exts
 
 import Icons(ColorStyle(..), colorScheme, multilineComment)

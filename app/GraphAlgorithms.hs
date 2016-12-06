@@ -46,7 +46,7 @@ parentTypeForNode n = case n of
   PatternApplyNode _ _ -> PatternParent
   -- The NotAParent case should never occur.
   _ -> NotAParent
-  
+
 findParents :: ING.Graph gr => IngSyntaxGraph gr -> ING.Node -> [ING.Node]
 findParents graph node = filter parentFilter $  ING.suc graph node where
   parentFilter parentNode = parentNode /= node

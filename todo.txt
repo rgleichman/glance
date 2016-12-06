@@ -1,4 +1,6 @@
 -- TODO Now --
+Fix collapseNodes when run on "y x = case x of {Just w -> (let (z,_) = w in z)}"
+May need to move pattern collapse to translate.
 
 -- TODO Later --
 -- Add documentation.

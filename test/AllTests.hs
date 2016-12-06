@@ -236,7 +236,8 @@ nestedTests = [
   "Foo (Bar x) = 1",
   "Foo (Bar x) (Baz y) = 1",
   "Foo (Bar x) = f 2",
-  "Foo (Bar x) = f x"
+  "Foo (Bar x) = f x",
+  "y x = case x of {Just w -> (let (z,_) = w in z)}"
   ]
 
 dollarTests :: [String]
@@ -519,7 +520,8 @@ collapseTestStrings = [
   "Foo x = 1",
   "Foo (Bar x) = 1",
   "Foo 1 x = 2",
-  "Foo (Bar x) = f x"
+  "Foo (Bar x) = f x",
+  "y x = case x of {Just w -> (let (z,_) = w in z)}"
   ]
 
 makeCollapseTest :: String -> IO (Diagram B)

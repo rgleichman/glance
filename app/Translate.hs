@@ -499,6 +499,7 @@ drawingFromDecl d = drawing
     evaluatedDecl = evalDecl mempty d >>= showTopLevelBinds
     syntaxGraph = evalState evaluatedDecl initialIdState
     drawing = collapseNodes $ syntaxGraphToFglGraph syntaxGraph
+    --drawing = syntaxGraphToFglGraph syntaxGraph
 
 -- Profiling: about 1.5% of total time.
 translateString :: String -> (IngSyntaxGraph FGR.Gr, Decl)
