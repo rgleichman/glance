@@ -19,5 +19,6 @@ Below is a getting started guide for Glance rendered by Glance itself ([source h
 
 `stack exec glance-exe -- -o examples/tutorial.svg -w 873 examples/tutorial.hs c`
 
-Glance is still in development, so for the time being, layout, routing, and icon design all have much room for improvement.
+Glance is still in development, so for the time being, layout, routing, and icon design all have much room for improvement. 
+Note: Text boxes may not display correctly on Microsoft browsers.
 <img src="https://cdn.rawgit.com/rgleichman/glance/4ab82128f7966941e504401206624d2446bdea40/examples/tutorial.svg" alt="Introduction to Glance" />
