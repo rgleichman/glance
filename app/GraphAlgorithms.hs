@@ -17,7 +17,7 @@ import Util(maybeBoolToBool)
 
 -- See graph_algs.txt for pseudocode
 
-data ParentType = ApplyParent | PatternParent | NotAParent
+data ParentType = ApplyParent | NotAParent
 
 -- START HELPER functions --
 
@@ -25,8 +25,6 @@ data ParentType = ApplyParent | PatternParent | NotAParent
 syntaxNodeIsEmbeddable :: ParentType -> SyntaxNode -> Bool
 syntaxNodeIsEmbeddable parentType n = case (parentType, n) of
   (ApplyParent, ApplyNode _) -> True
-  (PatternParent, PatternApplyNode _ _) -> True
-  (PatternParent, LiteralNode _) -> True
   (ApplyParent, LiteralNode _) -> True
   _ -> False
 
@@ -35,15 +33,12 @@ syntaxNodeCanEmbed :: SyntaxNode -> Bool
 syntaxNodeCanEmbed n = case n of
   ApplyNode _ -> True
   NestedApplyNode _ _ -> True -- This case should not happen
-  PatternApplyNode _ _ -> True
-  NestedPatternApplyNode _ _ _ -> True -- This case should not happen
   _ -> False
 
 parentTypeForNode :: SyntaxNode -> ParentType
 parentTypeForNode n = case n of
   ApplyNode _ -> ApplyParent
   NestedApplyNode _ _ -> ApplyParent
-  PatternApplyNode _ _ -> PatternParent
   -- The NotAParent case should never occur.
   _ -> NotAParent
 
@@ -197,7 +192,6 @@ embedChildSyntaxNodes parentNode childrenNodes oldGraph = case childrenNodes of
           newNodeLabel = (nodeName, newSyntaxNode)
           newSyntaxNode = case oldSyntaxNode of
             ApplyNode x -> NestedApplyNode x childrenAndEdgesToParent
-            PatternApplyNode str numArgs -> NestedPatternApplyNode str numArgs childrenAndEdgesToParent
             _ -> oldSyntaxNode
     childrenAndEdgesToParent = catMaybes $ fmap findChildAndEdge childrenNodes
     findChildAndEdge childNode =
