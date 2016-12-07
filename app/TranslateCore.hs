@@ -28,13 +28,13 @@ module TranslateCore(
 import Control.Monad.State(State)
 import Data.Either(partitionEithers)
 import qualified Data.Graph.Inductive.PatriciaTree as FGR
+import qualified Data.Graph.Inductive.Graph as ING
 import Data.List(find)
 import Data.Semigroup(Semigroup, (<>))
-import Diagrams.TwoD.GraphViz as DiaGV
 
 import Types(Icon, SyntaxNode(..), Edge(..), EdgeOption(..),
   NameAndPort(..), IDState, getId, SgNamedNode, NodeName(..), Port(..))
-import Util(noEnds, nameAndPort, makeSimpleEdge, justName, fromMaybeError, maybeBoolToBool)
+import Util(noEnds, nameAndPort, makeSimpleEdge, justName, maybeBoolToBool)
 import Icons(Icon(..))
 
 -- OVERVIEW --
@@ -211,13 +211,13 @@ findArg currentPort ((argName, _), Edge _ _ (NameAndPort fromName fromPort, Name
   | argName == toName = maybeBoolToBool $ fmap (== currentPort) fromPort
   | otherwise = False -- This case should never happen
 
+makeLNode :: SgNamedNode -> ING.LNode SgNamedNode
+makeLNode namedNode@(NodeName name, _) = (name, namedNode)
+
 syntaxGraphToFglGraph :: SyntaxGraph -> FGR.Gr SgNamedNode Edge
 syntaxGraphToFglGraph (SyntaxGraph nodes edges _ _) =
-  DiaGV.mkGraph nodes labeledEdges where
+  ING.mkGraph (fmap makeLNode nodes) labeledEdges where
     labeledEdges = fmap makeLabeledEdge edges
-    makeLabeledEdge e@(Edge _ _ (NameAndPort name1 _, NameAndPort name2 _)) =
-      ((name1, lookupInNodes name1), (name2, lookupInNodes name2), e) where
-        lookupInNodes name = fromMaybeError errorString (lookup name nodes) where
-          errorString =
-            "syntaxGraphToFglGraph edge connects to non-existent node. Node Name ="
-            ++ show name ++ " Edge=" ++ show e
+
+    makeLabeledEdge e@(Edge _ _ (NameAndPort (NodeName name1) _, NameAndPort (NodeName name2) _)) =
+      (name1, name2, e)
