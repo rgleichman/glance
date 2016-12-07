@@ -3,6 +3,8 @@
 module Types (
   Icon(..),
   SyntaxNode(..),
+  NodeName(..),
+  Port(..),
   NameAndPort(..),
   Connection,
   Edge(..),
@@ -20,7 +22,7 @@ module Types (
   sgNamedNodeToSyntaxNode
 ) where
 
-import Diagrams.Prelude(Name, QDiagram, V2, Any, Renderable, Path)
+import Diagrams.Prelude(QDiagram, V2, Any, Renderable, Path, IsName)
 import Diagrams.TwoD.Text(Text)
 
 import Control.Monad.State(State, state)
@@ -37,8 +39,8 @@ data Icon = ResultIcon | BranchIcon | TextBoxIcon String | GuardIcon Int
   | PAppIcon Int String | CaseIcon Int | CaseResultIcon
   | BindTextBoxIcon String
   -- TODO: NestedApply should have the type NestedApply (Maybe (Name, Icon)) [Maybe (Name, Icon)]
-  | NestedApply [Maybe (Name, Icon)]
-  | NestedPApp [Maybe (Name, Icon)]
+  | NestedApply [Maybe (NodeName, Icon)]
+  | NestedPApp [Maybe (NodeName, Icon)]
   deriving (Show, Eq, Ord)
 
 -- TODO remove Ints from SyntaxNode data constructors.
@@ -58,7 +60,13 @@ data SyntaxNode =
   | CaseResultNode -- TODO remove caseResultNode
   deriving (Show, Eq, Ord)
 
-data NameAndPort = NameAndPort Name (Maybe Int) deriving (Show, Eq, Ord)
+newtype NodeName = NodeName Int deriving (Typeable, Eq, Ord, Show)
+instance IsName NodeName
+
+newtype Port = Port Int deriving (Typeable, Eq, Ord, Show)
+instance IsName Port
+
+data NameAndPort = NameAndPort NodeName (Maybe Port) deriving (Show, Eq, Ord)
 
 type Connection = (NameAndPort, NameAndPort)
 
@@ -73,7 +81,7 @@ data EdgeEnd = EndAp1Result | EndAp1Arg | EndNone deriving (Show, Eq, Ord)
 
 -- | A drawing is a map from names to Icons, a list of edges,
 -- and a map of names to subDrawings
-data Drawing = Drawing [(Name, Icon)] [Edge] deriving (Show, Eq)
+data Drawing = Drawing [(NodeName, Icon)] [Edge] deriving (Show, Eq)
 
 -- | IDState is an Abstract Data Type that is used as a state whose value is a unique id.
 newtype IDState = IDState Int deriving (Eq, Show)
@@ -85,7 +93,7 @@ type SpecialBackend b n = (SpecialNum n, Renderable (Path V2 n) b, Renderable (T
 
 type SpecialQDiagram b n = QDiagram b V2 n Any
 
-type SgNamedNode = (Name, SyntaxNode)
+type SgNamedNode = (NodeName, SyntaxNode)
 type IngSyntaxGraph gr = gr SgNamedNode Edge
 
 sgNamedNodeToSyntaxNode :: SgNamedNode -> SyntaxNode

@@ -21,7 +21,7 @@ module Icons
     coloredTextBox
     ) where
 
-import Diagrams.Prelude hiding ((&), (#))
+import Diagrams.Prelude hiding ((&), (#), Name)
 
 import Data.List(find)
 import Data.Maybe(catMaybes, listToMaybe)
@@ -30,11 +30,11 @@ import Data.Maybe(catMaybes, listToMaybe)
 --import Diagrams.TwoD.Text(Text)
 --import Data.Maybe(fromMaybe)
 
-import Types(Icon(..), SpecialQDiagram, SpecialBackend, SpecialNum)
+import Types(Icon(..), SpecialQDiagram, SpecialBackend, SpecialNum, NodeName, Port(..))
 import DrawingColors(colorScheme, ColorStyle(..))
 
 -- TYPES --
-type TransformableDia b n = Name -> Bool -> Angle n -> SpecialQDiagram b n
+type TransformableDia b n = NodeName -> Bool -> Angle n -> SpecialQDiagram b n
 
 -- COLORS --
 lineCol :: Colour Double
@@ -55,27 +55,27 @@ iconToDiagram (FlatLambdaIcon n) = identDiaFunc $ flatLambda n
 iconToDiagram (NestedApply args) = nestedApplyDia args
 iconToDiagram (NestedPApp args) = nestedPAppDia args
 
-applyPortAngles :: (Integral a, Floating n) => a -> [Angle n]
-applyPortAngles x = fmap (@@ turn) $ case x of
+applyPortAngles :: Floating n => Port -> [Angle n]
+applyPortAngles (Port x) = fmap (@@ turn) $ case x of
   0 -> [3/8, 5/8] -- TODO Add back an angle of 1/2 for non-nested icons
   1 -> [0, 1/8, 7/8]
   _ -> [1/4, 3/4]
 
-guardPortAngles :: (Integral a, Floating n) => a -> [Angle n]
-guardPortAngles port = case port of
+guardPortAngles :: Floating n => Port -> [Angle n]
+guardPortAngles (Port port) = case port of
   0 -> [1/4 @@ turn]
   1 -> [3/4 @@ turn]
   _ -> otherAngles where otherAngles
                            | even port = [0 @@ turn]
                            | otherwise = [1/2 @@ turn]
 
-findNestedIcon :: Name -> Icon -> Maybe Icon
+findNestedIcon :: NodeName -> Icon -> Maybe Icon
 findNestedIcon name icon = case icon of
   NestedApply args -> findIcon name args
   NestedPApp args -> findIcon name args
   _ -> Nothing
 
-findIcon :: Name -> [Maybe (Name, Icon)] -> Maybe Icon
+findIcon :: NodeName -> [Maybe (NodeName, Icon)] -> Maybe Icon
 findIcon name args = icon where
   filteredArgs = catMaybes args
   nameMatches (n, _) = n == name
@@ -85,15 +85,15 @@ findIcon name args = icon where
       Nothing -> listToMaybe $ catMaybes $ fmap (findNestedIcon name . snd) filteredArgs
       Just (_, finalIcon) -> Just finalIcon
   
-nestedApplyPortAngles :: (Integral a, Floating n) => [Maybe (Name, Icon)] -> a -> Maybe Name -> [Angle n]
-nestedApplyPortAngles args port maybeName = case maybeName of
+nestedApplyPortAngles :: Floating n => [Maybe (NodeName, Icon)] -> Port -> Maybe NodeName -> [Angle n]
+nestedApplyPortAngles args port maybeNodeName = case maybeNodeName of
   Nothing -> applyPortAngles port
   Just name -> case findIcon name args of
     Nothing -> []
     Just icon -> getPortAngles icon port Nothing
 
-getPortAngles :: (Integral a, Floating n) => Icon -> a -> Maybe Name -> [Angle n]
-getPortAngles icon port maybeName = case icon of
+getPortAngles :: (Floating n) => Icon -> Port -> Maybe NodeName -> [Angle n]
+getPortAngles icon port maybeNodeName = case icon of
   ApplyAIcon _ -> applyPortAngles port
   PAppIcon _ _ -> applyPortAngles port
   ResultIcon -> []
@@ -104,8 +104,8 @@ getPortAngles icon port maybeName = case icon of
   CaseIcon _ -> guardPortAngles port
   CaseResultIcon -> []
   FlatLambdaIcon _ -> applyPortAngles port
-  NestedApply args -> nestedApplyPortAngles args port maybeName
-  NestedPApp args -> nestedApplyPortAngles args port maybeName
+  NestedApply args -> nestedApplyPortAngles args port maybeNodeName
+  NestedPApp args -> nestedApplyPortAngles args port maybeNodeName
 
 -- END FUNCTIONS --
 
@@ -122,7 +122,7 @@ nameDiagram name dia = named name (name .>> dia)
 
 -- | Make an port with an integer name. Always use <> to add a ports (not === or |||)
 --- since mempty has no size and will not be placed where you want it.
-makePort :: SpecialNum n => Int -> SpecialQDiagram b n
+makePort :: SpecialNum n => Port -> SpecialQDiagram b n
 makePort x = named x mempty
 --makePort x = circle 0.2 # fc green # named x
 -- Note, the version of makePort below seems to have a different type.
@@ -153,10 +153,10 @@ coloredApplyADia ::
 coloredApplyADia appColor n = centerXY finalDia where
   trianglePortsCircle = hcat [
     reflectX (fc appColor apply0Triangle),
-    hcat $ take n $ map (\x -> makePort x <> portCircle <> strutX (circleRadius * 1.5)) [2,3..],
-    makePort 1 <> alignR (lc appColor $ lwG defaultLineWidth $ fc appColor $ circle circleRadius)
+    hcat $ take n $ map (\x -> makePort (Port x) <> portCircle <> strutX (circleRadius * 1.5)) [2,3..],
+    makePort (Port 1) <> alignR (lc appColor $ lwG defaultLineWidth $ fc appColor $ circle circleRadius)
     ]
-  allPorts = makePort 0 <> alignL trianglePortsCircle
+  allPorts = makePort (Port 0) <> alignL trianglePortsCircle
   topAndBottomLineWidth = width allPorts - circleRadius
   topAndBottomLine = alignL $ lwG defaultLineWidth $ lc appColor $ hrule topAndBottomLineWidth
   finalDia = topAndBottomLine === allPorts === topAndBottomLine
@@ -192,16 +192,16 @@ transformCorrectedTextBox str textCol borderCol reflect angle =
     reflectIfTrue shouldReflect dia = if shouldReflect then reflectX dia else dia
 
 nestedApplyDia :: SpecialBackend b n =>
-  [Maybe (Name, Icon)] -> TransformableDia b n
+  [Maybe (NodeName, Icon)] -> TransformableDia b n
 nestedApplyDia = generalNestedDia (apply0C colorScheme)
 
 nestedPAppDia :: SpecialBackend b n =>
-  [Maybe (Name, Icon)] -> TransformableDia b n
+  [Maybe (NodeName, Icon)] -> TransformableDia b n
 nestedPAppDia = generalNestedDia (patternC colorScheme)
 
 generalNestedDia :: SpecialBackend b n =>
-  Colour Double -> [Maybe (Name, Icon)] -> TransformableDia b n
-generalNestedDia borderCol funcNameAndArgs name reflect angle = named name $ case funcNameAndArgs of
+  Colour Double -> [Maybe (NodeName, Icon)] -> TransformableDia b n
+generalNestedDia borderCol funcNodeNameAndArgs name reflect angle = named name $ case funcNodeNameAndArgs of
   [] -> mempty
   (maybeFunText:args) -> centerXY $  transformedText ||| centerY finalDia
     where
@@ -214,15 +214,15 @@ generalNestedDia borderCol funcNameAndArgs name reflect angle = named name $ cas
       trianglePortsCircle = hsep seperation $
         reflectX (fc borderCol apply0Triangle) :
         zipWith makeInnerIcon [2,3..] args ++
-        [makeQualifiedPort 1 <> alignR (lc borderCol $ lwG defaultLineWidth $ fc borderCol $ circle circleRadius)]
+        [makeQualifiedPort (Port 1) <> alignR (lc borderCol $ lwG defaultLineWidth $ fc borderCol $ circle circleRadius)]
   
-      allPorts = makeQualifiedPort 0 <> alignL trianglePortsCircle
+      allPorts = makeQualifiedPort (Port 0) <> alignL trianglePortsCircle
       topAndBottomLineWidth = width allPorts - circleRadius
       argBox = alignL $ lwG defaultLineWidth $ lc borderCol $ rect topAndBottomLineWidth (height allPorts + verticalSeperation)
       finalDia = argBox <> allPorts
 
-      makeInnerIcon portNum Nothing = makeQualifiedPort portNum <> portCircle
-      makeInnerIcon _ (Just (iconName, icon)) = iconToDiagram icon iconName reflect angle
+      makeInnerIcon portNum Nothing = makeQualifiedPort (Port portNum) <> portCircle
+      makeInnerIcon _ (Just (iconNodeName, icon)) = iconToDiagram icon iconNodeName reflect angle
 
 
 -- TEXT ICON --
@@ -284,7 +284,7 @@ enclosure dia = dia <> lwG defaultLineWidth (lc (regionPerimC colorScheme) $ bou
 lambdaIcon ::
   SpecialBackend b n =>
   Int -> SpecialQDiagram b n
-lambdaIcon x = alignB (coloredTextBox (lamArgResC colorScheme) transparent "λ") <> makePort x
+lambdaIcon x = alignB (coloredTextBox (lamArgResC colorScheme) transparent "λ") <> makePort (Port x)
 
 -- LAMBDA REGION --
 
@@ -311,14 +311,14 @@ guardSize = 0.7
 guardTriangle :: SpecialBackend b n =>
   Int -> SpecialQDiagram b n
 guardTriangle x =
-  alignL $ alignR (triangleAndPort ||| lwG defaultLineWidth (hrule (guardSize * 0.8))) <> makePort x
+  alignL $ alignR (triangleAndPort ||| lwG defaultLineWidth (hrule (guardSize * 0.8))) <> makePort (Port x)
   where
     triangleAndPort = alignR $ alignT $ lwG defaultLineWidth $ rotateBy (1/8) $
       polygon (polyType .~ PolySides [90 @@ deg, 45 @@ deg] [guardSize, guardSize] $ with)
 
 guardLBracket :: SpecialBackend b n =>
   Int -> SpecialQDiagram b n
-guardLBracket x = alignL (alignT ell) <> makePort x
+guardLBracket x = alignL (alignT ell) <> makePort (Port x)
   where
     ellShape = fromOffsets $ map r2 [(0, guardSize), (-guardSize,0)]
     ell = lineJoin LineJoinRound $ lwG defaultLineWidth $ lc (boolC colorScheme) (strokeLine ellShape)
@@ -330,7 +330,7 @@ guardLBracket x = alignL (alignT ell) <> makePort x
 -- evens -> right
 generalGuardIcon :: SpecialBackend b n =>
   Colour Double -> (Int -> SpecialQDiagram b n) -> SpecialQDiagram b n -> Int -> SpecialQDiagram b n
-generalGuardIcon triangleColor lBracket bottomDia n = centerXY $ alignT (bottomDia <> makePort 1) <> alignB (bigVerticalLine <> guardDia <> makePort 0)
+generalGuardIcon triangleColor lBracket bottomDia n = centerXY $ alignT (bottomDia <> makePort (Port 1)) <> alignB (bigVerticalLine <> guardDia <> makePort (Port 0))
   where
     --guardTriangles = vsep 0.4 (take n (map guardTriangle [0,1..]))
     trianglesWithPorts = map guardTriangle [2,4..]
@@ -361,7 +361,7 @@ caseResult = lw none $ lc caseCColor $ fc caseCColor $ circle (circleRadius * 0.
 
 caseC :: SpecialBackend b n =>
   Int -> SpecialQDiagram b n
-caseC n = caseResult <> makePort n
+caseC n = caseResult <> makePort (Port n)
 
 
 -- | The ports of the case icon are as follows:
@@ -380,8 +380,8 @@ caseIcon = generalGuardIcon (patternC colorScheme) caseC caseResult
 flatLambda :: SpecialBackend b n => Int -> SpecialQDiagram b n
 flatLambda n = finalDia where
   lambdaCircle = lwG defaultLineWidth $ lc (regionPerimC colorScheme) $ fc (regionPerimC colorScheme) $ circle circleRadius
-  lambdaParts = (makePort 0 <> resultIcon) : (portIcons ++  [makePort 1 <> alignR lambdaCircle])
-  portIcons = take n $ map (\x -> makePort x <> portCircle) [2,3..]
+  lambdaParts = (makePort (Port 0) <> resultIcon) : (portIcons ++  [makePort (Port 1) <> alignR lambdaCircle])
+  portIcons = take n $ map (\x -> makePort (Port x) <> portCircle) [2,3..]
   middle = alignL (hsep 0.5 lambdaParts)
   topAndBottomLineWidth = width middle - circleRadius
   topAndBottomLine = alignL $ lwG defaultLineWidth $ lc (regionPerimC colorScheme) $ hrule topAndBottomLineWidth

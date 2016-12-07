@@ -6,7 +6,6 @@ module Translate(
   stringToSyntaxGraph
 ) where
 
-import qualified Diagrams.Prelude as DIA hiding ((#), (&))
 import Diagrams.Prelude((<>))
 
 import Control.Monad(replicateM)
@@ -26,16 +25,15 @@ import TranslateCore(Reference, SyntaxGraph(..), EvalContext, GraphAndRef,
   edgesForRefPortList, makeApplyGraph,
   namesInPattern, lookupReference, deleteBindings, makeEdges,
   coerceExpressionResult, makeBox, nTupleString, nListString,
-  syntaxGraphToFglGraph)
+  syntaxGraphToFglGraph, getUniqueString)
 import Types(NameAndPort(..), IDState,
-  initialIdState, Edge, SyntaxNode(..), IngSyntaxGraph)
-import Util(toNames, makeSimpleEdge, nameAndPort, justName, mapFst)
+  initialIdState, Edge, SyntaxNode(..), IngSyntaxGraph, NodeName, Port(..))
+import Util(makeSimpleEdge, nameAndPort, justName, mapFst)
 
 -- OVERVIEW --
 -- The core functions and data types used in this module are in TranslateCore.
 -- The TranslateCore also contains most/all of the translation functions that
 -- do not use Language.Haskell.Exts.
--- * Please note that this files uses both DIA.Name from Diagrams.Prelude, and Name from Language.Haskell.Exts
 
 nameToString :: Language.Haskell.Exts.Name -> String
 nameToString (Ident s) = s
@@ -55,7 +53,7 @@ qNameToString (Special UnboxedSingleCon) = "(# #)"
 evalPApp :: QName -> [Pat] -> State IDState (SyntaxGraph, NameAndPort)
 evalPApp name [] = makeBox $ qNameToString name
 evalPApp name patterns = do
-  patName <- DIA.toName <$> getUniqueName "pat"
+  patName <- getUniqueName "pat"
   evaledPatterns <- mapM evalPattern patterns
   let
     constructorName = qNameToString name
@@ -111,15 +109,15 @@ evalQName qName _ = fmap Right <$> makeBox (qNameToString qName)
 -- qOpToString (QVarOp n) = qNameToString n
 -- qOpToString (QConOp n) = qNameToString n
 
---findReferencedIcon :: Reference -> [(DIA.Name, Icon)] -> Maybe (Name, Icon)
--- findReferencedIcon :: Either t NameAndPort -> [(DIA.Name, t1)] -> Maybe (DIA.Name, t1)
+--findReferencedIcon :: Reference -> [(NodeName, Icon)] -> Maybe (Name, Icon)
+-- findReferencedIcon :: Either t NameAndPort -> [(NodeName, t1)] -> Maybe (NodeName, t1)
 -- findReferencedIcon (Left str) _ = Nothing
 -- findReferencedIcon (Right (NameAndPort name _)) nameIconMap = (\x -> (name, x)) <$> lookup name nameIconMap
 
-makePatternGraph :: DIA.Name -> String -> [(SyntaxGraph, Reference)] -> Int -> (SyntaxGraph, NameAndPort)
-makePatternGraph applyIconName funStr argVals numArgs = (newGraph <> combinedGraph, nameAndPort applyIconName 1)
+makePatternGraph :: NodeName -> String -> [(SyntaxGraph, Reference)] -> Int -> (SyntaxGraph, NameAndPort)
+makePatternGraph applyIconName funStr argVals numArgs = (newGraph <> combinedGraph, nameAndPort applyIconName (Port 1))
   where
-    argumentPorts = map (nameAndPort applyIconName) [2,3..]
+    argumentPorts = map (nameAndPort applyIconName . Port) [2,3..]
     combinedGraph = combineExpressions True $ zip argVals argumentPorts
     icons = [(applyIconName, PatternApplyNode funStr numArgs)]
     newGraph = syntaxGraphFromNodes icons
@@ -128,7 +126,7 @@ evalApp :: EvalContext -> (Exp, [Exp]) -> State IDState (SyntaxGraph, NameAndPor
 evalApp c (funExp, argExps) = do
   funVal <- evalExp c funExp
   argVals <- mapM (evalExp c) argExps
-  applyIconName <- DIA.toName <$> getUniqueName "app0"
+  applyIconName <- getUniqueName "app0"
   pure $ makeApplyGraph False applyIconName funVal argVals (length argExps)
 
 qOpToExp :: QOp -> Exp
@@ -151,13 +149,13 @@ evalIf c e1 e2 e3 = do
   e1Val <- evalExp c e1
   e2Val <- evalExp c e2
   e3Val <- evalExp c e3
-  guardName <- DIA.toName <$> getUniqueName "if"
+  guardName <- getUniqueName "if"
   let
     icons = [(guardName, GuardNode 2)]
     combinedGraph =
-      combineExpressions False $ zip [e1Val, e2Val, e3Val] (map (nameAndPort guardName) [3, 2, 4])
+      combineExpressions False $ zip [e1Val, e2Val, e3Val] (map (nameAndPort guardName . Port) [3, 2, 4])
     newGraph = syntaxGraphFromNodes icons <> combinedGraph
-  pure (newGraph, NameAndPort guardName (Just 0))
+  pure (newGraph, nameAndPort guardName (Port 0))
 
 evalStmt :: EvalContext -> Stmt -> State IDState GraphAndRef
 evalStmt c (Qualifier e) = evalExp c e
@@ -173,16 +171,16 @@ evalGuaredRhs c (GuardedRhs _ stmts e) = do
 
 evalGuardedRhss :: EvalContext -> [GuardedRhs] -> State IDState (SyntaxGraph, NameAndPort)
 evalGuardedRhss c rhss = do
-  guardName <- DIA.toName <$> getUniqueName "guard"
+  guardName <- getUniqueName "guard"
   evaledRhss <- mapM (evalGuaredRhs c) rhss
   let
     (bools, exps) = unzip evaledRhss
-    expsWithPorts = zip exps $ map (nameAndPort guardName) [2,4..]
-    boolsWithPorts = zip bools $ map (nameAndPort guardName) [3,5..]
+    expsWithPorts = zip exps $ map (nameAndPort guardName . Port) [2,4..]
+    boolsWithPorts = zip bools $ map (nameAndPort guardName . Port) [3,5..]
     combindedGraph = combineExpressions False $ expsWithPorts <> boolsWithPorts
     icons = [(guardName, GuardNode (length rhss))]
     newGraph = syntaxGraphFromNodes icons <> combindedGraph
-  pure (newGraph, NameAndPort guardName (Just 1))
+  pure (newGraph, nameAndPort guardName (Port 1))
 
 -- This is in Translate and not Translate core since currently it is only used by evalLit.
 makeLiteral :: (Show x) => x -> State IDState (SyntaxGraph, NameAndPort)
@@ -274,30 +272,30 @@ evalCase c e alts = do
     (patRhsConnected, altGraphs, patRefs, rhsRefs) = unzip4 evaledAlts
     combindedAltGraph = mconcat altGraphs
     numAlts = length alts
-    icons = toNames [(caseIconName, CaseNode numAlts)]
+    icons = [(caseIconName, CaseNode numAlts)]
     caseGraph = syntaxGraphFromNodes icons
-    expEdge = (expRef, nameAndPort caseIconName 0)
-    patEdges = zip patRefs $ map (nameAndPort caseIconName ) [2,4..]
-    rhsEdges = zip patRhsConnected $ zip rhsRefs $ map (nameAndPort caseIconName) [3,5..]
+    expEdge = (expRef, nameAndPort caseIconName (Port 0))
+    patEdges = zip patRefs $ map (nameAndPort caseIconName . Port) [2,4..]
+    rhsEdges = zip patRhsConnected $ zip rhsRefs $ map (nameAndPort caseIconName . Port) [3,5..]
     (connectedRhss, unConnectedRhss) = partition fst rhsEdges
   resultIconNames <- replicateM numAlts (getUniqueName "caseResult")
   let
     makeCaseResult resultIconName rhsPort = syntaxGraphFromNodesEdges rhsNewIcons rhsNewEdges
       where
-        rhsNewIcons = toNames [(resultIconName, CaseResultNode)]
+        rhsNewIcons = [(resultIconName, CaseResultNode)]
         rhsNewEdges = [makeSimpleEdge (rhsPort, justName resultIconName)]
     caseResultGraphs = mconcat $ zipWith makeCaseResult resultIconNames (fmap (fst . snd) connectedRhss)
     filteredRhsEdges = mapFst Right $ fmap snd unConnectedRhss
     patternEdgesGraph = edgesForRefPortList True patEdges
     caseEdgeGraph = edgesForRefPortList False (expEdge : filteredRhsEdges)
     finalGraph = mconcat [patternEdgesGraph, caseResultGraphs, expGraph, caseEdgeGraph, caseGraph, combindedAltGraph]
-  pure (finalGraph, nameAndPort caseIconName 1)
+  pure (finalGraph, nameAndPort caseIconName (Port 1))
 
 evalTuple :: EvalContext -> [Exp] -> State IDState (SyntaxGraph, NameAndPort)
 evalTuple c exps = do
   argVals <- mapM (evalExp c) exps
   funVal <- makeBox $ nTupleString (length exps)
-  applyIconName <- DIA.toName <$> getUniqueName "tupleApp"
+  applyIconName <- getUniqueName "tupleApp"
   pure $ makeApplyGraph False applyIconName (fmap Right funVal) argVals (length exps)
 
 makeVarExp :: String -> Exp
@@ -314,9 +312,9 @@ evalRightSection:: EvalContext -> QOp -> Exp -> State IDState (SyntaxGraph, Name
 evalRightSection c op e = do
   expVal <- evalExp c e
   funVal <- evalExp c (qOpToExp op)
-  applyIconName <- DIA.toName <$> getUniqueName "tupleApp"
+  applyIconName <- getUniqueName "tupleApp"
   -- TODO: A better option would be for makeApplyGraph to take the list of expressions as Maybes.
-  neverUsedPort <- Left <$> getUniqueName "unusedArgument"
+  neverUsedPort <- Left <$> getUniqueString "unusedArgument"
   pure $ makeApplyGraph False applyIconName funVal [(mempty, neverUsedPort), expVal] 2
 
 -- evalEnums is only used by evalExp
@@ -403,7 +401,7 @@ generalEvalLambda context patterns rhsEvalFun = do
   let
     patternStrings = concatMap namesInPattern patternVals
     rhsContext = patternStrings <> context
-    lambdaPorts = map (nameAndPort lambdaName) [2,3..]
+    lambdaPorts = map (nameAndPort lambdaName . Port) [2,3..]
     patternGraph = mconcat $ map fst patternVals
 
     (patternEdges, newBinds) =
@@ -412,11 +410,11 @@ generalEvalLambda context patterns rhsEvalFun = do
   -- TODO remove coerceExpressionResult here
   (rhsRawGraph, rhsResult) <- rhsEvalFun rhsContext >>= coerceExpressionResult
   let
-    icons = toNames [(lambdaName, FunctionDefNode numParameters)]
-    resultIconEdge = makeSimpleEdge (rhsResult, nameAndPort lambdaName 0)
+    icons = [(lambdaName, FunctionDefNode numParameters)]
+    resultIconEdge = makeSimpleEdge (rhsResult, nameAndPort lambdaName (Port 0))
     finalGraph = SyntaxGraph icons (resultIconEdge:patternEdges)
       mempty newBinds
-  pure (deleteBindings . makeEdges $ (rhsRawGraph <> patternGraph <> finalGraph), nameAndPort lambdaName 1)
+  pure (deleteBindings . makeEdges $ (rhsRawGraph <> patternGraph <> finalGraph), nameAndPort lambdaName (Port 1))
   where
     -- TODO Like evalPatBind, this edge should have an indicator that it is the input to a pattern.
     -- makePatternEdges creates the edges between the patterns and the parameter ports.
@@ -450,7 +448,7 @@ matchToAlt (Match srcLocation _ mtaPats _ rhs binds) = Alt srcLocation altPatter
 matchesToCase :: Match -> [Match] -> State IDState Match
 matchesToCase match [] = pure match
 matchesToCase firstMatch@(Match srcLoc funName pats mType _ _) restOfMatches = do
-  tempStrings <- replicateM (length pats) (getUniqueName "_tempvar")
+  tempStrings <- replicateM (length pats) (getUniqueString "_tempvar")
   let
     tempPats = fmap (PVar . Ident) tempStrings
     tempVars = fmap (Var . UnQual . Ident) tempStrings
@@ -485,7 +483,7 @@ showTopLevelBinds gr@(SyntaxGraph _ _ _ binds) = do
     addBind (patName, Right port) = do
       uniquePatName <- getUniqueName patName
       let
-        icons = toNames [(uniquePatName, BindNameNode patName)]
+        icons = [(uniquePatName, BindNameNode patName)]
         edges = [makeSimpleEdge (justName uniquePatName, port)]
         edgeGraph = syntaxGraphFromNodesEdges icons edges
       pure edgeGraph

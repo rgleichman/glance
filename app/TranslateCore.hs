@@ -7,6 +7,7 @@ module TranslateCore(
   syntaxGraphFromNodes,
   syntaxGraphFromNodesEdges,
   getUniqueName,
+  getUniqueString,
   edgesForRefPortList,
   combineExpressions,
   --qualifyNameAndPort,
@@ -29,11 +30,10 @@ import Data.Either(partitionEithers)
 import qualified Data.Graph.Inductive.PatriciaTree as FGR
 import Data.List(find)
 import Data.Semigroup(Semigroup, (<>))
-import qualified Diagrams.Prelude as DIA
 import Diagrams.TwoD.GraphViz as DiaGV
 
 import Types(Icon, SyntaxNode(..), Edge(..), EdgeOption(..),
-  NameAndPort(..), IDState, getId, SgNamedNode)
+  NameAndPort(..), IDState, getId, SgNamedNode, NodeName(..), Port(..))
 import Util(noEnds, nameAndPort, makeSimpleEdge, justName, fromMaybeError, maybeBoolToBool)
 import Icons(Icon(..))
 
@@ -41,8 +41,6 @@ import Icons(Icon(..))
 -- This module has the core functions and data types used by Translate.
 -- This module also contains most/all of the translation functions that
 -- do not require Language.Haskell.Exts.
--- * Please note that type DIA.Name is not the Name from Language.Haskell.Exts
--- used in Translate.
 
 type Reference = Either String NameAndPort
 
@@ -67,14 +65,18 @@ type EvalContext = [String]
 type GraphAndRef = (SyntaxGraph, Reference)
 type Sink = (String, NameAndPort)
 
-syntaxGraphFromNodes :: [(DIA.Name, SyntaxNode)] -> SyntaxGraph
+syntaxGraphFromNodes :: [(NodeName, SyntaxNode)] -> SyntaxGraph
 syntaxGraphFromNodes icons = SyntaxGraph icons mempty mempty mempty
 
-syntaxGraphFromNodesEdges :: [(DIA.Name, SyntaxNode)] -> [Edge] -> SyntaxGraph
+syntaxGraphFromNodesEdges :: [(NodeName, SyntaxNode)] -> [Edge] -> SyntaxGraph
 syntaxGraphFromNodesEdges icons edges = SyntaxGraph icons edges mempty mempty
 
-getUniqueName :: String -> State IDState String
-getUniqueName base = fmap ((base ++). show) getId
+-- TODO Remove string parameter
+getUniqueName :: String -> State IDState NodeName
+getUniqueName _ = fmap NodeName getId
+
+getUniqueString :: String -> State IDState String
+getUniqueString base = fmap ((base ++). show) getId
 
 -- TODO: Refactor with combineExpressions
 edgesForRefPortList :: Bool -> [(Reference, NameAndPort)] -> SyntaxGraph
@@ -98,11 +100,11 @@ combineExpressions inPattern portExpPairs = mconcat $ fmap makeGraph portExpPair
 -- qualifyNameAndPort :: String -> NameAndPort -> NameAndPort
 -- qualifyNameAndPort s (NameAndPort n p) = NameAndPort (s DIA..> n) p
 
-makeApplyGraph :: Bool -> DIA.Name -> GraphAndRef -> [GraphAndRef] -> Int -> (SyntaxGraph, NameAndPort)
-makeApplyGraph inPattern applyIconName funVal argVals numArgs = (newGraph <> combinedGraph, nameAndPort applyIconName 1)
+makeApplyGraph :: Bool -> NodeName -> GraphAndRef -> [GraphAndRef] -> Int -> (SyntaxGraph, NameAndPort)
+makeApplyGraph inPattern applyIconName funVal argVals numArgs = (newGraph <> combinedGraph, nameAndPort applyIconName (Port 1))
   where
-    argumentPorts = map (nameAndPort applyIconName) [2,3..]
-    functionPort = nameAndPort applyIconName 0
+    argumentPorts = map (nameAndPort applyIconName . Port) [2,3..]
+    functionPort = nameAndPort applyIconName (Port 0)
     combinedGraph = combineExpressions inPattern $ zip (funVal:argVals) (functionPort:argumentPorts)
     icons = [(applyIconName, ApplyNode numArgs)]
     newGraph = syntaxGraphFromNodes icons
@@ -151,7 +153,7 @@ coerceExpressionResult (_, Left str) = makeDummyRhs str where
     iconName <- getUniqueName s
     let
       graph = SyntaxGraph icons mempty [(s, port)] mempty
-      icons = [(DIA.toName iconName, BranchNode)]
+      icons = [(iconName, BranchNode)]
       port = justName iconName
     pure (graph, port)
 coerceExpressionResult (g, Right x) = pure (g, x)
@@ -159,8 +161,8 @@ coerceExpressionResult (g, Right x) = pure (g, x)
 -- TODO: remove / change due toSyntaxGraph
 makeBox :: String -> State IDState (SyntaxGraph, NameAndPort)
 makeBox str = do
-  name <- DIA.toName <$> getUniqueName str
-  let graph = syntaxGraphFromNodes [(DIA.toName name, LiteralNode str)]
+  name <- getUniqueName str
+  let graph = syntaxGraphFromNodes [(name, LiteralNode str)]
   pure (graph, justName name)
 
 nTupleString :: Int -> String
@@ -185,8 +187,8 @@ nodeToIcon (CaseNode n) = CaseIcon n
 nodeToIcon BranchNode = BranchIcon
 nodeToIcon CaseResultNode = CaseResultIcon
 
-makeArg :: [(SgNamedNode, Edge)] -> Int -> Maybe (DIA.Name, Icon)
-makeArg args port = case find (findArg port) args of
+makeArg :: [(SgNamedNode, Edge)] -> Int -> Maybe (NodeName, Icon)
+makeArg args port = case find (findArg (Port port)) args of
   Nothing -> Nothing
   Just ((argName, argSyntaxNode), _) -> Just (argName, nodeToIcon argSyntaxNode)
 
@@ -199,11 +201,11 @@ nestedApplySyntaxNodeToIcon numArgs args = NestedApply argList where
 
 nestedPatternNodeToIcon :: String -> Int -> [(SgNamedNode, Edge)] -> Icon
 nestedPatternNodeToIcon str numArgs args = NestedPApp argList where
-  -- TODO Using [toName ""] is probably not the best thing to do.
+  -- TODO Don't use NodeName (-1)
   -- TODO Don't use hardcoded port numbers
-  argList = Just (DIA.toName "", TextBoxIcon str) : fmap (makeArg args) [2..numArgs + 1]
+  argList = Just (NodeName (-1), TextBoxIcon str) : fmap (makeArg args) [2..numArgs + 1]
 
-findArg :: Int -> (SgNamedNode, Edge) -> Bool
+findArg :: Port -> (SgNamedNode, Edge) -> Bool
 findArg currentPort ((argName, _), Edge _ _ (NameAndPort fromName fromPort, NameAndPort toName toPort))
   | argName == fromName = maybeBoolToBool $ fmap (== currentPort) toPort
   | argName == toName = maybeBoolToBool $ fmap (== currentPort) fromPort

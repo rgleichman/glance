@@ -7,7 +7,6 @@ module Util (
   iconToIconEnds,
   --iconHeadToPort,
   iconTailToPort,
-  toNames,
   makeSimpleEdge,
   noEnds,
   nameAndPort,
@@ -20,17 +19,14 @@ module Util (
 )where
 
 import Control.Arrow(first)
-import Diagrams.Prelude(IsName, toName, Name)
+-- import Diagrams.Prelude(IsName, toName, Name)
 import Data.Maybe(fromMaybe)
 import qualified Debug.Trace
 
-import Types(EdgeEnd(..), Edge(..), NameAndPort(..), Connection)
+import Types(EdgeEnd(..), Edge(..), NameAndPort(..), Connection, NodeName, Port)
 
 mapFst :: Functor f => (a -> b) -> f (a, c) -> f (b, c)
 mapFst f = fmap (first f)
-
-toNames :: (IsName a) => [(a, b)] -> [(Name, b)]
-toNames = mapFst toName
 
 noEnds :: (EdgeEnd, EdgeEnd)
 noEnds = (EndNone, EndNone)
@@ -38,32 +34,32 @@ noEnds = (EndNone, EndNone)
 makeSimpleEdge :: Connection -> Edge
 makeSimpleEdge = Edge [] noEnds
 
-nameAndPort :: IsName a => a -> Int -> NameAndPort
-nameAndPort n p = NameAndPort (toName n) (Just p)
+nameAndPort :: NodeName -> Port -> NameAndPort
+nameAndPort n p = NameAndPort n (Just p)
 
-justName :: IsName a => a -> NameAndPort
-justName n = NameAndPort (toName n) Nothing
+justName :: NodeName -> NameAndPort
+justName n = NameAndPort n Nothing
 
 -- Edge constructors --
-portToPort :: (IsName a, IsName b) => a -> Int -> b -> Int -> Edge
+portToPort :: NodeName -> Port -> NodeName -> Port -> Edge
 portToPort a b c d = makeSimpleEdge (nameAndPort a b, nameAndPort c d)
 
-iconToPort :: (IsName a, IsName b) => a -> b -> Int -> Edge
+iconToPort :: NodeName -> NodeName -> Port -> Edge
 iconToPort a   c d = makeSimpleEdge (justName a, nameAndPort c d)
 
-iconToIcon :: (IsName a, IsName b) => a -> b -> Edge
+iconToIcon :: NodeName -> NodeName -> Edge
 iconToIcon a   c   = makeSimpleEdge (justName a, justName c)
 
 
 -- If there are gaps between the arrow and the icon, try switching the first two arguments
 -- with the last two arguments
-iconToIconEnds :: (IsName a, IsName b) => a -> EdgeEnd -> b -> EdgeEnd -> Edge
+iconToIconEnds :: NodeName -> EdgeEnd -> NodeName -> EdgeEnd -> Edge
 iconToIconEnds a b c d = Edge [] (b, d) (justName a, justName c)
 
 -- iconHeadToPort :: (IsName a, IsName b) => a -> EdgeEnd -> b -> Int -> Edge
 -- iconHeadToPort a endHead c d = Edge (justName a, nameAndPort c d) (EndNone, endHead)
 
-iconTailToPort :: (IsName a, IsName b) => a -> EdgeEnd -> b -> Int -> Edge
+iconTailToPort :: NodeName -> EdgeEnd -> NodeName -> Port -> Edge
 iconTailToPort a endTail c d = Edge [] (endTail, EndNone) (justName a, nameAndPort c d)
 
 fromMaybeError :: String -> Maybe a -> a
