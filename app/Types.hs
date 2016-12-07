@@ -19,7 +19,8 @@ module Types (
   IngSyntaxGraph,
   initialIdState,
   getId,
-  sgNamedNodeToSyntaxNode
+  sgNamedNodeToSyntaxNode,
+  nodeNameToInt
 ) where
 
 import Diagrams.Prelude(QDiagram, V2, Any, Renderable, Path, IsName)
@@ -109,3 +110,6 @@ getId = state incrementer where
     checkedIncrement = if xPlusOne > x
       then xPlusOne
       else error "getId: the ID state has overflowed."
+
+nodeNameToInt :: NodeName -> Int
+nodeNameToInt (NodeName x) = x

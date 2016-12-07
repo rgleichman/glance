@@ -33,7 +33,7 @@ import Data.List(find)
 import Data.Semigroup(Semigroup, (<>))
 
 import Types(Icon, SyntaxNode(..), Edge(..), EdgeOption(..),
-  NameAndPort(..), IDState, getId, SgNamedNode, NodeName(..), Port(..))
+  NameAndPort(..), IDState, getId, SgNamedNode, NodeName(..), Port(..), nodeNameToInt)
 import Util(noEnds, nameAndPort, makeSimpleEdge, justName, maybeBoolToBool)
 import Icons(Icon(..))
 
@@ -216,10 +216,18 @@ findArg currentPort ((argName, _), Edge _ _ (NameAndPort fromName fromPort, Name
 makeLNode :: SgNamedNode -> ING.LNode SgNamedNode
 makeLNode namedNode@(NodeName name, _) = (name, namedNode)
 
+lookupInEmbeddingMap :: NodeName -> [(NodeName, NodeName)] -> NodeName
+lookupInEmbeddingMap origName map = lookupHelper origName where
+  lookupHelper name = case lookup name map of
+    Nothing -> name
+    Just parent -> if parent == origName
+      then error $ "lookupInEmbeddingMap: Found cycle. Node = " ++ show origName ++ "\nEmbedding Map = " ++ show map
+      else lookupHelper parent
+
 syntaxGraphToFglGraph :: SyntaxGraph -> FGR.Gr SgNamedNode Edge
 syntaxGraphToFglGraph (SyntaxGraph nodes edges _ _ eMap) =
   ING.mkGraph (fmap makeLNode nodes) labeledEdges where
     labeledEdges = fmap makeLabeledEdge edges
 
-    makeLabeledEdge e@(Edge _ _ (NameAndPort (NodeName name1) _, NameAndPort (NodeName name2) _)) =
-      (name1, name2, e)
+    makeLabeledEdge e@(Edge _ _ (NameAndPort name1 _, NameAndPort name2 _)) =
+      (nodeNameToInt $ lookupInEmbeddingMap name1 eMap, nodeNameToInt $ lookupInEmbeddingMap name2 eMap, e)
