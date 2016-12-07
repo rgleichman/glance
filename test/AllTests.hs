@@ -487,7 +487,7 @@ prettyShowList :: Show a => [a] -> String
 prettyShowList ls = intercalate "\n" $ fmap show ls
 
 prettyShowSyntaxGraph :: SyntaxGraph -> String
-prettyShowSyntaxGraph (SyntaxGraph nodes edges sinks sources) =
+prettyShowSyntaxGraph (SyntaxGraph nodes edges sinks sources _) =
   "SyntaxGraph nodes:\n" ++
   prettyShowList nodes ++
   "\nSyntaxGraph edges:\n" ++

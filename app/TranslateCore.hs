@@ -50,15 +50,17 @@ data SyntaxGraph = SyntaxGraph {
   sgNodes :: [SgNamedNode],
   sgEdges :: [Edge],
   sgSinks :: [(String, NameAndPort)],
-  sgSources :: [(String, Reference)]
+  sgSources :: [(String, Reference)],
+  -- sgEmbedMap keeps track of nodes embedded in other nodes. If (child, parent) is in the Map, then child is embedded inside parent.
+  sgEmbedMap :: [(NodeName, NodeName)]
   } deriving (Show)
 
 instance Semigroup SyntaxGraph where
-  (SyntaxGraph icons1 edges1 sinks1 sources1) <> (SyntaxGraph icons2 edges2 sinks2 sources2) =
-    SyntaxGraph (icons1 <> icons2) (edges1 <> edges2) (sinks1 <> sinks2) (sources1 <> sources2)
+  (SyntaxGraph icons1 edges1 sinks1 sources1 map1) <> (SyntaxGraph icons2 edges2 sinks2 sources2 map2) =
+    SyntaxGraph (icons1 <> icons2) (edges1 <> edges2) (sinks1 <> sinks2) (sources1 <> sources2) (map1 <> map2)
 
 instance Monoid SyntaxGraph where
-  mempty = SyntaxGraph mempty mempty mempty mempty
+  mempty = SyntaxGraph mempty mempty mempty mempty mempty
   mappend = (<>)
 
 type EvalContext = [String]
@@ -66,10 +68,10 @@ type GraphAndRef = (SyntaxGraph, Reference)
 type Sink = (String, NameAndPort)
 
 syntaxGraphFromNodes :: [(NodeName, SyntaxNode)] -> SyntaxGraph
-syntaxGraphFromNodes icons = SyntaxGraph icons mempty mempty mempty
+syntaxGraphFromNodes icons = SyntaxGraph icons mempty mempty mempty mempty
 
 syntaxGraphFromNodesEdges :: [(NodeName, SyntaxNode)] -> [Edge] -> SyntaxGraph
-syntaxGraphFromNodesEdges icons edges = SyntaxGraph icons edges mempty mempty
+syntaxGraphFromNodesEdges icons edges = SyntaxGraph icons edges mempty mempty mempty
 
 -- TODO Remove string parameter
 getUniqueName :: String -> State IDState NodeName
@@ -84,18 +86,18 @@ edgesForRefPortList inPattern portExpPairs = mconcat $ fmap makeGraph portExpPai
   edgeOpts = if inPattern then [EdgeInPattern] else []
   makeGraph (ref, port) = case ref of
     Left str -> if inPattern
-      then SyntaxGraph mempty mempty mempty [(str, Right port)]
-      else SyntaxGraph mempty mempty [(str, port)] mempty
-    Right resultPort -> SyntaxGraph mempty [Edge edgeOpts noEnds (resultPort, port)] mempty mempty
+      then SyntaxGraph mempty mempty mempty [(str, Right port)] mempty
+      else SyntaxGraph mempty mempty [(str, port)] mempty mempty
+    Right resultPort -> SyntaxGraph mempty [Edge edgeOpts noEnds (resultPort, port)] mempty mempty mempty
 
 combineExpressions :: Bool -> [(GraphAndRef, NameAndPort)] -> SyntaxGraph
 combineExpressions inPattern portExpPairs = mconcat $ fmap makeGraph portExpPairs where
   edgeOpts = if inPattern then [EdgeInPattern] else []
   makeGraph ((graph, ref), port) = graph <> case ref of
     Left str -> if inPattern
-      then SyntaxGraph mempty mempty mempty [(str, Right port)]
-      else SyntaxGraph mempty mempty [(str, port)] mempty
-    Right resultPort -> SyntaxGraph mempty [Edge edgeOpts noEnds (resultPort, port)] mempty mempty
+      then SyntaxGraph mempty mempty mempty [(str, Right port)] mempty
+      else SyntaxGraph mempty mempty [(str, port)] mempty mempty
+    Right resultPort -> SyntaxGraph mempty [Edge edgeOpts noEnds (resultPort, port)] mempty mempty mempty
 
 -- qualifyNameAndPort :: String -> NameAndPort -> NameAndPort
 -- qualifyNameAndPort s (NameAndPort n p) = NameAndPort (s DIA..> n) p
@@ -111,7 +113,7 @@ makeApplyGraph inPattern applyIconName funVal argVals numArgs = (newGraph <> com
 
 namesInPattern :: GraphAndRef -> [String]
 namesInPattern (_, Left str) = [str]
-namesInPattern (SyntaxGraph _ _ _ bindings, Right _) = fmap fst bindings
+namesInPattern (SyntaxGraph _ _ _ bindings _, Right _) = fmap fst bindings
 
 -- | Recursivly find the matching reference in a list of bindings.
 -- TODO: Might want to present some indication if there is a reference cycle.
@@ -127,7 +129,7 @@ lookupReference bindings ref@(Left originalS) = lookupHelper ref where
       failIfCycle _ res = res
 
 deleteBindings :: SyntaxGraph -> SyntaxGraph
-deleteBindings (SyntaxGraph a b c _) = SyntaxGraph a b c mempty
+deleteBindings (SyntaxGraph a b c _ e) = SyntaxGraph a b c mempty e
 
 makeEdgesCore :: [Sink] -> [(String, Reference)] -> ([Sink], [Edge])
 makeEdgesCore sinks bindings = partitionEithers $ fmap renameOrMakeEdge sinks
@@ -140,9 +142,9 @@ makeEdgesCore sinks bindings = partitionEithers $ fmap renameOrMakeEdge sinks
       Nothing -> Left orig
 
 makeEdges :: SyntaxGraph -> SyntaxGraph
-makeEdges (SyntaxGraph icons edges sinks bindings) = newGraph where
+makeEdges (SyntaxGraph icons edges sinks bindings eMap) = newGraph where
   (newSinks, newEdges) = makeEdgesCore sinks bindings
-  newGraph = SyntaxGraph icons (newEdges <> edges) newSinks bindings
+  newGraph = SyntaxGraph icons (newEdges <> edges) newSinks bindings eMap
 
 -- TODO: Remove BranchNode
 -- | This is used by the rhs for identity (eg. y x = x)
@@ -152,7 +154,7 @@ coerceExpressionResult (_, Left str) = makeDummyRhs str where
   makeDummyRhs s = do
     iconName <- getUniqueName s
     let
-      graph = SyntaxGraph icons mempty [(s, port)] mempty
+      graph = SyntaxGraph icons mempty [(s, port)] mempty mempty
       icons = [(iconName, BranchNode)]
       port = justName iconName
     pure (graph, port)
@@ -215,7 +217,7 @@ makeLNode :: SgNamedNode -> ING.LNode SgNamedNode
 makeLNode namedNode@(NodeName name, _) = (name, namedNode)
 
 syntaxGraphToFglGraph :: SyntaxGraph -> FGR.Gr SgNamedNode Edge
-syntaxGraphToFglGraph (SyntaxGraph nodes edges _ _) =
+syntaxGraphToFglGraph (SyntaxGraph nodes edges _ _ eMap) =
   ING.mkGraph (fmap makeLNode nodes) labeledEdges where
     labeledEdges = fmap makeLabeledEdge edges
 

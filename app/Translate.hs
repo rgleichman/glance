@@ -69,7 +69,7 @@ evalPAsPat n p = do
   (evaledPatGraph, evaledPatRef) <- evalPattern p
   let
     newBind = [(nameToString n, evaledPatRef)]
-    newGraph = SyntaxGraph mempty mempty mempty newBind
+    newGraph = SyntaxGraph mempty mempty mempty newBind mempty
   pure (newGraph <> evaledPatGraph, evaledPatRef)
 
 evalPattern :: Pat -> State IDState GraphAndRef
@@ -238,7 +238,7 @@ evalGeneralLet expOrRhsEvaler c bs = do
   let
     (expGraph, expResult) = expVal
     newGraph = deleteBindings . makeEdges $ expGraph <> bindGraph
-    (SyntaxGraph _ _ _ bindings) = bindGraph
+    bindings = sgSources bindGraph
   pure (newGraph, lookupReference bindings expResult)
 
 evalLet :: EvalContext -> Binds -> Exp -> State IDState (SyntaxGraph, Reference)
@@ -391,7 +391,7 @@ evalPatBind c (PatBind _ pat rhs maybeWhereBinds) = do
         -- TODO This edge/sink should have a special arrow head to indicate an input to a pattern.
         (Left rhsStr) -> (mempty, [(rhsStr, patPort)], mempty)
         (Right rhsPort) -> ([makeSimpleEdge (rhsPort, patPort)], mempty, mempty)
-    gr = SyntaxGraph mempty newEdges newSinks bindings
+    gr = SyntaxGraph mempty newEdges newSinks bindings mempty
   pure . makeEdges $ (gr <> rhsGraph <> patGraph)
 
 generalEvalLambda :: EvalContext -> [Pat] -> (EvalContext -> State IDState GraphAndRef) -> State IDState (SyntaxGraph, NameAndPort)
@@ -413,7 +413,7 @@ generalEvalLambda context patterns rhsEvalFun = do
     icons = [(lambdaName, FunctionDefNode numParameters)]
     resultIconEdge = makeSimpleEdge (rhsResult, nameAndPort lambdaName (Port 0))
     finalGraph = SyntaxGraph icons (resultIconEdge:patternEdges)
-      mempty newBinds
+      mempty newBinds mempty
   pure (deleteBindings . makeEdges $ (rhsRawGraph <> patternGraph <> finalGraph), nameAndPort lambdaName (Port 1))
   where
     -- TODO Like evalPatBind, this edge should have an indicator that it is the input to a pattern.
@@ -435,7 +435,7 @@ evalMatch c (Match _ name patterns _ rhs maybeWhereBinds) = do
   (lambdaGraph, lambdaPort) <-
     generalEvalLambda newContext patterns (rhsWithBinds maybeWhereBinds rhs)
   let
-    newBinding = SyntaxGraph mempty mempty mempty [(matchFunNameString, Right lambdaPort)]
+    newBinding = SyntaxGraph mempty mempty mempty [(matchFunNameString, Right lambdaPort)] mempty
   pure $ makeEdges (newBinding <> lambdaGraph)
 
 -- Only used by matchesToCase
@@ -477,8 +477,9 @@ evalDecl c d = evaluatedDecl where
     _ -> pure mempty
 
 showTopLevelBinds :: SyntaxGraph -> State IDState SyntaxGraph
-showTopLevelBinds gr@(SyntaxGraph _ _ _ binds) = do
+showTopLevelBinds gr = do
   let
+    binds = sgSources gr
     addBind (_, Left _) = pure mempty
     addBind (patName, Right port) = do
       uniquePatName <- getUniqueName patName
