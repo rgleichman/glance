@@ -25,6 +25,7 @@ module TranslateCore(
   nodeToIcon
 ) where
 
+import Control.Arrow(second)
 import Control.Monad.State(State)
 import Data.Either(partitionEithers)
 import qualified Data.Graph.Inductive.PatriciaTree as FGR
@@ -179,7 +180,8 @@ nodeToIcon :: SyntaxNode -> Icon
 nodeToIcon (ApplyNode n) = ApplyAIcon n
 nodeToIcon (NestedApplyNode x edges) = nestedApplySyntaxNodeToIcon x edges
 nodeToIcon (PatternApplyNode s n) = PAppIcon n s
-nodeToIcon (NestedPatternApplyNode s n children) = nestedPatternNodeToIcon s n children
+-- nodeToIcon (NestedPatternApplyNode s n children) = nestedPatternNodeToIcon s n children
+nodeToIcon (NestedPatternApplyNode s children) = nestedPatternNodeToIcon s children
 nodeToIcon (NameNode s) = TextBoxIcon s
 nodeToIcon (BindNameNode s) = BindTextBoxIcon s
 nodeToIcon (LiteralNode s) = TextBoxIcon s
@@ -201,8 +203,14 @@ nestedApplySyntaxNodeToIcon numArgs args = NestedApply argList where
   -- TODO Don't use hardcoded port numbers
   argList = fmap (makeArg args) (0:[2..numArgs + 1])
 
-nestedPatternNodeToIcon :: String -> Int -> [(SgNamedNode, Edge)] -> Icon
-nestedPatternNodeToIcon str numArgs args = NestedPApp argList where
+nestedPatternNodeToIcon :: String -> [Maybe SgNamedNode] -> Icon
+nestedPatternNodeToIcon str children = NestedPApp $
+  Just (NodeName (-1), TextBoxIcon str)
+  :
+  fmap (fmap (second nodeToIcon)) children
+
+nestedPatternNodeToIcon' :: String -> Int -> [(SgNamedNode, Edge)] -> Icon
+nestedPatternNodeToIcon' str numArgs args = NestedPApp argList where
   -- TODO Don't use NodeName (-1)
   -- TODO Don't use hardcoded port numbers
   argList = Just (NodeName (-1), TextBoxIcon str) : fmap (makeArg args) [2..numArgs + 1]
@@ -217,11 +225,11 @@ makeLNode :: SgNamedNode -> ING.LNode SgNamedNode
 makeLNode namedNode@(NodeName name, _) = (name, namedNode)
 
 lookupInEmbeddingMap :: NodeName -> [(NodeName, NodeName)] -> NodeName
-lookupInEmbeddingMap origName map = lookupHelper origName where
-  lookupHelper name = case lookup name map of
+lookupInEmbeddingMap origName eMap = lookupHelper origName where
+  lookupHelper name = case lookup name eMap of
     Nothing -> name
     Just parent -> if parent == origName
-      then error $ "lookupInEmbeddingMap: Found cycle. Node = " ++ show origName ++ "\nEmbedding Map = " ++ show map
+      then error $ "lookupInEmbeddingMap: Found cycle. Node = " ++ show origName ++ "\nEmbedding Map = " ++ show eMap
       else lookupHelper parent
 
 syntaxGraphToFglGraph :: SyntaxGraph -> FGR.Gr SgNamedNode Edge

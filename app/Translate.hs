@@ -8,10 +8,11 @@ module Translate(
 
 import Diagrams.Prelude((<>))
 
+import Data.Maybe(catMaybes)
 import Control.Monad(replicateM)
 import Control.Monad.State(State, evalState)
 import Data.Either(partitionEithers)
-import Data.List(unzip4, partition)
+import Data.List(unzip5, unzip4, partition)
 import qualified Language.Haskell.Exts as Exts
 import Language.Haskell.Exts(Decl(..), parseDecl, Name(..), Pat(..), Rhs(..),
   Exp(..), QName(..), fromParseResult, Match(..), QOp(..), GuardedRhs(..),
@@ -20,14 +21,14 @@ import qualified Data.Graph.Inductive.PatriciaTree as FGR
 --import Data.Maybe(catMaybes)
 
 import GraphAlgorithms(collapseNodes)
-import TranslateCore(Reference, SyntaxGraph(..), EvalContext, GraphAndRef,
+import TranslateCore(Reference, SyntaxGraph(..), EvalContext, GraphAndRef, Sink,
   syntaxGraphFromNodes, syntaxGraphFromNodesEdges, getUniqueName, combineExpressions,
   edgesForRefPortList, makeApplyGraph,
   namesInPattern, lookupReference, deleteBindings, makeEdges,
   coerceExpressionResult, makeBox, nTupleString, nListString,
   syntaxGraphToFglGraph, getUniqueString)
 import Types(NameAndPort(..), IDState,
-  initialIdState, Edge, SyntaxNode(..), IngSyntaxGraph, NodeName, Port(..))
+  initialIdState, Edge, SyntaxNode(..), IngSyntaxGraph, NodeName, Port(..), SgNamedNode)
 import Util(makeSimpleEdge, nameAndPort, justName, mapFst)
 
 -- OVERVIEW --
@@ -114,8 +115,33 @@ evalQName qName _ = fmap Right <$> makeBox (qNameToString qName)
 -- findReferencedIcon (Left str) _ = Nothing
 -- findReferencedIcon (Right (NameAndPort name _)) nameIconMap = (\x -> (name, x)) <$> lookup name nameIconMap
 
+-- TODO Refactor decideIfNested and makePatternGraph
+decideIfNested :: ((SyntaxGraph, t1), t) ->
+  (Maybe ((SyntaxGraph, t1), t), Maybe SgNamedNode, [Sink], [(String, Reference)], [(NodeName, NodeName)])
+decideIfNested ((SyntaxGraph [nameAndIcon] [] sinks bindings eMap, _), _) = (Nothing, Just nameAndIcon, sinks, bindings, eMap)
+decideIfNested valAndPort = (Just valAndPort, Nothing, [], [], [])
+
+-- TODO Consider removing the Int numArgs parameter.
 makePatternGraph :: NodeName -> String -> [(SyntaxGraph, Reference)] -> Int -> (SyntaxGraph, NameAndPort)
-makePatternGraph applyIconName funStr argVals numArgs = (newGraph <> combinedGraph, nameAndPort applyIconName (Port 1))
+makePatternGraph applyIconName funStr argVals _ = nestedApplyResult
+  where
+    argumentPorts = map (nameAndPort applyIconName . Port) [2,3..]
+    (unnestedArgsAndPort, nestedArgs, nestedSinks, nestedBindings, nestedEMaps) = unzip5 $ fmap decideIfNested (zip argVals argumentPorts)
+
+    allSinks = mconcat nestedSinks
+    allBinds = mconcat nestedBindings
+
+    originalPortExpPairs = catMaybes unnestedArgsAndPort
+    portExpressionPairs = originalPortExpPairs
+    combinedGraph = combineExpressions True portExpressionPairs
+    icons = [(applyIconName, NestedPatternApplyNode funStr nestedArgs)]
+    newEMap = ((\(n, _) -> (n, applyIconName))  <$> catMaybes nestedArgs) <> mconcat nestedEMaps
+    
+    newGraph = SyntaxGraph icons [] allSinks allBinds newEMap
+    nestedApplyResult = (newGraph <> combinedGraph, nameAndPort applyIconName (Port 1))
+
+makePatternGraph' :: NodeName -> String -> [(SyntaxGraph, Reference)] -> Int -> (SyntaxGraph, NameAndPort)
+makePatternGraph' applyIconName funStr argVals numArgs = (newGraph <> combinedGraph, nameAndPort applyIconName (Port 1))
   where
     argumentPorts = map (nameAndPort applyIconName . Port) [2,3..]
     combinedGraph = combineExpressions True $ zip argVals argumentPorts

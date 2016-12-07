@@ -163,9 +163,9 @@ makeEdge :: (SpecialBackend b n, ING.Graph gr) =>
 makeEdge graph dia rotationMap (node0, node1, edge@(Edge _ _ (namePort0, namePort1))) =
   connectMaybePorts portAngles edge
   where
-    node0label = fromMaybeError ("node0 is not in graph. node0: " ++ show node0) $
+    node0label = fromMaybeError ("makeEdge: node0 is not in graph. node0: " ++ show node0) $
       ING.lab graph node0
-    node1label = fromMaybeError ("node0 is not in graph. node1: " ++ show node1) $
+    node1label = fromMaybeError ("makeEdge: node1 is not in graph. node1: " ++ show node1) $
       ING.lab graph node1
 
     node0Angle = lookupNodeAngle rotationMap node0label
