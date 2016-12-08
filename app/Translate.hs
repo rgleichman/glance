@@ -511,7 +511,7 @@ showTopLevelBinds gr = do
       uniquePatName <- getUniqueName patName
       let
         icons = [(uniquePatName, BindNameNode patName)]
-        edges = [makeSimpleEdge (justName uniquePatName, port)]
+        edges = [makeSimpleEdge (port, justName uniquePatName)]
         edgeGraph = syntaxGraphFromNodesEdges icons edges
       pure edgeGraph
   newGraph <- mconcat <$> mapM addBind binds

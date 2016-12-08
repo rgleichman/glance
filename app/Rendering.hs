@@ -18,6 +18,7 @@ import Data.Function(on)
 import qualified Data.Graph.Inductive as ING
 import Data.Graph.Inductive.PatriciaTree (Gr)
 import Data.List(minimumBy)
+import Data.Maybe(fromMaybe)
 import Data.Typeable(Typeable)
 
 --import qualified Data.GraphViz.Types
@@ -28,7 +29,7 @@ import Data.Typeable(Typeable)
 import Icons(colorScheme, iconToDiagram, defaultLineWidth, ColorStyle(..), getPortAngles)
 import TranslateCore(nodeToIcon)
 import Types(Edge(..), Icon, EdgeOption(..), Drawing(..), EdgeEnd(..),
-  NameAndPort(..), SpecialQDiagram, SpecialBackend, SyntaxNode, SpecialNum, NodeName(..))
+  NameAndPort(..), SpecialQDiagram, SpecialBackend, SyntaxNode, SpecialNum, NodeName(..), Port(..))
 import Util(fromMaybeError)
 
 -- If the inferred types for these functions becomes unweildy,
@@ -82,10 +83,18 @@ bezierShaft angle1 angle2 = fromSegments [bezier3 c1 c2 x] where
   c1 = rotate angle1 (scale scaleFactor unitX)
   c2 = rotate angle2 (scale scaleFactor unitX) ^+^ x
 
-getArrowOpts :: (RealFloat n, Typeable n) => (EdgeEnd, EdgeEnd) -> [EdgeOption] -> (Angle n, Angle n) -> ArrowOpts n
-getArrowOpts (t, h) opts (fromAngle, toAngle) = arrowOptions
+getArrowOpts :: (RealFloat n, Typeable n) => (EdgeEnd, EdgeEnd) -> [EdgeOption] -> (Angle n, Angle n) -> NameAndPort -> ArrowOpts n
+getArrowOpts (t, h) opts (fromAngle, toAngle) (NameAndPort (NodeName nodeNum) mPort)= arrowOptions
   where
-    shaftColor = if EdgeInPattern `elem` opts then patternC else lineC
+    --shaftColor = if EdgeInPattern `elem` opts then patternC colorScheme else hashedColor
+    shaftColor = hashedColor
+
+    edgeColors = edgeListC colorScheme
+    numEdgeColors = length edgeColors
+    hashedColor = edgeColors !! namePortHash
+    namePortHash = mod (nodeNum + (503 * portNum)) numEdgeColors
+    Port portNum = fromMaybe (Port 0) mPort
+
     ap1ArgTexture = solid (backgroundC colorScheme)
     ap1ArgStyle = lwG defaultLineWidth . lc (apply1C colorScheme)
     ap1ResultTexture = solid (apply1C colorScheme)
@@ -105,14 +114,14 @@ getArrowOpts (t, h) opts (fromAngle, toAngle) = arrowOptions
       arrowTail .~ noTail $
       arrowShaft .~ bezierShaft fromAngle toAngle $
       lengths .~ global 0.75 $
-      shaftStyle %~ (lwG defaultLineWidth . lcA (withOpacity (shaftColor colorScheme) 0.7)) $
+      shaftStyle %~ (lwG defaultLineWidth . lc shaftColor) $
       lookupHead h $ lookupTail t with
 
 -- | Given an Edge, return a transformation on Diagrams that will draw a line.
 connectMaybePorts :: SpecialBackend b n =>
   (Angle n, Angle n)-> Edge -> SpecialQDiagram b n -> SpecialQDiagram b n
-connectMaybePorts portAngles (Edge opts ends (NameAndPort name0 mPort1, NameAndPort name1 mPort2)) =
-  connectFunc (getArrowOpts ends opts portAngles) qPort0 qPort1 where
+connectMaybePorts portAngles (Edge opts ends (fromNamePort@(NameAndPort name0 mPort1), NameAndPort name1 mPort2)) =
+  connectFunc (getArrowOpts ends opts portAngles fromNamePort) qPort0 qPort1 where
   (connectFunc, qPort0, qPort1) = case (mPort1, mPort2) of
     (Just port0, Just port1) -> (connect', name0 .> port0, name1 .> port1)
     (Nothing, Just port1) -> (connectOutside', toName name0, name1 .> port1)
