@@ -114,7 +114,7 @@ getArrowOpts (t, h) opts (fromAngle, toAngle) (NameAndPort (NodeName nodeNum) mP
       arrowTail .~ noTail $
       arrowShaft .~ bezierShaft fromAngle toAngle $
       lengths .~ global 0.75 $
-      shaftStyle %~ (lwG defaultLineWidth . lc shaftColor) $
+      shaftStyle %~ (lwG (2 * defaultLineWidth) . lc shaftColor) $
       lookupHead h $ lookupTail t with
 
 -- | Given an Edge, return a transformation on Diagrams that will draw a line.
