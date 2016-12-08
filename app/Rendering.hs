@@ -12,7 +12,6 @@ import Diagrams.TwoD.GraphViz(mkGraph, getGraph, layoutGraph')
 import qualified Data.GraphViz as GV
 import qualified Data.GraphViz.Attributes.Complete as GVA
 import qualified Data.Map as Map
-import Data.Maybe(isJust)
 
 import Control.Arrow(second)
 import Data.Function(on)
@@ -28,8 +27,8 @@ import Data.Typeable(Typeable)
 
 import Icons(colorScheme, iconToDiagram, defaultLineWidth, ColorStyle(..), getPortAngles)
 import TranslateCore(nodeToIcon)
-import Types(Edge(..), Icon, EdgeOption(..), Connection, Drawing(..), EdgeEnd(..),
-  NameAndPort(..), SpecialQDiagram, SpecialBackend, SyntaxNode, SpecialNum, NodeName(..), Port)
+import Types(Edge(..), Icon, EdgeOption(..), Drawing(..), EdgeEnd(..),
+  NameAndPort(..), SpecialQDiagram, SpecialBackend, SyntaxNode, SpecialNum, NodeName(..))
 import Util(fromMaybeError)
 
 -- If the inferred types for these functions becomes unweildy,
@@ -208,99 +207,8 @@ addEdges graph (dia, rotationMap) = applyAll connections dia
   where
     connections = makeEdge graph dia rotationMap <$> ING.labEdges graph
 
--- ROTATING/FLIPPING ICONS --
-
 --printSelf :: (Show a) => a -> a
 --printSelf a = Debug.Trace.trace (show a ++ "/n") a
-
-{-# ANN totalLenghtOfLines "HLint: ignore Redundant bracket" #-}
-{-# ANN totalLenghtOfLines "HLint: ignore Move brackets to avoid $" #-}
--- | For a specific icon, given its angle, location, and a list of pairs of locations
--- of (this icon's port, icon that connects to this port), return the sum of the
--- distances (possibly squared) between the ports and the icons they connect to.
--- This function is used to find that angle that minimizes the sum of distances.
-totalLenghtOfLines :: Floating a => a -> P2 a -> [(P2 a, P2 a)] -> a
-totalLenghtOfLines angle myLocation edges = sum $ map edgeDist edges
-  where
-    --edgeDist :: (P2 Double, P2 Double) -> Double
-    edgeDist (relativePortLocation, iconLocation) =
-      -- The squaring here is arbitrary. Distance should be replaced with angle diff.
-      (norm $  absPortVec ^-^ iconLocationVec) ** 2
-      where
-        P relPortVec = relativePortLocation
-        P iconLocationVec = iconLocation
-        P myLocVec = myLocation
-        absPortVec = myLocVec ^+^ (rotateBy angle relPortVec)
-
- -- | For a specific icon, given its location, and a list of pairs of locations
--- of (this icon's port, icon that connects to this port), find the angle that
--- minimizes the the sum of the distances (possibly squared) between the ports
--- and the icons they connect to. Returns (angle, sum of distances).
--- todo: Return 0 immediatly if edges == [].
-angleWithMinDist :: SpecialNum a => P2 a -> [(P2 a, P2 a)] -> (a, a)
-angleWithMinDist myLocation edges =
-  minimumBy (compare `on` snd) $ map totalLength [0,(1/12)..1]
-  where
-    totalLength angle = (angle, totalLenghtOfLines angle myLocation edges)
-
-getFromMapAndScale :: (Fractional a, Functor f, Ord k) => Map.Map k (f a) -> k -> f a
-getFromMapAndScale posMap name = graphvizScaleFactor *^ (posMap Map.! name)
-
--- | Returns [(myport, other node, maybe other node's port)]
-connectedPorts :: [Connection] -> NodeName -> [(Port, NodeName, Maybe Port)]
-connectedPorts edges name = map edgeToPort $ filter nameInEdge edges
-  where
-    isPort = isJust
-    nameInEdge (NameAndPort name1 port1, NameAndPort name2 port2) = (name == name1 && isPort port1) || (name == name2 && isPort port2)
-    edgeToPort (NameAndPort name1 port1, NameAndPort name2 port2) =
-      if name == name1
-        then (fromMaybeError "connectedPorts: port is Nothing" port1, name2, port2)
-        else (fromMaybeError "connectedPorts: port is Nothing" port2, name1, port1)
-
--- | rotateNodes rotates the nodes such that the distance of its connecting lines
--- are minimized.
--- Precondition: the diagrams are already centered
--- todo: confirm precondition (or use a newtype)
-rotateNodes' :: SpecialBackend b n =>
-  Map.Map (NodeName, Icon) (Point V2 n)
-  -> [Connection]
-  -> [((NodeName, Icon), SpecialQDiagram b n, (Bool, Angle n))]
-rotateNodes' positionMap edges = map rotateDiagram (Map.keys positionMap)
-  where
-    positionMapNodeNameKeys = Map.mapKeys fst positionMap
-    rotateDiagram key@(name, icon) = (key, transformedDia, (reflected, angle))
-      where
-        originalDia = iconToDiagram icon name
-        reflected = flippedDist < unflippedDist
-        angle = (if reflected then flippedAngle else unflippedAngle) @@ turn
-        internallTransformedDia = originalDia reflected angle
-        transformedDia = rotate angle $ (if reflected then reflectX else id) internallTransformedDia
-
-        (unflippedAngle, unflippedDist) = minAngleForDia (originalDia False mempty)
-        (flippedAngle, flippedDist) = minAngleForDia (reflectX $ originalDia True mempty)
-        --minAngleForDia :: QDiagram b V2 Double m -> (Double, Double)
-        minAngleForDia dia = minAngle where
-        --ports = Debug.Trace.trace ((show $ names dia) ++ "\n") $ names dia
-          ports = names dia
-          namesOfPortsWithLines = connectedPorts edges name
-
-          --iconInMap :: (Int, NodeName, Maybe Int) -> Bool
-          iconInMap (_, otherIconNodeName, _) = Map.member otherIconNodeName positionMapNodeNameKeys
-
-          --getPortPoint :: Int -> P2 Double
-          getPortPoint x =
-            -- TODO remove partial function head.
-            head $ fromMaybeError
-              ("rotateNodes: port not found. Port: " ++ show x ++ ". Valid ports: " ++ show ports)
-              (lookup (name .> x) ports)
-
-          --makePortEdge :: (Int, NodeName, Maybe Int) -> (P2 Double, P2 Double)
-          makePortEdge (portInt, otherIconNodeName, _) =
-            (getPortPoint portInt, getFromMapAndScale positionMapNodeNameKeys otherIconNodeName)
-
-          portEdges = map makePortEdge $ filter iconInMap namesOfPortsWithLines
-
-          minAngle = angleWithMinDist (getFromMapAndScale positionMapNodeNameKeys name) portEdges
 
 -- BEGIN rotateNodes --
 
@@ -311,13 +219,11 @@ scoreAngle :: SpecialNum n =>
   -> Bool
   -> Angle n
   -> n
-scoreAngle iconPosition edges reflected angle = sum $ (^2) <$> fmap edgeAngleDiff edges where
+scoreAngle iconPosition edges reflected angle = sum $ (^(2 :: Int)) <$> fmap edgeAngleDiff edges where
   edgeAngleDiff (otherNodePosition, portAngles) = angleDiff where
     shaftVector = otherNodePosition .-. iconPosition
     shaftAngle = signedAngleBetween shaftVector unitX
-    closestAngle = pickClosestAngle (reflected, angle) shaftAngle shaftAngle shaftAngle portAngles
     angleDiff = smallestAngleDiff (reflected, angle) shaftAngle portAngles
-    --angleBetween (angleV closestAngle) shaftVector ^. rad
 
 bestAngleForIcon :: (SpecialNum n, ING.Graph gr) =>
   Map.Map (NodeName, Icon) (Point V2 n)
@@ -325,11 +231,10 @@ bestAngleForIcon :: (SpecialNum n, ING.Graph gr) =>
   -> (NodeName, Icon)
   -> Bool
   -> (Angle n, n)
-bestAngleForIcon positionMap graph key@(NodeName id, icon) reflected =
+bestAngleForIcon positionMap graph key@(NodeName nodeId, _) reflected =
   minimumBy (compare `on` snd) $ (\angle -> (angle, scoreAngle iconPosition edges reflected angle)) <$> fmap (@@ turn) [0,(1/24)..1] where
-  nodePositionMap = Map.mapKeys fst positionMap
   iconPosition = positionMap Map.! key
-  edges = getPositionAndAngles <$> fmap getSucEdge (ING.lsuc graph id) <> fmap getPreEdge (ING.lpre graph id)
+  edges = getPositionAndAngles <$> fmap getSucEdge (ING.lsuc graph nodeId) <> fmap getPreEdge (ING.lpre graph nodeId)
 
   getPositionAndAngles (node, nameAndPort) = (positionMap Map.! nodeLabel, portAngles) where
     nodeLabel = fromMaybeError "getPositionAndAngles: node not found" $ ING.lab graph node
@@ -343,7 +248,12 @@ bestAngleForIcon positionMap graph key@(NodeName id, icon) reflected =
   getPreEdge (otherNode, edge) = (otherNode, nameAndPort) where
     (_, nameAndPort) = edgeConnection edge
 
-findIconRotation positionMap graph key@(name, icon) = (key, (reflected, angle)) where
+findIconRotation :: (SpecialNum n, ING.Graph gr) =>
+  Map.Map (NodeName, Icon) (Point V2 n)
+  -> gr (NodeName, Icon) Edge
+  -> (NodeName, Icon)
+  -> ((NodeName, Icon), (Bool, Angle n))
+findIconRotation positionMap graph key = (key, (reflected, angle)) where
   -- Smaller scores are better
   (reflectedAngle, reflectedScore) = bestAngleForIcon positionMap graph key True
   (nonReflectedAngle, nonReflectedScore) = bestAngleForIcon positionMap graph key False
@@ -372,10 +282,10 @@ placeNodes layoutResult graph = (mconcat placedNodes, rotationMap)
     placedNodes = fmap placeNode rotationMap
 
     -- todo: Not sure if the diagrams should already be centered at this point.
-    placeNode (key@(name, icon), (reflected, angle)) = place transformedDia position where
+    placeNode (key@(name, icon), (reflected, angle)) = place transformedDia diaPosition where
       origDia = iconToDiagram icon name reflected angle
       transformedDia = centerXY $ rotate angle $ (if reflected then reflectX else id) origDia
-      position = graphvizScaleFactor *^ (positionMap Map.! key)
+      diaPosition = graphvizScaleFactor *^ (positionMap Map.! key)
 
 customLayoutParams :: GV.GraphvizParams n v e () v
 customLayoutParams = GV.defaultParams{
