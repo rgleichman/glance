@@ -1,4 +1,5 @@
 -- TODO Now --
+-- Put the function name in nested apply and pattern apply in a colored box.
 
 -- TODO Later --
 -- Add documentation.
@@ -9,7 +10,6 @@ Fix the arrowheads being too big for SyntaxGraph darwings.
 -- Visual todos:
 Fix edges overlapping making it hard to match up the ends of the edges. Different edge colors for each source might fix this.
 
--- Consider putting the function name in nested apply and pattern apply in a colored box.
 -- Make an icon font/library with labeled ports. E.g. the apply icon would have text labels "function", "result", "arg 0", "arg 1", etc.
 -- Don't rotate text and nested icons, give them rectangualar bounding boxes in GraphViz. (Perhaps use a typeclass for isRotateAble)
 -- Give lines a black border to make line crossings easier to see.
