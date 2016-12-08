@@ -21,4 +21,4 @@ Below is a getting started guide for Glance rendered by Glance itself ([source h
 
 Glance is still in development, so for the time being, layout, routing, and icon design all have much room for improvement. 
 Note: Text boxes may not display correctly on Microsoft browsers.
-<img src="https://cdn.rawgit.com/rgleichman/glance/4ab82128f7966941e504401206624d2446bdea40/examples/tutorial.svg" alt="Introduction to Glance" />
+<img src="https://cdn.rawgit.com/rgleichman/glance/97cff80df023df0f1cf6e41962811832de110e36/examples/tutorial.svg" alt="Introduction to Glance" />
