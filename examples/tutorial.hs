@@ -32,7 +32,7 @@ even if they are rotated, reflected, squashed or squished does not matter.
 The meaning of Glance is entirely in how the icons are connected to each other.
 Lines in Glance are largely equivalent to names (variable names, function names,
 etc.) in textual Haskell. Thus if two things are connected with a line in Glance,
-it means they have the same value.
+it means they have the same value. Line colors are randomized.
 
 Let's make things a bit more interesting with a nested function application.
 y = (*) ((+) 8 7) 2
