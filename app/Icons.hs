@@ -57,8 +57,9 @@ iconToDiagram (NestedPApp args) = nestedPAppDia args
 
 applyPortAngles :: Floating n => Port -> [Angle n]
 applyPortAngles (Port x) = fmap (@@ turn) $ case x of
-  0 -> [3/8, 5/8] -- TODO Add back an angle of 1/2 for non-nested icons
-  1 -> [0, 1/8, 7/8]
+  0 -> [3/8, 1/2, 5/8] -- TODO Don't use angle of1/2 for nested icons here
+  --1 -> [1/8, 7/8, 0]
+  1 -> [0]
   _ -> [1/4, 3/4]
 
 guardPortAngles :: Floating n => Port -> [Angle n]

@@ -150,12 +150,25 @@ pickClosestAngle (nodeFlip, nodeAngle) emptyCase target shaftAngle angles = case
         else
         (+) <$> angle <*> nodeAngle
 
+-- TODO Refactor with pickClosestAngle
+smallestAngleDiff :: SpecialNum n => (Bool, Angle n) -> Angle n -> [Angle n] -> n
+smallestAngleDiff (nodeFlip, nodeAngle) target angles = case angles of
+  [] -> 0
+  _ -> minimum $ fmap angleDiff adjustedAngles
+    where
+      adjustedAngles = fmap adjustAngle angles
+      angleDiff angle = angleBetween (angleV target) (angleV angle) ^. rad
+
+      adjustAngle angle = if nodeFlip then
+        signedAngleBetween (rotate nodeAngle $ reflectX (angleV angle)) unitX
+        else
+        (+) <$> angle <*> nodeAngle
+
 
 lookupNodeAngle ::  Show n => [((NodeName, Icon), (Bool, Angle n))] -> (NodeName, Icon) -> (Bool, Angle n)
 lookupNodeAngle rotationMap key =
   fromMaybeError ("nodeVector: key not in rotaionMap. key = " ++ show key ++ "\n\n rotationMap = " ++ show rotationMap)
   $ lookup key rotationMap
-
 
 makeEdge :: (SpecialBackend b n, ING.Graph gr) =>
   gr (NodeName, Icon) Edge -> SpecialQDiagram b n -> [((NodeName, Icon), (Bool, Angle n))] ->
@@ -248,11 +261,11 @@ connectedPorts edges name = map edgeToPort $ filter nameInEdge edges
 -- are minimized.
 -- Precondition: the diagrams are already centered
 -- todo: confirm precondition (or use a newtype)
-rotateNodes :: SpecialBackend b n =>
+rotateNodes' :: SpecialBackend b n =>
   Map.Map (NodeName, Icon) (Point V2 n)
   -> [Connection]
   -> [((NodeName, Icon), SpecialQDiagram b n, (Bool, Angle n))]
-rotateNodes positionMap edges = map rotateDiagram (Map.keys positionMap)
+rotateNodes' positionMap edges = map rotateDiagram (Map.keys positionMap)
   where
     positionMapNodeNameKeys = Map.mapKeys fst positionMap
     rotateDiagram key@(name, icon) = (key, transformedDia, (reflected, angle))
@@ -289,25 +302,80 @@ rotateNodes positionMap edges = map rotateDiagram (Map.keys positionMap)
 
           minAngle = angleWithMinDist (getFromMapAndScale positionMapNodeNameKeys name) portEdges
 
+-- BEGIN rotateNodes --
+
+-- TODO May want to use a power other than 2 for the edgeAngleDiffs
+scoreAngle :: SpecialNum n =>
+  Point V2 n
+  -> [(Point V2 n, [Angle n])]
+  -> Bool
+  -> Angle n
+  -> n
+scoreAngle iconPosition edges reflected angle = sum $ (^2) <$> fmap edgeAngleDiff edges where
+  edgeAngleDiff (otherNodePosition, portAngles) = angleDiff where
+    shaftVector = otherNodePosition .-. iconPosition
+    shaftAngle = signedAngleBetween shaftVector unitX
+    closestAngle = pickClosestAngle (reflected, angle) shaftAngle shaftAngle shaftAngle portAngles
+    angleDiff = smallestAngleDiff (reflected, angle) shaftAngle portAngles
+    --angleBetween (angleV closestAngle) shaftVector ^. rad
+
+bestAngleForIcon :: (SpecialNum n, ING.Graph gr) =>
+  Map.Map (NodeName, Icon) (Point V2 n)
+  -> gr (NodeName, Icon) Edge
+  -> (NodeName, Icon)
+  -> Bool
+  -> (Angle n, n)
+bestAngleForIcon positionMap graph key@(NodeName id, icon) reflected =
+  minimumBy (compare `on` snd) $ (\angle -> (angle, scoreAngle iconPosition edges reflected angle)) <$> fmap (@@ turn) [0,(1/24)..1] where
+  nodePositionMap = Map.mapKeys fst positionMap
+  iconPosition = positionMap Map.! key
+  edges = getPositionAndAngles <$> fmap getSucEdge (ING.lsuc graph id) <> fmap getPreEdge (ING.lpre graph id)
+
+  getPositionAndAngles (node, nameAndPort) = (positionMap Map.! nodeLabel, portAngles) where
+    nodeLabel = fromMaybeError "getPositionAndAngles: node not found" $ ING.lab graph node
+    portAngles = findPortAngles key nameAndPort  
+
+  -- Edge points from id to otherNode
+  getSucEdge (otherNode, edge) = (otherNode, nameAndPort) where
+    (nameAndPort, _) = edgeConnection edge
+
+  -- Edge points from otherNode to id
+  getPreEdge (otherNode, edge) = (otherNode, nameAndPort) where
+    (_, nameAndPort) = edgeConnection edge
+
+findIconRotation positionMap graph key@(name, icon) = (key, (reflected, angle)) where
+  -- Smaller scores are better
+  (reflectedAngle, reflectedScore) = bestAngleForIcon positionMap graph key True
+  (nonReflectedAngle, nonReflectedScore) = bestAngleForIcon positionMap graph key False
+  reflected = reflectedScore < nonReflectedScore
+  angle = if reflected then reflectedAngle else nonReflectedAngle
+
+rotateNodes :: (SpecialNum n, ING.Graph gr) =>
+  Map.Map (NodeName, Icon) (Point V2 n)
+  -> gr (NodeName, Icon) Edge
+  -> [((NodeName, Icon), (Bool, Angle n))]
+rotateNodes positionMap graph = findIconRotation positionMap graph <$> Map.keys positionMap
+
+-- END rotateNodes --
 
 type LayoutResult a b = Gr (GV.AttributeNode (NodeName, b)) (GV.AttributeNode a)
 
-placeNodes :: forall a b. SpecialBackend b Double =>
+placeNodes :: forall a b gr. (SpecialBackend b Double, ING.Graph gr) =>
    LayoutResult a Icon
-   -> [Edge]
+   -> gr (NodeName, Icon) Edge
    -> (SpecialQDiagram b Double, [((NodeName, Icon), (Bool, Angle Double))])
-placeNodes layoutResult edges = (mconcat placedNodes, rotationMap)
+placeNodes layoutResult graph = (mconcat placedNodes, rotationMap)
   where
-    connections = fmap edgeConnection edges
     positionMap = fst $ getGraph layoutResult
-    -- The type annotation for rotatedNodeNameDiagramMap is necessary here
-    rotatedNodeNameDiagramMap = rotateNodes positionMap connections :: [((NodeName, Icon), SpecialQDiagram b Double, (Bool, Angle Double))]
-    rotationMap = fmap (\(x, _, z) -> (x, z)) rotatedNodeNameDiagramMap
+    rotationMap = rotateNodes positionMap graph
 
-    placedNodes = map placeNode rotatedNodeNameDiagramMap
-    --placedNodes = map placeNode $ (\key@(name, icon) -> (key, iconToDiagram icon name False 0)) <$> Map.keys positionMap
+    placedNodes = fmap placeNode rotationMap
+
     -- todo: Not sure if the diagrams should already be centered at this point.
-    placeNode (key, diagram, _) = place (centerXY diagram) (graphvizScaleFactor *^ (positionMap Map.! key))
+    placeNode (key@(name, icon), (reflected, angle)) = place transformedDia position where
+      origDia = iconToDiagram icon name reflected angle
+      transformedDia = centerXY $ rotate angle $ (if reflected then reflectX else id) origDia
+      position = graphvizScaleFactor *^ (positionMap Map.! key)
 
 customLayoutParams :: GV.GraphvizParams n v e () v
 customLayoutParams = GV.defaultParams{
@@ -331,12 +399,11 @@ customLayoutParams = GV.defaultParams{
 doGraphLayout :: forall b.
   SpecialBackend b Double =>
   Gr (NodeName, Icon) Edge
-  -> [Edge]
   -> IO (SpecialQDiagram b Double)
-doGraphLayout graph edges = do
+doGraphLayout graph = do
   layoutResult <- layoutGraph' layoutParams GVA.Neato graph
   --  layoutResult <- layoutGraph' layoutParams GVA.Fdp graph
-  pure $ addEdges graph $ placeNodes layoutResult edges
+  pure $ addEdges graph $ placeNodes layoutResult graph
   where
     layoutParams :: GV.GraphvizParams Int (NodeName,Icon) e () (NodeName,Icon)
     --layoutParams :: GV.GraphvizParams Int l el Int l
@@ -371,6 +438,4 @@ renderIngSyntaxGraph ::
 renderIngSyntaxGraph = renderIconGraph . ING.nmap (Control.Arrow.second nodeToIcon)
 
 renderIconGraph :: SpecialBackend b Double => Gr (NodeName, Icon) Edge -> IO (SpecialQDiagram b Double)
-renderIconGraph iconGraph = diagramAction where
-  edges = ING.edgeLabel <$> ING.labEdges iconGraph
-  diagramAction = doGraphLayout iconGraph edges
+renderIconGraph = doGraphLayout
