@@ -11,7 +11,7 @@ import Data.List(foldl', find)
 import Data.Maybe(catMaybes, isJust, fromMaybe)
 --import qualified Debug.Trace
 
-import Types(SyntaxNode(..), sgNamedNodeToSyntaxNode, IngSyntaxGraph)
+import Types(SyntaxNode(..), sgNamedNodeToSyntaxNode, IngSyntaxGraph, LikeApplyFlavor(..))
 import Util(maybeBoolToBool)
 --import Util(printSelf)
 
@@ -24,20 +24,25 @@ data ParentType = ApplyParent | NotAParent
 -- | A syntaxNodeIsEmbeddable if it can be collapsed into another node
 syntaxNodeIsEmbeddable :: ParentType -> SyntaxNode -> Bool
 syntaxNodeIsEmbeddable parentType n = case (parentType, n) of
-  (ApplyParent, ApplyNode _) -> True
+  -- TODO Find out why allowing compose nodes to be embedded does not work for:
+  -- fibs = cons 1 (zipWith (+) fibs (tail fibs))
+  --(ApplyParent, LikeApplyNode _ _) -> True 
+  (ApplyParent, LikeApplyNode ApplyNodeFlavor _) -> True
   (ApplyParent, LiteralNode _) -> True
   _ -> False
 
 -- | A syntaxNodeCanEmbed if it can contain other nodes
 syntaxNodeCanEmbed :: SyntaxNode -> Bool
 syntaxNodeCanEmbed n = case n of
-  ApplyNode _ -> True
+  LikeApplyNode ApplyNodeFlavor _ -> True
+  -- TODO Add ComposeNodeFlavor
   NestedApplyNode _ _ -> True -- This case should not happen
   _ -> False
 
 parentTypeForNode :: SyntaxNode -> ParentType
 parentTypeForNode n = case n of
-  ApplyNode _ -> ApplyParent
+  -- TODO Should the parent depend on the LikeApplyFlavor?
+  LikeApplyNode ApplyNodeFlavor _ -> ApplyParent
   NestedApplyNode _ _ -> ApplyParent
   -- The NotAParent case should never occur.
   _ -> NotAParent
@@ -191,7 +196,8 @@ embedChildSyntaxNodes parentNode childrenNodes oldGraph = case childrenNodes of
           (nodeName, oldSyntaxNode) = oldNodeLabel
           newNodeLabel = (nodeName, newSyntaxNode)
           newSyntaxNode = case oldSyntaxNode of
-            ApplyNode x -> NestedApplyNode x childrenAndEdgesToParent
+            LikeApplyNode ApplyNodeFlavor x -> NestedApplyNode x childrenAndEdgesToParent
+              -- TODO Add ComposeNodeFlavor
             _ -> oldSyntaxNode
     childrenAndEdgesToParent = catMaybes $ fmap findChildAndEdge childrenNodes
     findChildAndEdge childNode =

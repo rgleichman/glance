@@ -34,7 +34,8 @@ import Data.List(find)
 import Data.Semigroup(Semigroup, (<>))
 
 import Types(Icon, SyntaxNode(..), Edge(..), EdgeOption(..),
-  NameAndPort(..), IDState, getId, SgNamedNode, NodeName(..), Port(..), nodeNameToInt)
+  NameAndPort(..), IDState, getId, SgNamedNode, NodeName(..), Port(..), nodeNameToInt,
+  LikeApplyFlavor(..))
 import Util(noEnds, nameAndPort, makeSimpleEdge, justName, maybeBoolToBool)
 import Icons(Icon(..))
 
@@ -103,13 +104,13 @@ combineExpressions inPattern portExpPairs = mconcat $ fmap makeGraph portExpPair
 -- qualifyNameAndPort :: String -> NameAndPort -> NameAndPort
 -- qualifyNameAndPort s (NameAndPort n p) = NameAndPort (s DIA..> n) p
 
-makeApplyGraph :: Bool -> NodeName -> GraphAndRef -> [GraphAndRef] -> Int -> (SyntaxGraph, NameAndPort)
-makeApplyGraph inPattern applyIconName funVal argVals numArgs = (newGraph <> combinedGraph, nameAndPort applyIconName (Port 1))
+makeApplyGraph :: LikeApplyFlavor -> Bool -> NodeName -> GraphAndRef -> [GraphAndRef] -> Int -> (SyntaxGraph, NameAndPort)
+makeApplyGraph applyFlavor inPattern applyIconName funVal argVals numArgs = (newGraph <> combinedGraph, nameAndPort applyIconName (Port 1))
   where
     argumentPorts = map (nameAndPort applyIconName . Port) [2,3..]
     functionPort = nameAndPort applyIconName (Port 0)
     combinedGraph = combineExpressions inPattern $ zip (funVal:argVals) (functionPort:argumentPorts)
-    icons = [(applyIconName, ApplyNode numArgs)]
+    icons = [(applyIconName, LikeApplyNode applyFlavor numArgs)]
     newGraph = syntaxGraphFromNodes icons
 
 namesInPattern :: GraphAndRef -> [String]
@@ -177,7 +178,8 @@ nListString 1 = "[_]"
 nListString n = '[' : replicate (n -1) ',' ++ "]"
 
 nodeToIcon :: SyntaxNode -> Icon
-nodeToIcon (ApplyNode n) = ApplyAIcon n
+nodeToIcon (LikeApplyNode ApplyNodeFlavor n) = ApplyAIcon n
+nodeToIcon (LikeApplyNode ComposeNodeFlavor n) = ComposeIcon n
 nodeToIcon (NestedApplyNode x edges) = nestedApplySyntaxNodeToIcon x edges
 nodeToIcon (PatternApplyNode s n) = PAppIcon n s
 -- nodeToIcon (NestedPatternApplyNode s n children) = nestedPatternNodeToIcon s n children

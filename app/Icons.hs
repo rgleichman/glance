@@ -43,6 +43,7 @@ lineCol = lineC colorScheme
 -- FUNCTIONS --
 iconToDiagram :: SpecialBackend b n => Icon -> TransformableDia b n
 iconToDiagram (ApplyAIcon n) = identDiaFunc $ applyADia n
+iconToDiagram (ComposeIcon n) = identDiaFunc $ composeDia n
 iconToDiagram (PAppIcon n str) = pAppDia n str
 iconToDiagram ResultIcon = identDiaFunc resultIcon
 iconToDiagram BranchIcon = identDiaFunc branchIcon
@@ -96,6 +97,7 @@ nestedApplyPortAngles args port maybeNodeName = case maybeNodeName of
 getPortAngles :: (Floating n) => Icon -> Port -> Maybe NodeName -> [Angle n]
 getPortAngles icon port maybeNodeName = case icon of
   ApplyAIcon _ -> applyPortAngles port
+  ComposeIcon _ -> applyPortAngles port
   PAppIcon _ _ -> applyPortAngles port
   ResultIcon -> []
   BranchIcon -> []
@@ -164,6 +166,9 @@ coloredApplyADia appColor n = centerXY finalDia where
 
 applyADia :: SpecialBackend b n => Int -> SpecialQDiagram b n
 applyADia = coloredApplyADia (apply0C colorScheme)
+
+composeDia :: SpecialBackend b n => Int -> SpecialQDiagram b n
+composeDia = coloredApplyADia (apply1C colorScheme)
 
 --textApplyADia :: SpecialBackend b n =>
 --  Int -> String -> TransformableDia b n

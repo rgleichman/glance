@@ -17,6 +17,7 @@ module Types (
   SpecialNum,
   SgNamedNode,
   IngSyntaxGraph,
+  LikeApplyFlavor(..),
   initialIdState,
   getId,
   sgNamedNodeToSyntaxNode,
@@ -36,7 +37,7 @@ import Data.Typeable(Typeable)
 -- The LambdaRegionIcon's data is the number of lambda ports, and the name of it's
 -- subdrawing.
 data Icon = ResultIcon | BranchIcon | TextBoxIcon String | GuardIcon Int
-  | FlatLambdaIcon Int | ApplyAIcon Int
+  | FlatLambdaIcon Int | ApplyAIcon Int | ComposeIcon Int
   | PAppIcon Int String | CaseIcon Int | CaseResultIcon
   | BindTextBoxIcon String
   -- TODO: NestedApply should have the type NestedApply (Maybe (Name, Icon)) [Maybe (Name, Icon)]
@@ -44,10 +45,12 @@ data Icon = ResultIcon | BranchIcon | TextBoxIcon String | GuardIcon Int
   | NestedPApp [Maybe (NodeName, Icon)]
   deriving (Show, Eq, Ord)
 
+data LikeApplyFlavor = ApplyNodeFlavor | ComposeNodeFlavor deriving (Show, Eq, Ord)
+
 -- TODO remove Ints from SyntaxNode data constructors.
 -- TODO Add NestedApplyNode, and NestedPatternApplyNode
 data SyntaxNode =
-  ApplyNode Int-- Function application
+  LikeApplyNode LikeApplyFlavor Int -- Function application, composition, and applying to a composition
   | NestedApplyNode Int [(SgNamedNode, Edge)]
   | PatternApplyNode String Int -- Destructors as used in patterns
   -- | NestedPatternApplyNode String Int [(SgNamedNode, Edge)]

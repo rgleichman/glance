@@ -44,7 +44,7 @@ colorOnBlackScheme = ColorStyle {
   patternTextC = cyan,
   bindTextBoxC = reddishOrange,
   bindTextBoxTextC = lime,
-  edgeListC = [white, lime, cyan, reddishOrange, lightPurple, yellow, lightBlue, teal] --[lightpink, lightsalmon, lightskyblue, bisque, cyan, sandybrown, yellow, greenyellow, violet, lightcoral]
+  edgeListC = [white, lime, reddishOrange, lightPurple, yellow, lightBlue]
 }
   where
     slightlyGreenYellow = sRGB24 212 255 0
