@@ -174,7 +174,7 @@ nestedTextDrawing :: Drawing
 nestedTextDrawing = Drawing nestedTestIcons nestedTestEdges where
   [n1, t1, t2, inner, t, n2, n3, foo, in1, n4] = fmap NodeName [0..9]
   nestedTestIcons = [
-    (n1, NestedApply args),
+    (n1, NestedApply ApplyNodeFlavor args),
     (t1, TextBoxIcon "T1"),
     (t2, TextBoxIcon "t2")
     ]
@@ -183,13 +183,13 @@ nestedTextDrawing = Drawing nestedTestIcons nestedTestEdges where
         Just (inner, TextBoxIcon "inner"),
         Just (t, TextBoxIcon "t"),
         Nothing,
-        Just (n2, NestedApply [Just (n4, TextBoxIcon "N4"), Nothing])
+        Just (n2, NestedApply ApplyNodeFlavor [Just (n4, TextBoxIcon "N4"), Nothing])
         ]
       args = [
         Just (n3, TextBoxIcon "n3"),
         Nothing,
         Just (foo, TextBoxIcon "3"),
-        Just (in1, NestedApply innerArgs)
+        Just (in1, NestedApply ApplyNodeFlavor innerArgs)
         ]
   nestedTestEdges = [
     iconToIntPort t1 n1 2,
@@ -233,6 +233,7 @@ nestedTests = [
   "y = f (g y)",
   "y = f1 (f2 ( f3 (f4 2))) 1", -- test compose embedded in apply
   "y = f1 (f2 $ f3 $ f4 2) 1", -- test compose embedded in apply
+  "y = f0 $ f1 $ f2 z (f4 $ f5 q) $ x", -- compose embedded in compose
   "fibs = cons 1 (zipWith (+) fibs (tail fibs))",
   "y = foo (3 + bazOf2) bazOf2 where bazOf2 = baz 2",
   "y = foo (3 + bazOf2) (8 * bazOf2) where bazOf2 = baz 2",
@@ -502,7 +503,7 @@ prettyShowSyntaxGraph (SyntaxGraph nodes edges sinks sources _) =
   prettyShowList sources
 
 prettyPrintSyntaxNode :: SyntaxNode -> String
-prettyPrintSyntaxNode (NestedApplyNode _ namedNodesAndEdges) = concatMap printNameAndEdge namedNodesAndEdges
+prettyPrintSyntaxNode (NestedApplyNode _ _ namedNodesAndEdges) = concatMap printNameAndEdge namedNodesAndEdges
   where
     printNameAndEdge (namedNode, edge) = "(" ++ prettyPrintNamedNode namedNode ++ "," ++ printEdge edge ++ ")"
     prettyPrintNamedNode = show. fst --  "(" ++ show name ++ "," ++ prettyPrintSyntaxNode syntaxNode ++ ")"
@@ -605,9 +606,8 @@ treeRootTests = TestList $ fmap makeTreeRootTest treeRootTestList where
   treeRootTestList = [
     ("single apply", [Just (NodeName 2, LikeApplyNode ApplyNodeFlavor 1)], "y = f x"),
     -- TODO Fix test below
-    -- ("double apply", [Just (NodeName 4, LikeApplyNode ApplyNodeFlavor 1)], "y = f (g x)"),
-    -- TODO Fix this test, there is supposed to be one tree root for the "f" apply
-    ("recursive apply", [], "y = f (g y)")
+    ("double apply", [Just (NodeName 3, LikeApplyNode ComposeNodeFlavor 2)], "y = f (g x)"),
+    ("recursive apply", [Just (NodeName 3,LikeApplyNode ComposeNodeFlavor 2)], "y = f (g y)")
     ]
 
 makeChildCanBeEmbeddedTest ::

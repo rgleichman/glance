@@ -31,16 +31,14 @@ syntaxNodeIsEmbeddable parentType n = case (parentType, n) of
 -- | A syntaxNodeCanEmbed if it can contain other nodes
 syntaxNodeCanEmbed :: SyntaxNode -> Bool
 syntaxNodeCanEmbed n = case n of
-  LikeApplyNode ApplyNodeFlavor _ -> True
-  -- TODO Add ComposeNodeFlavor
-  NestedApplyNode _ _ -> True -- This case should not happen
+  LikeApplyNode _ _ -> True
+  NestedApplyNode _ _ _ -> True -- This case should not happen
   _ -> False
 
 parentTypeForNode :: SyntaxNode -> ParentType
 parentTypeForNode n = case n of
-  -- TODO Should the parent depend on the LikeApplyFlavor?
-  LikeApplyNode ApplyNodeFlavor _ -> ApplyParent
-  NestedApplyNode _ _ -> ApplyParent
+  LikeApplyNode _ _ -> ApplyParent
+  NestedApplyNode _ _ _ -> ApplyParent
   -- The NotAParent case should never occur.
   _ -> NotAParent
 
@@ -206,8 +204,7 @@ embedChildSyntaxNodes parentNode childrenNodes oldGraph = case childrenNodes of
           (nodeName, oldSyntaxNode) = oldNodeLabel
           newNodeLabel = (nodeName, newSyntaxNode)
           newSyntaxNode = case oldSyntaxNode of
-            LikeApplyNode ApplyNodeFlavor x -> NestedApplyNode x childrenAndEdgesToParent
-              -- TODO Add ComposeNodeFlavor
+            LikeApplyNode flavor x -> NestedApplyNode flavor x childrenAndEdgesToParent
             _ -> oldSyntaxNode
     childrenAndEdgesToParent = catMaybes $ fmap findChildAndEdge childrenNodes
     findChildAndEdge childNode =

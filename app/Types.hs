@@ -41,7 +41,7 @@ data Icon = ResultIcon | BranchIcon | TextBoxIcon String | GuardIcon Int
   | PAppIcon Int String | CaseIcon Int | CaseResultIcon
   | BindTextBoxIcon String
   -- TODO: NestedApply should have the type NestedApply (Maybe (Name, Icon)) [Maybe (Name, Icon)]
-  | NestedApply [Maybe (NodeName, Icon)]
+  | NestedApply LikeApplyFlavor [Maybe (NodeName, Icon)]
   | NestedPApp [Maybe (NodeName, Icon)]
   deriving (Show, Eq, Ord)
 
@@ -51,7 +51,7 @@ data LikeApplyFlavor = ApplyNodeFlavor | ComposeNodeFlavor deriving (Show, Eq, O
 -- TODO Add NestedApplyNode, and NestedPatternApplyNode
 data SyntaxNode =
   LikeApplyNode LikeApplyFlavor Int -- Function application, composition, and applying to a composition
-  | NestedApplyNode Int [(SgNamedNode, Edge)]
+  | NestedApplyNode LikeApplyFlavor Int [(SgNamedNode, Edge)]
   | PatternApplyNode String Int -- Destructors as used in patterns
   -- | NestedPatternApplyNode String Int [(SgNamedNode, Edge)]
   | NestedPatternApplyNode String [Maybe SgNamedNode]

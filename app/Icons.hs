@@ -30,7 +30,7 @@ import Data.Maybe(catMaybes, listToMaybe)
 --import Diagrams.TwoD.Text(Text)
 --import Data.Maybe(fromMaybe)
 
-import Types(Icon(..), SpecialQDiagram, SpecialBackend, SpecialNum, NodeName, Port(..))
+import Types(Icon(..), SpecialQDiagram, SpecialBackend, SpecialNum, NodeName, Port(..), LikeApplyFlavor(..))
 import DrawingColors(colorScheme, ColorStyle(..))
 
 -- TYPES --
@@ -53,7 +53,7 @@ iconToDiagram (GuardIcon n) = identDiaFunc $ guardIcon n
 iconToDiagram (CaseIcon n) = identDiaFunc $ caseIcon n
 iconToDiagram CaseResultIcon = identDiaFunc caseResult
 iconToDiagram (FlatLambdaIcon n) = identDiaFunc $ flatLambda n
-iconToDiagram (NestedApply args) = nestedApplyDia args
+iconToDiagram (NestedApply flavor args) = nestedApplyDia flavor args
 iconToDiagram (NestedPApp args) = nestedPAppDia args
 
 applyPortAngles :: Floating n => Port -> [Angle n]
@@ -73,7 +73,7 @@ guardPortAngles (Port port) = case port of
 
 findNestedIcon :: NodeName -> Icon -> Maybe Icon
 findNestedIcon name icon = case icon of
-  NestedApply args -> findIcon name args
+  NestedApply _ args -> findIcon name args
   NestedPApp args -> findIcon name args
   _ -> Nothing
 
@@ -107,7 +107,7 @@ getPortAngles icon port maybeNodeName = case icon of
   CaseIcon _ -> guardPortAngles port
   CaseResultIcon -> []
   FlatLambdaIcon _ -> applyPortAngles port
-  NestedApply args -> nestedApplyPortAngles args port maybeNodeName
+  NestedApply _ args -> nestedApplyPortAngles args port maybeNodeName
   NestedPApp args -> nestedApplyPortAngles args port maybeNodeName
 
 -- END FUNCTIONS --
@@ -198,8 +198,10 @@ transformCorrectedTextBox str textCol borderCol reflect angle =
     reflectIfTrue shouldReflect dia = if shouldReflect then reflectX dia else dia
 
 nestedApplyDia :: SpecialBackend b n =>
-  [Maybe (NodeName, Icon)] -> TransformableDia b n
-nestedApplyDia = generalNestedDia (apply0C colorScheme)
+  LikeApplyFlavor -> [Maybe (NodeName, Icon)] -> TransformableDia b n
+nestedApplyDia flavor = case flavor of
+  ApplyNodeFlavor -> generalNestedDia (apply0C colorScheme)
+  ComposeNodeFlavor -> generalNestedDia (apply1C colorScheme)
 
 nestedPAppDia :: SpecialBackend b n =>
   [Maybe (NodeName, Icon)] -> TransformableDia b n

@@ -22,12 +22,9 @@ Fix edges overlapping making it hard to match up the ends of the edges. Differen
 -- - for each nesting level. This will help distinguish what is an argument to which funciton.
 
 -- Translate todos:
-Fix y = f (g y) embedding. See todo for findParentThatWillEmbed in GraphAlgorithms.
 
 -- Fix test case x of {0 -> 1; y -> y}.
 -- Add proper RecConstr, and RecUpdate support.
 -- Eliminate BranchIcon in Alts.
 -- Eliminate BranchIcon for the identity funciton "y x = x"
--- Add a maximum nesting depth.
 -- Special case for otherwise.
--- Consider currying when embedding. E.g. "(f 3) 4)" should be translated to "f 3 4".

@@ -180,7 +180,7 @@ nListString n = '[' : replicate (n -1) ',' ++ "]"
 nodeToIcon :: SyntaxNode -> Icon
 nodeToIcon (LikeApplyNode ApplyNodeFlavor n) = ApplyAIcon n
 nodeToIcon (LikeApplyNode ComposeNodeFlavor n) = ComposeIcon n
-nodeToIcon (NestedApplyNode x edges) = nestedApplySyntaxNodeToIcon x edges
+nodeToIcon (NestedApplyNode flavor x edges) = nestedApplySyntaxNodeToIcon flavor x edges
 nodeToIcon (PatternApplyNode s n) = PAppIcon n s
 -- nodeToIcon (NestedPatternApplyNode s n children) = nestedPatternNodeToIcon s n children
 nodeToIcon (NestedPatternApplyNode s children) = nestedPatternNodeToIcon s children
@@ -198,8 +198,8 @@ makeArg args port = case find (findArg (Port port)) args of
   Nothing -> Nothing
   Just ((argName, argSyntaxNode), _) -> Just (argName, nodeToIcon argSyntaxNode)
 
-nestedApplySyntaxNodeToIcon :: Int -> [(SgNamedNode, Edge)] -> Icon
-nestedApplySyntaxNodeToIcon numArgs args = NestedApply argList where
+nestedApplySyntaxNodeToIcon :: LikeApplyFlavor -> Int -> [(SgNamedNode, Edge)] -> Icon
+nestedApplySyntaxNodeToIcon flavor numArgs args = NestedApply flavor argList where
   -- argList should be of length numArgs + 1, since argList includes the function expression
   -- port 0 is the function, ports 2..(numArgs+1) are the arguments
   -- TODO Don't use hardcoded port numbers
