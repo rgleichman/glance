@@ -139,8 +139,11 @@ defaultLineWidth = 0.15
 circleRadius :: (Fractional a) => a
 circleRadius = 0.5
 
-apply0Triangle :: SpecialBackend b n => SpecialQDiagram b n
-apply0Triangle = lw none $ rotateBy (-1/12) $ eqTriangle (2 * circleRadius)
+apply0Triangle :: SpecialBackend b n => Colour Double -> SpecialQDiagram b n
+apply0Triangle col = fc col $ lw none $ rotateBy (-1/12) $ eqTriangle (2 * circleRadius)
+
+composeSemiCircle :: SpecialBackend b n => Colour Double -> SpecialQDiagram b n
+composeSemiCircle col = lc col $ lwG defaultLineWidth $ wedge circleRadius yDir halfTurn -- eqTriangle (2 * circleRadius)
 
 portCircle :: SpecialBackend b n => SpecialQDiagram b n
 portCircle = lw none $ fc lineCol $ circle (circleRadius * 0.5)
@@ -155,7 +158,7 @@ coloredApplyADia ::
   Colour Double -> Int -> SpecialQDiagram b n
 coloredApplyADia appColor n = centerXY finalDia where
   trianglePortsCircle = hcat [
-    reflectX (fc appColor apply0Triangle),
+    reflectX (apply0Triangle appColor),
     hcat $ take n $ map (\x -> makePort (Port x) <> portCircle <> strutX (circleRadius * 1.5)) [2,3..],
     makePort (Port 1) <> alignR (lc appColor $ lwG defaultLineWidth $ fc appColor $ circle circleRadius)
     ]
@@ -200,16 +203,16 @@ transformCorrectedTextBox str textCol borderCol reflect angle =
 nestedApplyDia :: SpecialBackend b n =>
   LikeApplyFlavor -> [Maybe (NodeName, Icon)] -> TransformableDia b n
 nestedApplyDia flavor = case flavor of
-  ApplyNodeFlavor -> generalNestedDia (apply0C colorScheme)
-  ComposeNodeFlavor -> generalNestedDia (apply1C colorScheme)
+  ApplyNodeFlavor -> generalNestedDia apply0Triangle (apply0C colorScheme)
+  ComposeNodeFlavor -> generalNestedDia composeSemiCircle (apply1C colorScheme)
 
 nestedPAppDia :: SpecialBackend b n =>
   [Maybe (NodeName, Icon)] -> TransformableDia b n
-nestedPAppDia = generalNestedDia (patternC colorScheme)
+nestedPAppDia = generalNestedDia apply0Triangle (patternC colorScheme)
 
 generalNestedDia :: SpecialBackend b n =>
-  Colour Double -> [Maybe (NodeName, Icon)] -> TransformableDia b n
-generalNestedDia borderCol funcNodeNameAndArgs name reflect angle = named name $ case funcNodeNameAndArgs of
+  (Colour Double -> SpecialQDiagram b n) -> Colour Double -> [Maybe (NodeName, Icon)] -> TransformableDia b n
+generalNestedDia dia borderCol funcNodeNameAndArgs name reflect angle = named name $ case funcNodeNameAndArgs of
   [] -> mempty
   (maybeFunText:args) -> centerXY $  transformedText ||| centerY finalDia
     where
@@ -220,7 +223,7 @@ generalNestedDia borderCol funcNodeNameAndArgs name reflect angle = named name $
       seperation = circleRadius * 1.5
       verticalSeperation = circleRadius
       trianglePortsCircle = hsep seperation $
-        reflectX (fc borderCol apply0Triangle) :
+        reflectX (dia borderCol) :
         zipWith makeInnerIcon [2,3..] args ++
         [makeQualifiedPort (Port 1) <> alignR (lc borderCol $ lwG defaultLineWidth $ fc borderCol $ circle circleRadius)]
   
