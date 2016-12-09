@@ -1,5 +1,5 @@
 # Glance
-Glance is a visual syntax for the programming language Haskell. The goal of this project is to increase programmer happiness and productivity by allowing programmers to understand programs in new and different ways. Currently, the Glance executable produces a visual representation of your code in the form of an SVG image when given a textuall Haskell source file. In the future, I hope to incorporate Glance into Haskell code editors, and to eventually create a visual editor for Haskell.
+Glance is a visual syntax for the programming language Haskell. The goal of this project is to increase programmer happiness and productivity by allowing programmers to understand programs in new and different ways. Currently, the Glance executable produces a visual representation of your code in the form of an SVG image when given a textual Haskell source file. In the future, I hope to incorporate Glance into Haskell code editors, and to eventually create a visual editor for Haskell.
 
 ## Building
 First install Graphviz. For instance, in Ubuntu run:
