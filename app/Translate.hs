@@ -190,7 +190,7 @@ simplifyExp :: Exp -> Exp
 simplifyExp e = case e of
   InfixApp exp1  (QVarOp (UnQual (Symbol "$"))) exp2 -> App exp1 exp2
   InfixApp exp1 op exp2 -> App (App (qOpToExp op) exp1) exp2
-  Paren x -> x
+  Paren x -> simplifyExp x
   x -> x
 
 -- TODO Consider putting this logic in a separate "simplifyExpression" function.

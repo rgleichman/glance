@@ -247,9 +247,9 @@ in better icon versions.
 --factorial x =
 --  if x == 0
 --    then 1
---    else x * factorial (x - 1)
+--    else factorial (x - 1) * x
 -}
 factorial x =
   if x == 0
     then 1
-    else x * factorial (x - 1)
+    else factorial (x - 1) * x
