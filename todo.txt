@@ -1,6 +1,5 @@
 -- TODO Now --
 Add compose to the tutorial.
--- Put the function name in nested apply and pattern apply in a colored box.
 
 -- TODO Later --
 -- Add documentation.
@@ -9,8 +8,6 @@ Add compose to the tutorial.
 Fix the arrowheads being too big for SyntaxGraph darwings.
 
 -- Visual todos:
-Fix edges overlapping making it hard to match up the ends of the edges. Different edge colors for each source might fix this.
-
 -- Make an icon font/library with labeled ports. E.g. the apply icon would have text labels "function", "result", "arg 0", "arg 1", etc.
 -- Don't rotate text and nested icons, give them rectangualar bounding boxes in GraphViz. (Perhaps use a typeclass for isRotateAble)
 -- Give lines a black border to make line crossings easier to see.
@@ -19,8 +16,7 @@ Fix edges overlapping making it hard to match up the ends of the edges. Differen
 -- a line ending.
 -- Let each bool, value pair in Guard icon be flipped to reduce line crossings. Do the same for case.
 -- Let lines connect to ports in multiple locations (eg. case value, or guard result)
--- For nested apply, cycle through different colors and line styles (eg. dashed, solid, wavy)
--- - for each nesting level. This will help distinguish what is an argument to which funciton.
+-- Use different line styles (eg. dashed, solid, wavy) in addition to colors
 
 -- Translate todos:
 

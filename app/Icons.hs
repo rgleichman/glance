@@ -219,13 +219,13 @@ generalNestedDia dia borderCols funcNodeNameAndArgs name nestingLevel reflect an
       borderCol = borderCols !! nestingLevel
       makeQualifiedPort x = name .>> makePort x
       transformedText = case maybeFunText of
-        Just _ -> makeInnerIcon nestingLevel 0 maybeFunText
+        Just _ -> makeInnerIcon True 0 maybeFunText
         Nothing -> mempty
       seperation = circleRadius * 1.5
       verticalSeperation = circleRadius
       trianglePortsCircle = hsep seperation $
         reflectX (dia borderCol) :
-        zipWith (makeInnerIcon $ nestingLevel + 1) [2,3..] args ++
+        zipWith (makeInnerIcon False) [2,3..] args ++
         [makeQualifiedPort (Port 1) <> alignR (lc borderCol $ lwG defaultLineWidth $ fc borderCol $ circle circleRadius)]
   
       allPorts = makeQualifiedPort (Port 0) <> alignL trianglePortsCircle
@@ -234,7 +234,9 @@ generalNestedDia dia borderCols funcNodeNameAndArgs name nestingLevel reflect an
       finalDia = argBox <> allPorts
 
       makeInnerIcon _ portNum Nothing = makeQualifiedPort (Port portNum) <> portCircle
-      makeInnerIcon innerLevel _ (Just (iconNodeName, icon)) = iconToDiagram icon iconNodeName innerLevel reflect angle
+      makeInnerIcon True _ (Just (_, TextBoxIcon t)) = transformCorrectedTextBox t (textBoxTextC colorScheme) borderCol reflect angle
+      makeInnerIcon func _ (Just (iconNodeName, icon)) = iconToDiagram icon iconNodeName innerLevel reflect angle where
+        innerLevel = if func then nestingLevel else nestingLevel + 1
 
 
 -- TEXT ICON --
