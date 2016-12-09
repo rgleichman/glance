@@ -253,3 +253,41 @@ factorial x =
   if x == 0
     then 1
     else factorial (x - 1) * x
+
+{- Bonus section:
+
+The depth of an icon's application tree is called the nesting depth.
+For example, The icon representing "factorial (x - 1) * x" above has a nesting
+depth of 3.
+
+To reduce nesting depth, Glance has an icon that represents an argument applied
+to a composition of functions.
+
+For example:
+y = f (g x)
+-}
+y = f (g x)
+
+{-
+Glance figures out automatically when to use the compose icon in order to
+reduce the nesting depth.
+
+For example, if we slightly rewrite the factorial function above, Glance
+uses a compose icon for the else expression.
+
+To enable the compose icon, we change the expression
+factorial (x - 1) * x
+to
+x * factorial (x - 1)
+
+Notice that the nesting level has been reduced from 3 to 2.
+
+--factorial x =
+--  if x == 0
+--    then 1
+--    else x * factorial (x - 1)
+-}
+factorial x =
+  if x == 0
+    then 1
+    else x * factorial (x - 1)
