@@ -11,7 +11,7 @@ import Data.List(foldl', find)
 import Data.Maybe(catMaybes, isJust, fromMaybe)
 --import qualified Debug.Trace
 
-import Types(SyntaxNode(..), sgNamedNodeToSyntaxNode, IngSyntaxGraph, LikeApplyFlavor(..))
+import Types(SyntaxNode(..), sgNamedNodeToSyntaxNode, IngSyntaxGraph, LikeApplyFlavor(..), Edge(..))
 import Util(maybeBoolToBool)
 --import Util(printSelf)
 
@@ -24,10 +24,7 @@ data ParentType = ApplyParent | NotAParent
 -- | A syntaxNodeIsEmbeddable if it can be collapsed into another node
 syntaxNodeIsEmbeddable :: ParentType -> SyntaxNode -> Bool
 syntaxNodeIsEmbeddable parentType n = case (parentType, n) of
-  -- TODO Find out why allowing compose nodes to be embedded does not work for:
-  -- fibs = cons 1 (zipWith (+) fibs (tail fibs))
-  --(ApplyParent, LikeApplyNode _ _) -> True 
-  (ApplyParent, LikeApplyNode ApplyNodeFlavor _) -> True
+  (ApplyParent, LikeApplyNode _ _) -> True 
   (ApplyParent, LiteralNode _) -> True
   _ -> False
 
@@ -89,11 +86,24 @@ findParentsThatCanEmbed graph child = filter parentFilter (findParents graph chi
   parentFilter parentNode = graphNodeCanEmbed graph parentNode && graphNodeIsEmbeddable parentType graph child where
     parentType = lookupParentType graph parentNode
 
--- TODO Return nothing if the child has other edges that connect to the same port as the parent.
+-- | Finds the first edge from the first node to the second node
+findEdge :: ING.Graph gr => gr a b -> ING.Node -> ING.Node -> Maybe b
+findEdge graph fromNode toNode = lookup toNode $ ING.lsuc graph fromNode
+
+parentIsOnlyEdge :: ING.Graph gr => IngSyntaxGraph gr -> ING.Node -> ING.Node -> Bool
+parentIsOnlyEdge graph parent child = case findEdge graph child parent of
+  Nothing -> error "parentIsOnlyEdge: There is no edge from the child to the parent."
+  Just edge -> numEdges == 1 where
+    (childNamePort, _) = edgeConnection edge
+    edgeLabels = filter (childNamePort ==) $ (fst . edgeConnection . snd) <$> ING.lsuc graph child
+    numEdges = length edgeLabels
+    
 findParentThatWillEmbed :: ING.Graph gr => IngSyntaxGraph gr -> ING.Node -> Maybe ING.Node
 findParentThatWillEmbed graph child =
-    case findParentsThatCanEmbed graph child of
-    [x] -> Just x
+  case findParentsThatCanEmbed graph child of
+    [parent] -> if parentIsOnlyEdge graph parent child
+      then Just parent
+      else Nothing
     _ -> Nothing
 
 -- END helper functions --
