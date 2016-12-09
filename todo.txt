@@ -1,4 +1,5 @@
 -- TODO Now --
+Add compose to the tutorial.
 -- Put the function name in nested apply and pattern apply in a colored box.
 
 -- TODO Later --

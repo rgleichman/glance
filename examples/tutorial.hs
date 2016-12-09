@@ -184,11 +184,8 @@ y = foo (3 + bazOf2) (8* bazOf2) where bazOf2 = baz 2
 {-There are many different ways that function application trees can be represented.
 The linear layout Glance currently uses is just the simplest. Large expressions
 (just like long lines of code) become hard to read with the linear layout.
-Other tree layouts can make these large expressions much more readable.
+Other tree layouts could make these large expressions much more readable.
 
-Glance's drawing of this expression is especially hard to read because the
-apply icon rectangles are all red. Cycling through different colors would probably
-help distinguish each icon.
 y = (((2 + 4 * 4) - (7+ 2 + baz)*8)/21)
 -}
 y = (((2 + 4 * 4) - (7+ 2 + baz)*8)/21)

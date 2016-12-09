@@ -24,7 +24,8 @@ data ColorStyle a = ColorStyle {
   patternTextC :: Colour a,
   bindTextBoxC :: Colour a,
   bindTextBoxTextC :: Colour a,
-  edgeListC :: [Colour a]
+  edgeListC :: [Colour a],
+  nestingC :: [Colour a]
 }
 
 colorOnBlackScheme :: (Floating a, Ord a) => ColorStyle a
@@ -44,7 +45,8 @@ colorOnBlackScheme = ColorStyle {
   patternTextC = cyan,
   bindTextBoxC = reddishOrange,
   bindTextBoxTextC = lime,
-  edgeListC = [white, lime, reddishOrange, lightPurple, yellow, lightBlue]
+  edgeListC = [white, lime, reddishOrange, lightPurple, yellow, lightBlue],
+  nestingC = cycle [red, reddishOrange, yellow]
 }
   where
     slightlyGreenYellow = sRGB24 212 255 0
@@ -72,7 +74,8 @@ whiteOnBlackScheme = ColorStyle {
   patternTextC = white,
   bindTextBoxC = white,
   bindTextBoxTextC = white,
-  edgeListC = [white]
+  edgeListC = [white],
+  nestingC = repeat white
 }
 
 -- Use this to test that all of the colors use the colorScheme
@@ -92,5 +95,6 @@ randomColorScheme = ColorStyle {
   patternTextC = coral,
   bindTextBoxC = maroon,
   bindTextBoxTextC = lime,
-  edgeListC = [wheat]
+  edgeListC = [wheat],
+  nestingC = cycle [red, yellow, purple, pink, lightblue, magenta]
 }

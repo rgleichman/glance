@@ -292,7 +292,7 @@ placeNodes layoutResult graph = (mconcat placedNodes, rotationMap)
 
     -- todo: Not sure if the diagrams should already be centered at this point.
     placeNode (key@(name, icon), (reflected, angle)) = place transformedDia diaPosition where
-      origDia = iconToDiagram icon name reflected angle
+      origDia = iconToDiagram icon name 0 reflected angle
       transformedDia = centerXY $ rotate angle $ (if reflected then reflectX else id) origDia
       diaPosition = graphvizScaleFactor *^ (positionMap Map.! key)
 
@@ -337,7 +337,7 @@ doGraphLayout graph = do
       where
         -- This type annotation (:: SpecialQDiagram b n) requires Scoped Typed Variables, which only works if the function's
         -- type signiture has "forall b e."
-        dia = iconToDiagram nodeIcon (NodeName (-1)) False mempty :: SpecialQDiagram b Double
+        dia = iconToDiagram nodeIcon (NodeName (-1)) 0 False mempty :: SpecialQDiagram b Double
 
         diaWidth = drawingToGraphvizScaleFactor * width dia
         diaHeight = drawingToGraphvizScaleFactor * height dia
