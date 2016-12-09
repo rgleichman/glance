@@ -84,7 +84,7 @@ bezierShaft angle1 angle2 = fromSegments [bezier3 c1 c2 x] where
   c2 = rotate angle2 (scale scaleFactor unitX) ^+^ x
 
 getArrowOpts :: (RealFloat n, Typeable n) => (EdgeEnd, EdgeEnd) -> [EdgeOption] -> (Angle n, Angle n) -> NameAndPort -> ArrowOpts n
-getArrowOpts (t, h) opts (fromAngle, toAngle) (NameAndPort (NodeName nodeNum) mPort)= arrowOptions
+getArrowOpts (t, h) _ (fromAngle, toAngle) (NameAndPort (NodeName nodeNum) mPort)= arrowOptions
   where
     --shaftColor = if EdgeInPattern `elem` opts then patternC colorScheme else hashedColor
     shaftColor = hashedColor

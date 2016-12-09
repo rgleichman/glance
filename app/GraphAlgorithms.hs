@@ -11,7 +11,7 @@ import Data.List(foldl', find)
 import Data.Maybe(catMaybes, isJust, fromMaybe)
 --import qualified Debug.Trace
 
-import Types(SyntaxNode(..), sgNamedNodeToSyntaxNode, IngSyntaxGraph, LikeApplyFlavor(..), Edge(..))
+import Types(SyntaxNode(..), sgNamedNodeToSyntaxNode, IngSyntaxGraph, Edge(..))
 import Util(maybeBoolToBool)
 --import Util(printSelf)
 

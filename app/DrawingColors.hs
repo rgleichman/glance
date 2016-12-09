@@ -53,7 +53,6 @@ colorOnBlackScheme = ColorStyle {
     reddishOrange = sRGB24 255 119 0
     --lightBlue = sRGB24 126 127 255
     lightBlue = sRGB24 35 156 255
-    teal = sRGB 0 255 161
     lightPurple = sRGB24 208 137 255
     
 
