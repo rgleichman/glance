@@ -10,7 +10,7 @@ Then build and execute glance:
 ```
 stack build
 stack exec glance-exe -- -o images/fact.svg -w 500 examples/fact.hs -
-firefox images/fact.svg
+firefox --new-window images/fact.svg
 ```
 ## Issues
 Glance is still in development, so for the time being, layout, routing, and icon design all have much room for improvement. Here are some specific issues:
