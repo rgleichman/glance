@@ -209,10 +209,10 @@ makeEdge graph dia rotationMap (node0, node1, edge@(Edge _ _ (namePort0, namePor
     
     portAngles = (icon0PortAngle, icon1PortAngle)
 
-
+-- | addEdges draws the edges underneath the nodes.
 addEdges :: (SpecialBackend b n, ING.Graph gr) =>
   gr (NodeName, Icon) Edge -> (SpecialQDiagram b n, [((NodeName, Icon), (Bool, Angle n))]) -> SpecialQDiagram b n
-addEdges graph (dia, rotationMap) = applyAll connections dia
+addEdges graph (dia, rotationMap) = dia <> applyAll connections dia
   where
     connections = makeEdge graph dia rotationMap <$> ING.labEdges graph
 
