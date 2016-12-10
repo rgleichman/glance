@@ -16,6 +16,7 @@ import Translate(drawingsFromModule)
 
 renderFile :: String -> String -> IO (Diagram B)
 renderFile inputFilename includeComments = do
+  putStrLn $ "Translating file " ++ inputFilename ++ " into a Glance image."
   parseResult <- Exts.parseFileWithComments
     (Exts.defaultParseMode
       {Exts.extensions = [Exts.EnableExtension Exts.MultiParamTypeClasses, Exts.EnableExtension Exts.FlexibleContexts],
@@ -36,8 +37,11 @@ renderFile inputFilename includeComments = do
     justDiagrams = vsep 1 $ fmap alignL diagrams
     diagramsAndMaybeComments = if includeComments == "c" then diagramsAndComments else justDiagrams
   --print comments
+
   pure (bgFrame 1 (backgroundC colorScheme) diagramsAndMaybeComments :: Diagram B)
 
 
 main :: IO ()
-main = mainWith renderFile
+main = do
+  mainWith renderFile
+  putStrLn "Successfully translated file."
