@@ -15,7 +15,7 @@ firefox images/fact.svg
 ## Issues
 Glance is still in development, so for the time being, layout, routing, and icon design all have much room for improvement. Here are some specific issues:
 * Text boxes may not display correctly with some SVG viewers.
-* Images become very large when rendering medium to large functions.
+* Images become very spread out when rendering medium to large functions.
 * Only a subset of Haskell is rendered
 
 ## Getting started
