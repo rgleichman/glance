@@ -10,8 +10,13 @@ Then build and execute glance:
 ```
 stack build
 stack exec glance-exe -- -o images/fact.svg -w 500 examples/fact.hs -
+
+```
+and display the SVG
+```
 firefox --new-window images/fact.svg
 ```
+
 ## Issues
 Glance is still in development, so for the time being, layout, routing, and icon design all have much room for improvement. Here are some specific issues:
 * Text boxes may not display correctly with some SVG viewers.
