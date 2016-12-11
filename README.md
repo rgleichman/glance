@@ -10,7 +10,6 @@ Then build and execute glance:
 ```
 stack build
 stack exec glance-exe -- -o images/fact.svg -w 500 examples/fact.hs -
-
 ```
 and display the SVG
 ```
