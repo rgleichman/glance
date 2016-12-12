@@ -263,7 +263,8 @@ nestedTests = [
 dollarTests :: [String]
 dollarTests = [
   "y = f $ g 3",
-  " y = f 1 $ g 2 "
+  "y = f 1 $ g 2 ",
+  "y = f <$> x"
   ]
 
 specialTests :: [String]
@@ -646,10 +647,28 @@ collapseUnitTests = TestList[
   --TestLabel "childCanBeEmbedded" childCanBeEmbeddedTests
   ]
 
+-- Translate unit tests
+
+fmapTest :: Test
+fmapTest = TestCase $ assertEqual "fmapTest" fmap1 fmap2 where
+  fmap1 = stringToSyntaxGraph "y = fmap f x"
+  fmap2 = stringToSyntaxGraph "y = f <$> x"
+
+translateUnitTests :: Test
+translateUnitTests = TestList [
+  TestLabel "fmapTest" fmapTest
+  ]
+
+allUnitTests :: Test
+allUnitTests = TestList[
+  TestLabel "collapseUnitTests" collapseUnitTests,
+  TestLabel "translateTests" translateUnitTests
+  ]
+
 main :: IO ()
 --main = print "Hello world"
 main = do
 --  ING.prettyPrint singleApplyGraph
   renderDrawings drawingsAndNames
-  _ <- runTestTT collapseUnitTests
+  _ <- runTestTT allUnitTests
   pure ()

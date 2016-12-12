@@ -23,8 +23,6 @@ Case icon that can embed literals
 Use diagrams to shrink the drawing until icons start overlapping.
 
 -- Translate todos:
-Convert <$> to fmap.
-
 Refactor evaluateAppExpression and all sub-expressions (add unit tests first).
 
 Fix this test so that the line colors are correct. Consider connecting the t line to the origial rhs (3,4), not the pattern result.

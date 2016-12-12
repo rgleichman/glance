@@ -37,6 +37,16 @@ import Util(makeSimpleEdge, nameAndPort, justName, mapFst)
 -- The TranslateCore also contains most/all of the translation functions that
 -- do not use Language.Haskell.Exts.
 
+-- HELPER FUNCTIONS --
+
+makeVarExp :: String -> Exp
+makeVarExp = Var . UnQual . Ident
+
+makeQVarOp :: String -> QOp
+makeQVarOp = QVarOp . UnQual . Ident
+
+-- END HELPER FUNCTIONS --
+
 nameToString :: Language.Haskell.Exts.Name -> String
 nameToString (Ident s) = s
 nameToString (Symbol s) = s
@@ -183,12 +193,14 @@ evalCompose c functions = do
   pure $ makeApplyGraph ComposeNodeFlavor False applyIconName
     (mempty, neverUsedPort) evaluatedFunctions (length evaluatedFunctions)
 
+simplifyCompose :: Exp -> [Exp]
 simplifyCompose e = case removeParen e of
   (InfixApp exp1  (QVarOp (UnQual (Symbol "."))) exp2) -> exp1 : simplifyCompose exp2
   x -> [x]
 
 evalInfixApp :: EvalContext -> Exp -> QOp -> Exp -> State IDState (SyntaxGraph, Reference)
 evalInfixApp c e1 (QVarOp (UnQual (Symbol "$"))) e2 = evalExp c (App e1 e2)
+evalInfixApp c e1 (QVarOp (UnQual (Symbol "<$>"))) e2 = evalExp c $ App (App (makeVarExp "fmap") e1) e2
 evalInfixApp c e1 (QVarOp (UnQual (Symbol "."))) e2 = fmap Right <$> evalCompose c (e1 : simplifyCompose e2)
 evalInfixApp c e1 op e2 = evalExp c (App (App (qOpToExp op) e1) e2) --evalApp c (qOpToExp op, [e1, e2])
 
@@ -400,9 +412,6 @@ evalTuple c exps = do
   applyIconName <- getUniqueName "tupleApp"
   pure $ makeApplyGraph ApplyNodeFlavor False applyIconName (fmap Right funVal) argVals (length exps)
 
-makeVarExp :: String -> Exp
-makeVarExp = Var . UnQual . Ident
-
 evalListExp :: EvalContext -> [Exp] -> State IDState (SyntaxGraph, NameAndPort)
 evalListExp _ [] = makeBox "[]"
 evalListExp c exps = evalApp c ApplyNodeFlavor (makeVarExp . nListString . length $ exps, exps)
@@ -421,10 +430,7 @@ evalRightSection c op e = do
 
 -- evalEnums is only used by evalExp
 evalEnums :: EvalContext -> String -> [Exp] -> State IDState (SyntaxGraph, Reference)
-evalEnums c s exps = fmap Right <$> evalApp c ApplyNodeFlavor (Var . UnQual . Ident $ s, exps)
-
-makeQVarOp :: String -> QOp
-makeQVarOp = QVarOp . UnQual . Ident
+evalEnums c s exps = fmap Right <$> evalApp c ApplyNodeFlavor (makeVarExp s, exps)
 
 desugarDo :: [Stmt] -> Exp
 desugarDo [Qualifier e] = e
@@ -444,7 +450,7 @@ evalExp c x = case x of
   Con n -> evalQName n c
   Lit l -> fmap Right <$> evalLit l
   InfixApp e1 op e2 -> evalInfixApp c e1 op e2
-  e@(App f x) -> fmap Right <$> evaluateAppExpression c f x
+  App f arg -> fmap Right <$> evaluateAppExpression c f arg
   NegApp e -> evalExp c (App (makeVarExp "negate") e)
   Lambda _ patterns e -> fmap Right <$> evalLambda c patterns e
   Let bs e -> evalLet c bs e
@@ -553,7 +559,7 @@ matchesToCase firstMatch@(Match srcLoc funName pats mType _ _) restOfMatches = d
   tempStrings <- replicateM (length pats) (getUniqueString "_tempvar")
   let
     tempPats = fmap (PVar . Ident) tempStrings
-    tempVars = fmap (Var . UnQual . Ident) tempStrings
+    tempVars = fmap makeVarExp tempStrings
     tuple = Tuple Exts.Boxed tempVars
     caseExp = case tempVars of
       [oneTempVar] -> Case oneTempVar alts

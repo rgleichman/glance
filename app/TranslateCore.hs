@@ -55,7 +55,7 @@ data SyntaxGraph = SyntaxGraph {
   sgSources :: [(String, Reference)],
   -- sgEmbedMap keeps track of nodes embedded in other nodes. If (child, parent) is in the Map, then child is embedded inside parent.
   sgEmbedMap :: [(NodeName, NodeName)]
-  } deriving (Show)
+  } deriving (Show, Eq)
 
 instance Semigroup SyntaxGraph where
   (SyntaxGraph icons1 edges1 sinks1 sources1 map1) <> (SyntaxGraph icons2 edges2 sinks2 sources2 map2) =
