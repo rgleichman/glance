@@ -1,12 +1,12 @@
 -- TODO Now --
 Put the name and type for top-level-binds in a text box below drawings.
 Translate (.) into compose
-Make GitHub issues
 
 -- TODO Later --
 -- Add documentation.
 
 -- Testing todos:
+Add unit tests for the equality of different apply/compose/$/infix strings.
 Fix the arrowheads being too big for SyntaxGraph drawings.
 
 -- Visual todos:
@@ -23,7 +23,15 @@ Case icon that can embed literals
 Use diagrams to shrink the drawing until icons start overlapping.
 
 -- Translate todos:
+Convert <$> to fmap.
+
+Refactor evaluateAppExpression and all sub-expressions (add unit tests first).
+
+Fix this test so that the line colors are correct. Consider connecting the t line to the origial rhs (3,4), not the pattern result.
+y = let {t@(_,_) = (3,4)} in t + 3
+
 Consider adding binding variable names to the lambda icon and match icon. Don't display the name if it is only one character.
+
 Fix applyComposeScore in Translate.hs not counting expressions that nest via reference. May need to move compose generation to after translate.
 
 -- Fix test case x of {0 -> 1; y -> y}.

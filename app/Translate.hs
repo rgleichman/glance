@@ -149,12 +149,19 @@ makePatternGraph' applyIconName funStr argVals numArgs = (newGraph <> combinedGr
     icons = [(applyIconName, PatternApplyNode funStr numArgs)]
     newGraph = syntaxGraphFromNodes icons
 
-evaluateAppExpression :: EvalContext -> Exp -> State IDState (SyntaxGraph, NameAndPort)
-evaluateAppExpression c e = if appScore <= compScore
-  then evalApp c ApplyNodeFlavor (simplifyApp e)
-  else evalApp c ComposeNodeFlavor (simplifyCompose e)
+removeCompose :: Exp -> Exp -> Exp
+removeCompose f x = case removeParen f of
+  (InfixApp f1  (QVarOp (UnQual (Symbol "."))) f2) -> App f1 $ removeCompose f2 x
+  _ -> App f x
+
+-- TODO Refactor this and all sub-expressions
+evaluateAppExpression :: EvalContext -> Exp -> Exp -> State IDState (SyntaxGraph, NameAndPort)
+evaluateAppExpression c f e = if appScore <= compScore
+  then evalApp c ApplyNodeFlavor (simplifyApp noComposeExp)
+  else evalApp c ComposeNodeFlavor (simplifyComposeApply noComposeExp)
   where
-    (appScore, compScore) = applyComposeScore e
+    noComposeExp = removeCompose f e
+    (appScore, compScore) = applyComposeScore noComposeExp
 
 evalApp :: EvalContext -> LikeApplyFlavor -> (Exp, [Exp]) -> State IDState (SyntaxGraph, NameAndPort)
 evalApp c flavor (funExp, argExps) = do
@@ -167,8 +174,22 @@ qOpToExp :: QOp -> Exp
 qOpToExp (QVarOp n) = Var n
 qOpToExp (QConOp n) = Con n
 
+evalCompose :: EvalContext -> [Exp] -> State IDState (SyntaxGraph, NameAndPort)
+evalCompose c functions = do
+  let reversedFunctios = reverse functions
+  evaluatedFunctions <- mapM (evalExp c) reversedFunctios
+  neverUsedPort <- Left <$> getUniqueString "unusedArgument"
+  applyIconName <- getUniqueName "compose"
+  pure $ makeApplyGraph ComposeNodeFlavor False applyIconName
+    (mempty, neverUsedPort) evaluatedFunctions (length evaluatedFunctions)
+
+simplifyCompose e = case removeParen e of
+  (InfixApp exp1  (QVarOp (UnQual (Symbol "."))) exp2) -> exp1 : simplifyCompose exp2
+  x -> [x]
+
 evalInfixApp :: EvalContext -> Exp -> QOp -> Exp -> State IDState (SyntaxGraph, Reference)
 evalInfixApp c e1 (QVarOp (UnQual (Symbol "$"))) e2 = evalExp c (App e1 e2)
+evalInfixApp c e1 (QVarOp (UnQual (Symbol "."))) e2 = fmap Right <$> evalCompose c (e1 : simplifyCompose e2)
 evalInfixApp c e1 op e2 = evalExp c (App (App (qOpToExp op) e1) e2) --evalApp c (qOpToExp op, [e1, e2])
 
 scoreExpressions :: Exp -> Exp -> (Int, Int)
@@ -186,21 +207,29 @@ scoreExpressions exp1 exp2 = (appScore, compScore) where
   
   compScore = max leftComp rightComp
 
+removeParen :: Exp -> Exp
+removeParen e = case e of
+  Paren x -> removeParen x
+  x -> x
+
 simplifyExp :: Exp -> Exp
-simplifyExp e = case e of
+simplifyExp e = case removeParen e of
   InfixApp exp1  (QVarOp (UnQual (Symbol "$"))) exp2 -> App exp1 exp2
+  -- Don't convert compose to apply
+  InfixApp _  (QVarOp (UnQual (Symbol "."))) _ -> e
   InfixApp exp1 op exp2 -> App (App (qOpToExp op) exp1) exp2
-  Paren x -> simplifyExp x
   x -> x
 
 -- TODO Consider putting this logic in a separate "simplifyExpression" function.
 -- | Returns the amount of nesting if the App is converted to (applyNode, composeNode)
 applyComposeScore :: Exp -> (Int, Int)
-applyComposeScore (InfixApp exp1  (QVarOp (UnQual (Symbol "$"))) exp2) = scoreExpressions exp1 exp2
-applyComposeScore (InfixApp exp1 op exp2) = scoreExpressions (App (qOpToExp op) exp1) exp2 --scoreExpressions exp1 exp2
-applyComposeScore (App exp1 exp2) = scoreExpressions exp1 exp2
-applyComposeScore (Paren exp1) = applyComposeScore exp1
-applyComposeScore _ = (0, 0)
+applyComposeScore e = case removeParen e of
+  (InfixApp exp1  (QVarOp (UnQual (Symbol "$"))) exp2) -> scoreExpressions exp1 exp2
+  -- Don't count compose
+  InfixApp _  (QVarOp (UnQual (Symbol "."))) _ -> (0,0)
+  (InfixApp exp1 op exp2) -> scoreExpressions (App (qOpToExp op) exp1) exp2 --scoreExpressions exp1 exp2
+  (App exp1 exp2) -> scoreExpressions exp1 exp2
+  _ -> (0, 0)
 
 -- Todo add test for this function
 simplifyApp :: Exp -> (Exp, [Exp])
@@ -210,11 +239,11 @@ simplifyApp (App exp1 exp2) = (funExp, args <> [exp2])
     (funExp, args) = simplifyApp exp1
 simplifyApp e = (e, [])
 
-simplifyCompose :: Exp -> (Exp, [Exp])
-simplifyCompose e = case simplifyExp e of
+simplifyComposeApply :: Exp -> (Exp, [Exp])
+simplifyComposeApply e = case simplifyExp e of
   (App exp1 exp2) -> (argExp, funcs <> [exp1])
     where
-      (argExp, funcs) = simplifyCompose exp2
+      (argExp, funcs) = simplifyComposeApply exp2
   simpleExp -> (simpleExp, [])
 
 evalIf :: EvalContext -> Exp -> Exp -> Exp -> State IDState (SyntaxGraph, NameAndPort)
@@ -415,7 +444,7 @@ evalExp c x = case x of
   Con n -> evalQName n c
   Lit l -> fmap Right <$> evalLit l
   InfixApp e1 op e2 -> evalInfixApp c e1 op e2
-  e@(App _ _) -> fmap Right <$> evaluateAppExpression c e
+  e@(App f x) -> fmap Right <$> evaluateAppExpression c f x
   NegApp e -> evalExp c (App (makeVarExp "negate") e)
   Lambda _ patterns e -> fmap Right <$> evalLambda c patterns e
   Let bs e -> evalLet c bs e

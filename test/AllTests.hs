@@ -216,6 +216,18 @@ renderTests = do
       -- TODO Add a nested test where the function expression is nested.
       ]
 
+composeTests :: [String]
+composeTests = [
+  "y = f (g x)",
+  "y = f . g",
+  "y = f . g $ x",
+  "y = (f . g) x",
+  "y = f3 . f2 . f1",
+  "y = f3 . f2 . f1 $ x",
+  "y = (f3 . f2 . f1) x",
+  "y = f1 $ f6 (f2 (f3 . f4)) (f5 x)"
+  ]
+
 -- | nestedTests / collapseTest
 nestedTests :: [String]
 nestedTests = [
@@ -429,6 +441,7 @@ otherTests = [
 testDecls :: [String]
 testDecls = mconcat [
   dollarTests
+  ,composeTests
   ,nestedTests
   ,negateTests
   ,doTests
