@@ -135,10 +135,10 @@ makePort x = named x mempty
 defaultLineWidth :: (Fractional a) => a
 defaultLineWidth = 0.15
 
--- APPLY0 ICON --
 circleRadius :: (Fractional a) => a
 circleRadius = 0.5
 
+-- APPLY0 ICON --
 apply0Triangle :: SpecialBackend b n => Colour Double -> SpecialQDiagram b n
 apply0Triangle col = fc col $ lw none $ rotateBy (-1/12) $ eqTriangle (2 * circleRadius)
 
@@ -230,7 +230,7 @@ generalNestedDia dia borderCols funcNodeNameAndArgs name nestingLevel reflect an
   
       allPorts = makeQualifiedPort (Port 0) <> alignL trianglePortsCircle
       topAndBottomLineWidth = width allPorts - circleRadius
-      argBox = alignL $ lwG defaultLineWidth $ lc borderCol $ rect topAndBottomLineWidth (height allPorts + verticalSeperation)
+      argBox = alignL $ lwG defaultLineWidth $ lc borderCol $ roundedRect topAndBottomLineWidth (height allPorts + verticalSeperation) (circleRadius * 0.5)
       finalDia = argBox <> allPorts
 
       makeInnerIcon _ portNum Nothing = makeQualifiedPort (Port portNum) <> portCircle
