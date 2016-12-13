@@ -1,4 +1,6 @@
 -- TODO Now --
+Unit tests for let expressions.
+
 Put the name and type for top-level-binds in a text box below drawings.
 Translate (.) into compose
 

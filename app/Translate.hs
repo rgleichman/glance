@@ -202,7 +202,7 @@ evalInfixApp :: EvalContext -> Exp -> QOp -> Exp -> State IDState (SyntaxGraph, 
 evalInfixApp c e1 (QVarOp (UnQual (Symbol "$"))) e2 = evalExp c (App e1 e2)
 evalInfixApp c e1 (QVarOp (UnQual (Symbol "<$>"))) e2 = evalExp c $ App (App (makeVarExp "fmap") e1) e2
 evalInfixApp c e1 (QVarOp (UnQual (Symbol "."))) e2 = fmap Right <$> evalCompose c (e1 : simplifyCompose e2)
-evalInfixApp c e1 op e2 = evalExp c (App (App (qOpToExp op) e1) e2) --evalApp c (qOpToExp op, [e1, e2])
+evalInfixApp c e1 op e2 = evalExp c (App (App (qOpToExp op) e1) e2)
 
 scoreExpressions :: Exp -> Exp -> (Int, Int)
 scoreExpressions exp1 exp2 = (appScore, compScore) where
@@ -230,30 +230,27 @@ simplifyExp e = case removeParen e of
   -- Don't convert compose to apply
   InfixApp _  (QVarOp (UnQual (Symbol "."))) _ -> e
   InfixApp exp1 op exp2 -> App (App (qOpToExp op) exp1) exp2
+  LeftSection e op -> App (qOpToExp op) e
   x -> x
 
 -- TODO Consider putting this logic in a separate "simplifyExpression" function.
 -- | Returns the amount of nesting if the App is converted to (applyNode, composeNode)
 applyComposeScore :: Exp -> (Int, Int)
-applyComposeScore e = case removeParen e of
-  (InfixApp exp1  (QVarOp (UnQual (Symbol "$"))) exp2) -> scoreExpressions exp1 exp2
-  -- Don't count compose
-  InfixApp _  (QVarOp (UnQual (Symbol "."))) _ -> (0,0)
-  (InfixApp exp1 op exp2) -> scoreExpressions (App (qOpToExp op) exp1) exp2 --scoreExpressions exp1 exp2
-  (App exp1 exp2) -> scoreExpressions exp1 exp2
+applyComposeScore e = case simplifyExp e of
+  App exp1 exp2 -> scoreExpressions exp1 exp2
   _ -> (0, 0)
 
 -- Todo add test for this function
 simplifyApp :: Exp -> (Exp, [Exp])
-simplifyApp (Paren exp1) = simplifyApp exp1
-simplifyApp (App exp1 exp2) = (funExp, args <> [exp2])
-  where
-    (funExp, args) = simplifyApp exp1
-simplifyApp e = (e, [])
+simplifyApp e = case simplifyExp e of
+  App exp1 exp2 -> (funExp, args <> [exp2])
+    where
+      (funExp, args) = simplifyApp exp1
+  x -> (x, [])
 
 simplifyComposeApply :: Exp -> (Exp, [Exp])
 simplifyComposeApply e = case simplifyExp e of
-  (App exp1 exp2) -> (argExp, funcs <> [exp1])
+  App exp1 exp2 -> (argExp, funcs <> [exp1])
     where
       (argExp, funcs) = simplifyComposeApply exp2
   simpleExp -> (simpleExp, [])
@@ -416,8 +413,8 @@ evalListExp :: EvalContext -> [Exp] -> State IDState (SyntaxGraph, NameAndPort)
 evalListExp _ [] = makeBox "[]"
 evalListExp c exps = evalApp c ApplyNodeFlavor (makeVarExp . nListString . length $ exps, exps)
 
-evalLeftSection :: EvalContext -> Exp -> QOp -> State IDState (SyntaxGraph, NameAndPort)
-evalLeftSection c e op = evalApp c ApplyNodeFlavor (qOpToExp op, [e])
+evalLeftSection :: EvalContext -> Exp -> QOp -> State IDState (SyntaxGraph, Reference)
+evalLeftSection c e op = evalExp c $ App (qOpToExp op) e
 
 evalRightSection :: EvalContext -> QOp -> Exp -> State IDState (SyntaxGraph, NameAndPort)
 evalRightSection c op e = do
@@ -461,7 +458,7 @@ evalExp c x = case x of
   Tuple _ exps -> fmap Right <$> evalTuple c exps
   List exps -> fmap Right <$> evalListExp c exps
   Paren e -> evalExp c e
-  LeftSection e op -> fmap Right <$> evalLeftSection c e op
+  LeftSection e op -> evalLeftSection c e op
   RightSection op e -> fmap Right <$> evalRightSection c op e
   RecConstr n updates -> evalRecConstr c n updates
   -- TODO: Do RecUpdate correcly

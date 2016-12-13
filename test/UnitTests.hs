@@ -108,6 +108,18 @@ translateUnitTests = TestList [
       "y = f3 . f2 . f1 $ x",
       "y = (f3 . f2 . f1) x"
       ]
+  ,
+  TestLabel "infixTests1" $ assertEqualSyntaxGraphs [
+      "y = (+) 1 2",
+      "y = ((+) 1) 2",
+      "y = 1 + 2",
+      "y = (1 +) 2"
+      ]
+  ,
+  TestLabel "infixTests2" $ assertEqualSyntaxGraphs [
+      "y = f (1 +) 2",
+      "y = f ((+) 1) 2"
+      ]
   ]
 
 allUnitTests :: Test

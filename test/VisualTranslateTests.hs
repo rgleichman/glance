@@ -219,7 +219,6 @@ letTests = [
 operatorTests :: [String]
 operatorTests = [
   "y = 1 + 2",
-  "y = map (1 ++) 3",
   "y = map (++ 1) 3"
   ]
 
@@ -279,7 +278,7 @@ translateStringToDrawing s = do
       putStr "\nCollapsed Graph:\n"
       print collapsedGraph
       putStr "\n\n"
-  --printAction
+  -- printAction
   renderIngSyntaxGraph drawing
 
 visualTranslateTests :: SpecialBackend b Double => IO (SpecialQDiagram b Double)
