@@ -13,6 +13,18 @@ import Types(SgNamedNode, Edge(..), SyntaxNode(..),
              IngSyntaxGraph, NodeName(..), LikeApplyFlavor(..))
 import qualified GraphAlgorithms
 
+-- Unit Test Helpers --
+
+assertAllEqual :: (Eq a, Show a) => [a] -> Test
+assertAllEqual items = case items of
+  [] -> TestCase $ assertFailure "assertAllEqual: argument is empty list"
+  (first : rest) -> TestList $ fmap (first ~=?) rest
+
+assertEqualSyntaxGraphs :: [String] -> Test
+assertEqualSyntaxGraphs ls = assertAllEqual $ fmap stringToSyntaxGraph ls
+
+-- END Unit Test Helpers --
+
 -- 0:(toName "app02",ApplyNode 1)->[]
 -- 1:(toName "f0",LiteralNode "f")->[(Edge {edgeOptions = [], edgeEnds = (EndNone,EndNone), edgeConnection = (NameAndPort (toName "f0") Nothing,NameAndPort (toName "app02") (Just 0))},0)]
 -- 2:(toName "x1",LiteralNode "x")->[(Edge {edgeOptions = [], edgeEnds = (EndNone,EndNone), edgeConnection = (NameAndPort (toName "x1") Nothing,NameAndPort (toName "app02") (Just 2))},0)]
@@ -60,14 +72,42 @@ collapseUnitTests = TestList[
 
 -- Translate unit tests
 
-fmapTest :: Test
-fmapTest = TestCase $ assertEqual "fmapTest" fmap1 fmap2 where
-  fmap1 = stringToSyntaxGraph "y = fmap f x"
-  fmap2 = stringToSyntaxGraph "y = f <$> x"
-
+-- Yes, the commas get their own line
 translateUnitTests :: Test
 translateUnitTests = TestList [
-  TestLabel "fmapTest" fmapTest
+  TestLabel "fmapTest" $ assertEqualSyntaxGraphs [
+      "y = fmap f x",
+      "y = f <$> x"
+      ]
+  ,
+  TestLabel "dollarTests1" $ assertEqualSyntaxGraphs [
+      "y = f x",
+      "y = f $ x"
+      ]
+  ,
+  TestLabel "dollarTests2" $ assertEqualSyntaxGraphs [
+      "y = f (g x)",
+      "y = f $ (g x)",
+      "y = f $ g  $ x",
+      "y = f (g  $ x)"
+      ]
+  ,
+  TestLabel "dollarTests3" $ assertEqualSyntaxGraphs [
+      "y = f 1 (g 2)",
+      "y = f 1 $ g 2"
+      ]
+  ,
+  TestLabel "composeApplyTests1" $ assertEqualSyntaxGraphs [
+      "y = f (g x)",
+      "y = (f . g) x",
+      "y = f . g $ x"
+      ]
+  ,
+  TestLabel "composeApplyTests2" $ assertEqualSyntaxGraphs [
+      "y = f3 (f2 (f1 x))",
+      "y = f3 . f2 . f1 $ x",
+      "y = (f3 . f2 . f1) x"
+      ]
   ]
 
 allUnitTests :: Test

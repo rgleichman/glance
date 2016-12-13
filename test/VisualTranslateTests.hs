@@ -34,11 +34,8 @@ composeTests :: [String]
 composeTests = [
   "y = f (g x)",
   "y = f . g",
-  "y = f . g $ x",
-  "y = (f . g) x",
   "y = f3 . f2 . f1",
   "y = f3 . f2 . f1 $ x",
-  "y = (f3 . f2 . f1) x",
   "y = f1 $ f6 (f2 (f3 . f4)) (f5 x)"
   ]
 
@@ -46,7 +43,6 @@ composeTests = [
 nestedTests :: [String]
 nestedTests = [
   "y = f x",
-  "y = f (g x)",
   "y = let x = 1 in f x",
   "y = let x = 1 in f (g x)",
   "y = f []",
@@ -58,7 +54,6 @@ nestedTests = [
   "y = f y",
   "y = f (g y)",
   "y = f1 (f2 ( f3 (f4 2))) 1", -- test compose embedded in apply
-  "y = f1 (f2 $ f3 $ f4 2) 1", -- test compose embedded in apply
   "y = f0 $ f1 $ f2 z (f4 $ f5 q) $ x", -- compose embedded in compose
   "fibs = cons 1 (zipWith (+) fibs (tail fibs))",
   "y = foo (3 + bazOf2) bazOf2 where bazOf2 = baz 2",
@@ -72,13 +67,6 @@ nestedTests = [
   "Foo (Bar x) = f 2",
   "Foo (Bar x) = f x",
   "y x = case x of {Just w -> (let (z,_) = w in z)}"
-  ]
-
-dollarTests :: [String]
-dollarTests = [
-  "y = f $ g 3",
-  "y = f 1 $ g 2 ",
-  "y = f <$> x"
   ]
 
 specialTests :: [String]
@@ -255,8 +243,7 @@ otherTests = [
 
 testDecls :: [String]
 testDecls = mconcat [
-  dollarTests
-  ,composeTests
+  composeTests
   ,nestedTests
   ,negateTests
   ,doTests
