@@ -63,14 +63,14 @@ qNameToString (Special Cons) = "(:)"
 qNameToString (Special UnboxedSingleCon) = "(# #)"
 
 evalPApp :: QName -> [Pat] -> State IDState (SyntaxGraph, NameAndPort)
-evalPApp name [] = makeBox $ qNameToString name
-evalPApp name patterns = do
-  patName <- getUniqueName "pat"
-  evaledPatterns <- mapM evalPattern patterns
-  let
+evalPApp name patterns = case patterns of
+  [] -> makeBox constructorName
+  _ ->  do
+    patName <- getUniqueName "pat"
+    evaledPatterns <- mapM evalPattern patterns
+    pure $ makePatternGraph patName constructorName evaledPatterns (length evaledPatterns)
+  where
     constructorName = qNameToString name
-    gr = makePatternGraph patName constructorName evaledPatterns (length evaledPatterns)
-  pure gr
 
 evalPLit :: Exts.Sign -> Exts.Literal -> State IDState (SyntaxGraph, NameAndPort)
 evalPLit Exts.Signless l = evalLit l
@@ -109,9 +109,13 @@ strToGraphRef c str = fmap mapper (makeBox str) where
     else fmap Right gr
 
 evalQName :: QName -> EvalContext -> State IDState (SyntaxGraph, Reference)
-evalQName qName@(UnQual _) c = strToGraphRef c (qNameToString qName)
-evalQName qName@(Qual _ _) c = strToGraphRef c (qNameToString qName)
-evalQName qName _ = fmap Right <$> makeBox (qNameToString qName)
+evalQName qName c = case qName of
+  UnQual _ -> graphRef
+  Qual _ _ -> graphRef
+  _ -> fmap Right <$> makeBox qNameString
+  where
+    qNameString = qNameToString qName
+    graphRef = strToGraphRef c qNameString
 
 -- evalQOp :: QOp -> EvalContext -> State IDState (SyntaxGraph, Reference)
 -- evalQOp (QVarOp n) = evalQName n
@@ -199,10 +203,15 @@ simplifyCompose e = case removeParen e of
   x -> [x]
 
 evalInfixApp :: EvalContext -> Exp -> QOp -> Exp -> State IDState (SyntaxGraph, Reference)
-evalInfixApp c e1 (QVarOp (UnQual (Symbol "$"))) e2 = evalExp c (App e1 e2)
-evalInfixApp c e1 (QVarOp (UnQual (Symbol "<$>"))) e2 = evalExp c $ App (App (makeVarExp "fmap") e1) e2
-evalInfixApp c e1 (QVarOp (UnQual (Symbol "."))) e2 = fmap Right <$> evalCompose c (e1 : simplifyCompose e2)
-evalInfixApp c e1 op e2 = evalExp c (App (App (qOpToExp op) e1) e2)
+evalInfixApp c e1 op e2 = case op of
+  QVarOp (UnQual (Symbol sym)) -> case sym of
+    "$" -> evalExp c (App e1 e2)
+    "<$>" -> evalExp c $ App (App (makeVarExp "fmap") e1) e2
+    "." -> fmap Right <$> evalCompose c (e1 : simplifyCompose e2)
+    _ -> defaultCase
+  _ -> defaultCase
+  where
+    defaultCase = evalExp c $ App (App (qOpToExp op) e1) e2
 
 scoreExpressions :: Exp -> Exp -> (Int, Int)
 scoreExpressions exp1 exp2 = (appScore, compScore) where
@@ -574,9 +583,8 @@ evalMatches _ [] = pure mempty
 evalMatches c (firstMatch:restOfMatches) = matchesToCase firstMatch restOfMatches >>= evalMatch c
 
 evalDecl :: EvalContext -> Decl -> State IDState SyntaxGraph
-evalDecl c d = evaluatedDecl where
-  evaluatedDecl = case d of
-    pat@(PatBind _ _ _ _) -> evalPatBind c pat
+evalDecl c d = case d of
+    PatBind _ _ _ _ -> evalPatBind c d
     FunBind matches -> evalMatches c matches
     --TODO: Add other cases here
     _ -> pure mempty
