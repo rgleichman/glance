@@ -46,6 +46,7 @@ import Icons(Icon(..))
 
 type Reference = Either String NameAndPort
 
+-- TODO Replace lists with sets
 -- | SyntaxGraph is an abstract representation for Haskell syntax. SyntaxGraphs are
 -- generated from the Haskell syntax tree, and are used to generate Drawings
 data SyntaxGraph = SyntaxGraph {

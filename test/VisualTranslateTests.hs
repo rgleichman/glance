@@ -43,7 +43,6 @@ composeTests = [
 nestedTests :: [String]
 nestedTests = [
   "y = f x",
-  "y = let x = 1 in f x",
   "y = let x = 1 in f (g x)",
   "y = f []",
   "y = f [1]",

@@ -7,11 +7,14 @@ import Test.HUnit
 import qualified Data.Graph.Inductive.Graph as ING
 import qualified Data.Graph.Inductive.PatriciaTree as FGR
 
+import Data.List(foldl', sort)
+
 import Translate(stringToSyntaxGraph)
-import TranslateCore(syntaxGraphToFglGraph)
+import TranslateCore(syntaxGraphToFglGraph, SyntaxGraph(..), Reference)
 import Types(SgNamedNode, Edge(..), SyntaxNode(..),
-             IngSyntaxGraph, NodeName(..), LikeApplyFlavor(..))
+             IngSyntaxGraph, NodeName(..), LikeApplyFlavor(..), NameAndPort(..))
 import qualified GraphAlgorithms
+import Util(fromMaybeError)
 
 -- Unit Test Helpers --
 
@@ -21,9 +24,52 @@ assertAllEqual items = case items of
   (first : rest) -> TestList $ fmap (first ~=?) rest
 
 assertEqualSyntaxGraphs :: [String] -> Test
-assertEqualSyntaxGraphs ls = assertAllEqual $ fmap stringToSyntaxGraph ls
+assertEqualSyntaxGraphs ls = assertAllEqual $ fmap (renameGraph . stringToSyntaxGraph) ls
+
+-- BEGIN renameGraph --
+
+-- TODO Implement renameSyntaxNode
+renameSyntaxNode :: [(NodeName, NodeName)] -> SyntaxNode -> Int  -> (SyntaxNode, Int)
+renameSyntaxNode nameMap node counter = (node, counter)
+
+renameNode :: ([SgNamedNode], [(NodeName, NodeName)], Int) -> SgNamedNode -> ([SgNamedNode], [(NodeName, NodeName)], Int)
+renameNode state@(renamedNodes, nameMap, counter) node@(nodeName, syntaxNode) = case lookup nodeName nameMap of
+  Nothing -> (newNamedNode:renamedNodes, newNameMap, newCounter) where
+    newNodeName = NodeName counter
+    newNameMap = (nodeName, newNodeName) : nameMap
+    (newSyntaxNode, newCounter) = renameSyntaxNode newNameMap syntaxNode (counter + 1)
+    newNamedNode = (newNodeName, newSyntaxNode)
+  Just _ -> error $ "renameNode: node already in name map. State = " ++ show state ++ " Node = " ++ show node
+
+renameNamePort :: [(NodeName, NodeName)] -> NameAndPort -> NameAndPort
+renameNamePort nameMap nameAndPort@(NameAndPort name port) = NameAndPort newName port where
+  newName = fromMaybeError errorStr $ lookup name nameMap
+  errorStr = "renameNamePort: name not found. name = " ++ show name ++ "\nNameAndPort = " ++ show nameAndPort ++ "\nNameMap = " ++ show nameMap
+
+renameEdge :: [(NodeName, NodeName)] -> Edge -> Edge
+renameEdge nameMap (Edge options ends (np1, np2)) =
+  Edge options ends (renameNamePort nameMap np1, renameNamePort nameMap np2)
+
+renameSource :: [(NodeName, NodeName)] -> (String, Reference) -> (String, Reference)
+renameSource nameMap (str, ref) = (str, newRef) where
+  newRef = case ref of
+    Left _ -> ref
+    Right namePort@(NameAndPort _ _) -> Right $ renameNamePort nameMap namePort
+
+-- TODO Rename sinks and embedMap
+-- TODO Add unit tests for renameGraph
+renameGraph :: SyntaxGraph -> SyntaxGraph
+renameGraph (SyntaxGraph nodes edges sinks sources embedMap) =
+  SyntaxGraph (sort renamedNodes) renamedEdges sinks renamedSources embedMap
+  where
+    (renamedNodes, nameMap, _) = foldl' renameNode ([], [], 0) nodes
+    renamedEdges = sort $ fmap (renameEdge nameMap) edges
+    renamedSources = sort $ fmap (renameSource nameMap) sources
+  
+-- END renameGraph
 
 -- END Unit Test Helpers --
+
 
 -- 0:(toName "app02",ApplyNode 1)->[]
 -- 1:(toName "f0",LiteralNode "f")->[(Edge {edgeOptions = [], edgeEnds = (EndNone,EndNone), edgeConnection = (NameAndPort (toName "f0") Nothing,NameAndPort (toName "app02") (Just 0))},0)]
@@ -72,14 +118,7 @@ collapseUnitTests = TestList[
 
 -- Translate unit tests
 
--- Yes, the commas get their own line
-translateUnitTests :: Test
-translateUnitTests = TestList [
-  TestLabel "fmapTest" $ assertEqualSyntaxGraphs [
-      "y = fmap f x",
-      "y = f <$> x"
-      ]
-  ,
+dollarTests = TestList [
   TestLabel "dollarTests1" $ assertEqualSyntaxGraphs [
       "y = f x",
       "y = f $ x"
@@ -96,7 +135,9 @@ translateUnitTests = TestList [
       "y = f 1 (g 2)",
       "y = f 1 $ g 2"
       ]
-  ,
+  ]
+
+composeApplyTests = TestList [
   TestLabel "composeApplyTests1" $ assertEqualSyntaxGraphs [
       "y = f (g x)",
       "y = (f . g) x",
@@ -108,7 +149,9 @@ translateUnitTests = TestList [
       "y = f3 . f2 . f1 $ x",
       "y = (f3 . f2 . f1) x"
       ]
-  ,
+  ]
+
+infixTests = TestList [
   TestLabel "infixTests1" $ assertEqualSyntaxGraphs [
       "y = (+) 1 2",
       "y = ((+) 1) 2",
@@ -120,6 +163,29 @@ translateUnitTests = TestList [
       "y = f (1 +) 2",
       "y = f ((+) 1) 2"
       ]
+  ]
+
+letTests = TestList [
+  TestLabel "letTests1" $ assertEqualSyntaxGraphs [
+      "y = f 1",
+      "y = let x = 1 in f x"
+      ]
+  ]
+
+-- Yes, the commas get their own line
+translateUnitTests :: Test
+translateUnitTests = TestList [
+  TestLabel "fmapTest" $ assertEqualSyntaxGraphs [
+      "y = fmap f x",
+      "y = f <$> x"
+      ]
+  ,
+  TestLabel "dollarTests" dollarTests
+  ,
+  TestLabel "composeApplyTests" composeApplyTests
+  ,
+  TestLabel "infixTests" infixTests
+  , TestLabel "letTests" letTests
   ]
 
 allUnitTests :: Test
