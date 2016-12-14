@@ -131,19 +131,25 @@ guardTests = [
 patternTests :: [String]
 patternTests = [
   "Foo _ x = 3",
+
+  -- TODO Remove branch icon
   "y (F x) = x",
-  "y = (\\(F x) -> x)",
+
   "y = let {g = 3; F x y = h g} in x y",
+
   "y = let {F x y = 3} in x y",
-  "y = let {g = 3; F x y = g} in x y",
+
   "y = let F x y = g in x y",
+
   "F x = g x",
   "Foo (Bar x) (Baz y) = f 1 2 x y",
   "Foo x y = f 1 y x",
+
+  -- TODO Fix so that "t" connects to the apply result, not the pattern.
   "t@(x,y) = (x,y)",
   "y = let {t@(_,_) = (3,4)} in t + 3",
+
   "y = let {(x, y) = (1,2)} in x + y",
-  -- TODO: Fix so that lines between patterns are Pattern Color.
   "y = let {(x, y) = (1,2); (z, w) = x; (m, g) = y} in foo x y z w m g",
   "(x:y) = 2"
   ]

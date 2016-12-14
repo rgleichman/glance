@@ -289,6 +289,20 @@ enumTests = TestList [
       ]
   ]
 
+patternTests :: Test
+patternTests = TestList[
+  -- TODO Remove branch icon
+  assertEqualSyntaxGraphs [
+      "y (F x) = x",
+      "y = (\\(F x) -> x)"
+      ]
+  ,
+  assertEqualSyntaxGraphs [
+      "y = let {F x y = 3} in x y",
+      "y = let {g = 3; F x y = g} in x y"
+      ]
+  ]
+
 -- Yes, the commas get their own line
 translateUnitTests :: Test
 translateUnitTests = TestList [
@@ -305,6 +319,7 @@ translateUnitTests = TestList [
   , TestLabel "letTests" letTests
   , TestLabel "negateTests" negateTests
   , TestLabel "enumTests" enumTests
+  , TestLabel "patternTests" patternTests
   ]
 
 allUnitTests :: Test
