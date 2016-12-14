@@ -31,7 +31,7 @@ renderDrawings = mapM_ saveDrawing where
 main :: IO ()
 --main = print "Hello world"
 main = do
---  ING.prettyPrint singleApplyGraph
+  --  ING.prettyPrint singleApplyGraph
   renderDrawings drawingsAndNames
   _ <- runTestTT allUnitTests
   pure ()

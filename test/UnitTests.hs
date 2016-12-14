@@ -7,14 +7,15 @@ import Test.HUnit
 import qualified Data.Graph.Inductive.Graph as ING
 import qualified Data.Graph.Inductive.PatriciaTree as FGR
 
-import Data.List(foldl', sort)
+import Data.List(foldl', sort, sortOn)
 
 import Translate(stringToSyntaxGraph)
 import TranslateCore(syntaxGraphToFglGraph, SyntaxGraph(..), Reference)
 import Types(SgNamedNode, Edge(..), SyntaxNode(..),
              IngSyntaxGraph, NodeName(..), LikeApplyFlavor(..), NameAndPort(..))
 import qualified GraphAlgorithms
-import Util(fromMaybeError)
+import Util(fromMaybeError, mapFst)
+import GraphAlgorithms(collapseNodes)
 
 -- Unit Test Helpers --
 
@@ -56,13 +57,17 @@ renameSource nameMap (str, ref) = (str, newRef) where
     Left _ -> ref
     Right namePort@(NameAndPort _ _) -> Right $ renameNamePort nameMap namePort
 
+-- TODO May want to remove names for sub-nodes
+removeNames :: SgNamedNode -> SyntaxNode
+removeNames (_, syntaxNode) = syntaxNode
+
 -- TODO Rename sinks and embedMap
 -- TODO Add unit tests for renameGraph
 renameGraph :: SyntaxGraph -> SyntaxGraph
 renameGraph (SyntaxGraph nodes edges sinks sources embedMap) =
-  SyntaxGraph (sort renamedNodes) renamedEdges sinks renamedSources embedMap
+  SyntaxGraph renamedNodes renamedEdges sinks renamedSources embedMap
   where
-    (renamedNodes, nameMap, _) = foldl' renameNode ([], [], 0) nodes
+    (renamedNodes, nameMap, _) = foldl' renameNode ([], [], 0) $ sortOn removeNames nodes
     renamedEdges = sort $ fmap (renameEdge nameMap) edges
     renamedSources = sort $ fmap (renameSource nameMap) sources
   
@@ -168,8 +173,71 @@ infixTests = TestList [
 letTests = TestList [
   TestLabel "letTests1" $ assertEqualSyntaxGraphs [
       "y = f 1",
-      "y = let x = 1 in f x"
+      "y = let x = 1 in f x",
+      "y = let {b = a; a = 1} in f b"
       ]
+  ,
+  assertEqualSyntaxGraphs [
+      "y = 2",
+      "y = let z = 2 in z",
+      "y = let {z = 2; z2 = z} in z2"
+      ]
+  ,
+  assertEqualSyntaxGraphs [
+      "y = f y",
+      "y = let x = f x in x"
+      ]
+  ,
+  assertEqualSyntaxGraphs [
+      "y = f 7 5",
+      "y = let {a = 7; b = f a 5} in b"
+     ]
+  ,
+  assertEqualSyntaxGraphs [
+      "y x = x",
+      "y x = let z = x in z"
+      ]
+  ,
+  assertEqualSyntaxGraphs [
+      "fibs = let {y = cons 0 (cons 1 (zipWith (+) y (tail y)))} in y",
+      "fibs = cons 0 (cons 1 (zipWith (+) fibs (tail fibs)))"
+      ]
+  ,
+  assertEqualSyntaxGraphs [
+      "y x = y x",
+      "y = let {z = (\\x -> y x)} in z",
+      "y = let {z x = y x} in z "
+      ]
+  ,
+  assertEqualSyntaxGraphs [
+      "y = f 3 y",
+      "y = x where x = f 3 y",
+      "y = let x = f 3 y in x"
+      ]
+  ,
+  assertEqualSyntaxGraphs [
+      "y x = f x",
+      "y x1 = let {x2 = x1; x3 = x2; x4 = f x3} in x4"
+      ]
+  ,
+  -- TODO Fix this test. The second line has two apply icons instead of one.
+  -- See VisualTranslateTests/letTests
+  -- assertEqualSyntaxGraphs [
+  --     "y x1 = (f x1) x1",
+  --     "y x1 = let x2 = f x1 in x2 x1"
+  --    ]
+
+  assertEqualSyntaxGraphs [
+      "y x = 3",
+      "y x = let x = 3 in x"
+      ]
+
+  -- TODO Fix test. Second line should use compose apply.
+  -- See VisualTranslateTests/letTests
+  -- assertEqualSyntaxGraphs [
+  --     "y = g $ f y",
+  --     "y = let {a = f b; b = g a} in b"
+  --     ]
   ]
 
 -- Yes, the commas get their own line

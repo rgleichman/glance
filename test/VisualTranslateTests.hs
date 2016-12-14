@@ -191,33 +191,22 @@ lambdaTests = [
 
 letTests :: [String]
 letTests = [
-  "y = let {z = (\\x -> y x)} in z",
-  "y = let {z x = y x} in z ",
-  "y = x where x = f 3 y",
-  "y x1 = let {x2 = x1; x3 = x2; x4 = f x3} in x4",
+  -- TODO fix. See UnitTests/letTests
+  "y x = f x x",
   "y x1 = let x2 = f x1 in x2 x1",
-  "y x = let x = 3 in x",
+
+  -- TODO fix. See UnitTests/letTests
+  "y = g $ f y",
+  "y = let {a = f b; b = g a} in b",
+  
   "y = let {a= 1; x = let {a = 27; x = f a 2} in x} in x",
   "y = let {a = b; b = a; d = f a} in d",
   "y = let {a = b; b = a} in a",
-  "y = let x = x in x",
-  -- TODO fix the lack of embedding.
-  "y = let {fibs = cons 0 (cons 1 (zipWith (+) fibs (tail fibs)))} in fibs",
-  "fibs = cons 0 (cons 1 (zipWith (+) fibs (tail fibs)))",
-  "y = let x = f x in x",
-  "y = f y",
-  "y = let {a = f b; b = g a} in b",
-  "y = let {a = 48; b = a + 3} in b",
-  "y = let {b = a; a = 84} in f b",
-  "y = let {x = 1} in f x",
-  "y = let z = 2 in z",
-  "y = let {z = 3; z2 = z} in z2",
-  "y x = let z = x in z"
+  "y = let x = x in x"
   ]
 
 operatorTests :: [String]
 operatorTests = [
-  "y = 1 + 2",
   "y = map (++ 1) 3"
   ]
 
@@ -226,12 +215,15 @@ otherTests = [
   "y = f 1 'c' 2.3 \"foobar\"",
   "fact x = if (x == 0) then 1 else (x * fact (x - 1))",
   "fact x = if ((==) 0 x) then 1 else (x * fact ((-) x 1))",
+  "fibs = cons 0 (cons 1 (zipWith (+) fibs (tail fibs)))",
   "y x = if x then (if z then q else x) else w",
   "y x1 x2 x3 = if f x1 then g x2 else h x3",
   "y x1 x2 x3 = if x1 then x2 else x3",
   "y = if b then x else n",
   "y2 = f x1 x2 x3 x4",
   "y = x",
+  "y x = y x",
+  "y = f 3 y",
   "y = f x",
   "y = f (g x)",
   "y = f (g x1 x2) x3",
@@ -279,6 +271,7 @@ translateStringToDrawing s = do
       putStr "\n\n"
   -- printAction
   renderIngSyntaxGraph drawing
+  -- renderIngSyntaxGraph fglGraph
 
 visualTranslateTests :: SpecialBackend b Double => IO (SpecialQDiagram b Double)
 visualTranslateTests = do
