@@ -49,7 +49,6 @@ nestedTests = [
   "y = f [1,2]",
   "y = f [g 3, h 5]",
   "y = f $ g (\\x -> x)",
-  "y = (f 3) 4",
   "y = f y",
   "y = f (g y)",
   "y = f1 (f2 ( f3 (f4 2))) 1", -- test compose embedded in apply
@@ -78,13 +77,6 @@ specialTests = [
   "yyyyy = fffff xxxxx"
   ]
 
-negateTests :: [String]
-negateTests = [
-  "y = -1",
-  "y = -1/2",
-  "y = -x"
-  ]
-
 doTests :: [String]
 doTests = [
   "y = do {x1}",
@@ -94,14 +86,6 @@ doTests = [
   "y = do {(x1, x2) <- m1; x1 + x2}",
   "y = do {x1 <- m1; x2 <- f x1; g x2}",
   "y = do {let {x = 1}; x2 <- x; f x2}"
-  ]
-
-enumTests :: [String]
-enumTests = [
-  "y = [1..]",
-  "y = [1,2..]",
-  "y = [0..10]",
-  "y = [0,1..10]"
   ]
 
 tupleTests :: [String]
@@ -235,9 +219,7 @@ testDecls :: [String]
 testDecls = mconcat [
   composeTests
   ,nestedTests
-  ,negateTests
   ,doTests
-  ,enumTests
   ,caseTests
   ,lambdaTests
   ,guardTests

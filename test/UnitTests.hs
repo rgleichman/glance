@@ -122,8 +122,8 @@ collapseUnitTests = TestList[
 
 -- Translate unit tests
 
-dollarTests :: Test
-dollarTests = TestList [
+applyTests :: Test
+applyTests = TestList [
   TestLabel "dollarTests1" $ assertEqualSyntaxGraphs [
       "y = f x",
       "y = f $ x"
@@ -139,6 +139,11 @@ dollarTests = TestList [
   TestLabel "dollarTests3" $ assertEqualSyntaxGraphs [
       "y = f 1 (g 2)",
       "y = f 1 $ g 2"
+      ]
+  ,
+  assertEqualSyntaxGraphs [
+      "y = f 3 4",
+      "y = (f 3) 4"
       ]
   ]
 
@@ -243,6 +248,47 @@ letTests = TestList [
   --     ]
   ]
 
+negateTests :: Test
+negateTests = TestList [
+  assertEqualSyntaxGraphs [
+      "y = negate 1",
+      "y = -1"
+      ]
+  ,
+  assertEqualSyntaxGraphs [
+      "y = negate ((/) 1 2)",
+      "y = -1/2"
+      ]
+  ,
+  assertEqualSyntaxGraphs [
+      "y = negate x",
+      "y = -x"
+      ]
+  ]
+
+enumTests :: Test
+enumTests = TestList [
+  assertEqualSyntaxGraphs [
+      "y = enumFrom 1",
+      "y = [1..]"
+      ]
+  ,
+  assertEqualSyntaxGraphs [
+      "y = enumFromThen 1 2",
+      "y = [1,2..]"
+      ]
+  ,
+  assertEqualSyntaxGraphs [
+      "y = enumFromTo 0 10",
+      "y = [0..10]"
+      ]
+  ,
+  assertEqualSyntaxGraphs [
+      "y = enumFromThenTo 0 1 10",
+      "y = [0,1..10]"
+      ]
+  ]
+
 -- Yes, the commas get their own line
 translateUnitTests :: Test
 translateUnitTests = TestList [
@@ -251,12 +297,14 @@ translateUnitTests = TestList [
       "y = f <$> x"
       ]
   ,
-  TestLabel "dollarTests" dollarTests
+  TestLabel "applyTests" applyTests
   ,
   TestLabel "composeApplyTests" composeApplyTests
   ,
   TestLabel "infixTests" infixTests
   , TestLabel "letTests" letTests
+  , TestLabel "negateTests" negateTests
+  , TestLabel "enumTests" enumTests
   ]
 
 allUnitTests :: Test

@@ -2,12 +2,12 @@ name:                glance
 version:             0.1.0.0
 synopsis:            Glance is a visual Haskell
 description:         Please see README.md
-homepage:            http://github.com/githubuser/glance#readme
-license:             Apache-2.0
+homepage:            https://github.com/rgleichman/glance#readme
+license:             GPL-3
 license-file:        LICENSE
 author:              Robbie Gleichman
 maintainer:          rgleichman@gmail.com
-copyright:           2015 Robbie Gleichman
+copyright:           2016 Robbie Gleichman
 category:            Visual Programming
 build-type:          Simple
 -- extra-source-files:
