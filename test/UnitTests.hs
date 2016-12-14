@@ -14,8 +14,7 @@ import TranslateCore(syntaxGraphToFglGraph, SyntaxGraph(..), Reference)
 import Types(SgNamedNode, Edge(..), SyntaxNode(..),
              IngSyntaxGraph, NodeName(..), LikeApplyFlavor(..), NameAndPort(..))
 import qualified GraphAlgorithms
-import Util(fromMaybeError, mapFst)
-import GraphAlgorithms(collapseNodes)
+import Util(fromMaybeError)
 
 -- Unit Test Helpers --
 
@@ -123,6 +122,7 @@ collapseUnitTests = TestList[
 
 -- Translate unit tests
 
+dollarTests :: Test
 dollarTests = TestList [
   TestLabel "dollarTests1" $ assertEqualSyntaxGraphs [
       "y = f x",
@@ -142,6 +142,7 @@ dollarTests = TestList [
       ]
   ]
 
+composeApplyTests :: Test
 composeApplyTests = TestList [
   TestLabel "composeApplyTests1" $ assertEqualSyntaxGraphs [
       "y = f (g x)",
@@ -156,6 +157,7 @@ composeApplyTests = TestList [
       ]
   ]
 
+infixTests :: Test
 infixTests = TestList [
   TestLabel "infixTests1" $ assertEqualSyntaxGraphs [
       "y = (+) 1 2",
@@ -170,6 +172,7 @@ infixTests = TestList [
       ]
   ]
 
+letTests :: Test
 letTests = TestList [
   TestLabel "letTests1" $ assertEqualSyntaxGraphs [
       "y = f 1",

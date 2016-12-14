@@ -239,7 +239,7 @@ simplifyExp e = case removeParen e of
   -- Don't convert compose to apply
   InfixApp _  (QVarOp (UnQual (Symbol "."))) _ -> e
   InfixApp exp1 op exp2 -> App (App (qOpToExp op) exp1) exp2
-  LeftSection e op -> App (qOpToExp op) e
+  LeftSection exp1 op -> App (qOpToExp op) exp1
   x -> x
 
 -- TODO Consider putting this logic in a separate "simplifyExpression" function.
