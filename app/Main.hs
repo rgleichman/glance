@@ -11,7 +11,7 @@ import qualified Language.Haskell.Exts as Exts
 
 import Icons(ColorStyle(..), colorScheme, multilineComment)
 import Rendering(renderIngSyntaxGraph)
-import Translate(drawingsFromModule)
+import Translate(translateModuleToCollapsedGraphs)
 
 
 renderFile :: String -> String -> IO (Diagram B)
@@ -25,7 +25,7 @@ renderFile inputFilename includeComments = do
     inputFilename
   let
     (parsedModule, comments) = Exts.fromParseResult parseResult
-    drawings = drawingsFromModule parsedModule
+    drawings = translateModuleToCollapsedGraphs parsedModule
   --print parsedModule
   --print "\n\n"
   --print drawings

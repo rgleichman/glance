@@ -1,14 +1,11 @@
 -- TODO Now --
-Unit tests for let expressions.
 
 Put the name and type for top-level-binds in a text box below drawings.
-Translate (.) into compose
 
 -- TODO Later --
 -- Add documentation.
 
 -- Testing todos:
-Add unit tests for the equality of different apply/compose/$/infix strings.
 Fix the arrowheads being too big for SyntaxGraph drawings.
 
 -- Visual todos:
@@ -17,15 +14,11 @@ Case icon that can embed literals
 -- Make an icon font/library with labeled ports. E.g. the apply icon would have text labels "function", "result", "arg 0", "arg 1", etc.
 -- Don't rotate text and nested icons, give them rectangular bounding boxes in GraphViz. (Perhaps use a typeclass for isRotateAble)
 -- Give lines a black border to make line crossings easier to see.
--- Line intersections should have a small circle. This could probably be done with
--- a line ending.
--- Let each bool, value pair in Guard icon be flipped to reduce line crossings. Do the same for case.
 -- Let lines connect to ports in multiple locations (e.g. case value, or guard result)
 -- Use different line styles (e.g. dashed, solid, wavy) in addition to colors
 Use diagrams to shrink the drawing until icons start overlapping.
 
 -- Translate todos:
-Refactor evaluateAppExpression and all sub-expressions (add unit tests first).
 
 Fix this test so that the line colors are correct. Consider connecting the t line to the origial rhs (3,4), not the pattern result.
 y = let {t@(_,_) = (3,4)} in t + 3

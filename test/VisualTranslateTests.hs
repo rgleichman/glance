@@ -9,9 +9,8 @@ import qualified Data.Graph.Inductive.Graph as ING
 import Data.List(intercalate)
 
 import Types(SpecialQDiagram, SpecialBackend, NodeName(..))
-import Translate(translateString, stringToSyntaxGraph)
+import Translate(translateStringToCollapsedGraphAndDecl, translateStringToSyntaxGraph)
 import TranslateCore(syntaxGraphToFglGraph, SyntaxGraph(..))
-import GraphAlgorithms(collapseNodes)
 import Rendering(renderIngSyntaxGraph)
 import Icons(textBox)
 
@@ -236,10 +235,9 @@ translateStringToDrawing :: SpecialBackend b Double => String -> IO (SpecialQDia
 translateStringToDrawing s = do
   putStrLn $ "Translating string: " ++ s
   let
-    (drawing, decl) = translateString s
-    syntaxGraph = stringToSyntaxGraph s
+    (collapsedGraph, decl) = translateStringToCollapsedGraphAndDecl s
+    syntaxGraph = translateStringToSyntaxGraph s
     fglGraph = syntaxGraphToFglGraph syntaxGraph
-    collapsedGraph = collapseNodes fglGraph
   let
     printAction = do
       print decl
@@ -251,7 +249,7 @@ translateStringToDrawing s = do
       print collapsedGraph
       putStr "\n\n"
   -- printAction
-  renderIngSyntaxGraph drawing
+  renderIngSyntaxGraph collapsedGraph
   -- renderIngSyntaxGraph fglGraph
 
 visualTranslateTests :: SpecialBackend b Double => IO (SpecialQDiagram b Double)

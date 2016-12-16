@@ -12,7 +12,7 @@ import qualified Data.GraphViz.Attributes.Complete as GVA
 import qualified Data.Graph.Inductive.PatriciaTree as FGR
 
 import Types(SpecialQDiagram, SpecialBackend, SyntaxNode(..), NameAndPort(..), SgNamedNode, Edge(..))
-import Translate(stringToSyntaxGraph)
+import Translate(translateStringToSyntaxGraph)
 import TranslateCore(syntaxGraphToFglGraph)
 import GraphAlgorithms(collapseNodes)
 import Rendering(customLayoutParams)
@@ -77,7 +77,7 @@ makeCollapseTest str = do
     afterText,
     afterCollapse]
   where
-    fglGraph = syntaxGraphToFglGraph $ stringToSyntaxGraph str
+    fglGraph = syntaxGraphToFglGraph $ translateStringToSyntaxGraph str
     collapsedGraph = collapseNodes fglGraph
     customTextBox = coloredTextBox white (opaque lime)
     expressionText = alignL $ coloredTextBox white (opaque yellow) str -- :: Diagram B

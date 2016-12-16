@@ -1,9 +1,8 @@
 {-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeFamilies #-}
 module Translate(
-  translateString,
-  drawingFromDecl,
-  drawingsFromModule,
-  stringToSyntaxGraph
+  translateStringToSyntaxGraph,
+  translateStringToCollapsedGraphAndDecl,
+  translateModuleToCollapsedGraphs
 ) where
 
 import Diagrams.Prelude((<>))
@@ -604,26 +603,24 @@ showTopLevelBinds gr = do
   newGraph <- mconcat <$> mapM addBind binds
   pure $ newGraph <> gr
 
--- TODO Rename these functions to not have "drawing" in them.
-drawingFromDecl :: Decl -> IngSyntaxGraph FGR.Gr
-drawingFromDecl d = drawing
-  where
-    evaluatedDecl = evalDecl mempty d >>= showTopLevelBinds
-    syntaxGraph = evalState evaluatedDecl initialIdState
-    drawing = collapseNodes $ syntaxGraphToFglGraph syntaxGraph
-    --drawing = syntaxGraphToFglGraph syntaxGraph
+translateDeclToSyntaxGraph :: Decl -> SyntaxGraph
+translateDeclToSyntaxGraph d = graph where
+  evaluatedDecl = evalDecl mempty d >>= showTopLevelBinds
+  graph = evalState evaluatedDecl initialIdState
+
+-- | Convert a single function declaration into a SyntaxGraph
+translateStringToSyntaxGraph :: String -> SyntaxGraph
+translateStringToSyntaxGraph = translateDeclToSyntaxGraph . fromParseResult . parseDecl
+
+translateDeclToCollapsedGraph :: Decl -> IngSyntaxGraph FGR.Gr
+translateDeclToCollapsedGraph = collapseNodes . syntaxGraphToFglGraph . translateDeclToSyntaxGraph
 
 -- Profiling: about 1.5% of total time.
-translateString :: String -> (IngSyntaxGraph FGR.Gr, Decl)
-translateString s = (drawing, decl) where
+translateStringToCollapsedGraphAndDecl :: String -> (IngSyntaxGraph FGR.Gr, Decl)
+translateStringToCollapsedGraphAndDecl s = (drawing, decl) where
   decl = fromParseResult (parseDecl s) -- :: ParseResult Module
-  drawing = drawingFromDecl decl
+  drawing = translateDeclToCollapsedGraph decl
 
-drawingsFromModule :: Module -> [IngSyntaxGraph FGR.Gr]
-drawingsFromModule (Module _ _ _ _ _ _ decls) = fmap drawingFromDecl decls
-
-stringToSyntaxGraph :: String -> SyntaxGraph
-stringToSyntaxGraph s = graph where
-  decl = fromParseResult (parseDecl s)
-  evaluatedDecl = evalDecl mempty decl >>= showTopLevelBinds
-  graph = evalState evaluatedDecl initialIdState
+-- TODO Put the type declarations in a box below the image.
+translateModuleToCollapsedGraphs :: Module -> [IngSyntaxGraph FGR.Gr]
+translateModuleToCollapsedGraphs (Module _ _ _ _ _ _ decls) = fmap translateDeclToCollapsedGraph decls

@@ -9,7 +9,7 @@ import qualified Data.Graph.Inductive.PatriciaTree as FGR
 
 import Data.List(foldl', sort, sortOn)
 
-import Translate(stringToSyntaxGraph)
+import Translate(translateStringToSyntaxGraph)
 import TranslateCore(syntaxGraphToFglGraph, SyntaxGraph(..), Reference)
 import Types(SgNamedNode, Edge(..), SyntaxNode(..),
              IngSyntaxGraph, NodeName(..), LikeApplyFlavor(..), NameAndPort(..))
@@ -24,7 +24,7 @@ assertAllEqual items = case items of
   (first : rest) -> TestList $ fmap (first ~=?) rest
 
 assertEqualSyntaxGraphs :: [String] -> Test
-assertEqualSyntaxGraphs ls = assertAllEqual $ fmap (renameGraph . stringToSyntaxGraph) ls
+assertEqualSyntaxGraphs ls = assertAllEqual $ fmap (renameGraph . translateStringToSyntaxGraph) ls
 
 -- BEGIN renameGraph --
 type NameMap = [(NodeName, NodeName)]
@@ -103,12 +103,12 @@ renameGraph (SyntaxGraph nodes edges sinks sources embedMap) =
 -- 2:(toName "x1",LiteralNode "x")->[(Edge {edgeOptions = [], edgeEnds = (EndNone,EndNone), edgeConnection = (NameAndPort (toName "x1") Nothing,NameAndPort (toName "app02") (Just 2))},0)]
 -- 3:(toName "y3",NameNode "y")->[(Edge {edgeOptions = [], edgeEnds = (EndNone,EndNone), edgeConnection = (NameAndPort (toName "y3") Nothing,NameAndPort (toName "app02") (Just 1))},0)]
 singleApplyGraph :: FGR.Gr SgNamedNode Edge
-singleApplyGraph = syntaxGraphToFglGraph $ stringToSyntaxGraph "y = f x"
+singleApplyGraph = syntaxGraphToFglGraph $ translateStringToSyntaxGraph "y = f x"
 
 makeTreeRootTest :: (String, [Maybe SgNamedNode], String) -> Test
 makeTreeRootTest (testName, expected, haskellString) = TestCase $ assertEqual testName expected actual where
   actual = fmap (ING.lab graph) treeRoots
-  graph = syntaxGraphToFglGraph $ stringToSyntaxGraph haskellString
+  graph = syntaxGraphToFglGraph $ translateStringToSyntaxGraph haskellString
   treeRoots = GraphAlgorithms.findTreeRoots graph
 
 treeRootTests :: Test
