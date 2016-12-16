@@ -161,7 +161,6 @@ lambdaTests = [
   "y = (\\y -> y)",
   "y = (\\x1 -> (\\x2 -> (\\x3 -> x1 x2 x3)))",
   "y x = (\\z -> x)",
-  "y = (\\x -> (\\z -> x))",
   "y x = x",
   "y x = y x",
   "y x = g y y",
@@ -170,13 +169,9 @@ lambdaTests = [
   "y x1 x2 = f x1 x3 x2",
   "y x1 x2 = f x1 x2",
   "y x = f x1 x2",
-  "{y 0 = 1; y 1= 0}",
   "y (-1) = 2",
   "y 1 = 0",
-  "{y (F x) = x; y (G x) = x}",
-  "{y (F x) z = x z; y (G x) z = z x}",
-  "y x = z 3 where z = f x y",
-  "y x = z where z = f x y"
+  "y x = z 3 where z = f x y"
   ]
 
 letTests :: [String]
@@ -204,7 +199,6 @@ otherTests :: [String]
 otherTests = [
   "y = f 1 'c' 2.3 \"foobar\"",
   "fact x = if (x == 0) then 1 else (x * fact (x - 1))",
-  "fact x = if ((==) 0 x) then 1 else (x * fact ((-) x 1))",
   "fibs = cons 0 (cons 1 (zipWith (+) fibs (tail fibs)))",
   "y x = if x then (if z then q else x) else w",
   "y x1 x2 x3 = if f x1 then g x2 else h x3",
@@ -215,7 +209,6 @@ otherTests = [
   "y x = y x",
   "y = f 3 y",
   "y = f x",
-  "y = f (g x)",
   "y = f (g x1 x2) x3",
   "y = (f x1 x2) (g x1 x2)",
   "y = Foo.bar"

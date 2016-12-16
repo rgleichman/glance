@@ -27,48 +27,71 @@ assertEqualSyntaxGraphs :: [String] -> Test
 assertEqualSyntaxGraphs ls = assertAllEqual $ fmap (renameGraph . stringToSyntaxGraph) ls
 
 -- BEGIN renameGraph --
+type NameMap = [(NodeName, NodeName)]
 
--- TODO Implement renameSyntaxNode
-renameSyntaxNode :: [(NodeName, NodeName)] -> SyntaxNode -> Int  -> (SyntaxNode, Int)
-renameSyntaxNode nameMap node counter = (node, counter)
+renameNode
+  :: NameMap -> Int -> SgNamedNode -> (SgNamedNode, NameMap, Int)
+renameNode nameMap counter (nodeName, syntaxNode) = (newNamedNode, nameMap3, newCounter) where
+  newNodeName = NodeName counter
+  nameMap2 = (nodeName, newNodeName) : nameMap
+  (newSyntaxNode, nameMap3, newCounter) = renameSyntaxNode nameMap2 syntaxNode (counter + 1)
+  newNamedNode = (newNodeName, newSyntaxNode)
 
-renameNode :: ([SgNamedNode], [(NodeName, NodeName)], Int) -> SgNamedNode -> ([SgNamedNode], [(NodeName, NodeName)], Int)
-renameNode state@(renamedNodes, nameMap, counter) node@(nodeName, syntaxNode) = case lookup nodeName nameMap of
+maybeRenameNodeFolder ::
+  ([Maybe SgNamedNode], NameMap, Int) -> Maybe SgNamedNode -> ([Maybe SgNamedNode], NameMap, Int)
+maybeRenameNodeFolder (renamedNodes, nameMap, counter) mNode = case mNode of
+  Nothing -> (Nothing:renamedNodes, nameMap, counter)
+  Just node -> (Just newNamedNode:renamedNodes, newNameMap, newCounter) where
+    (newNamedNode, newNameMap, newCounter) = renameNode nameMap counter node
+
+renameSyntaxNode :: NameMap -> SyntaxNode -> Int  -> (SyntaxNode, NameMap, Int)
+renameSyntaxNode nameMap node counter = case node of
+  -- TODO Keep the Nothing subNodes
+  NestedPatternApplyNode s subNodes -> (NestedPatternApplyNode s (reverse renamedSubNodes), newNameMap, counter2)
+    where
+      (renamedSubNodes, newNameMap, counter2) = foldl' maybeRenameNodeFolder ([], nameMap, counter) subNodes
+  _ -> (node, nameMap, counter)
+
+renameNodeFolder :: ([SgNamedNode], NameMap, Int) -> SgNamedNode -> ([SgNamedNode], NameMap, Int)
+renameNodeFolder state@(renamedNodes, nameMap, counter) node@(nodeName, _) = case lookup nodeName nameMap of
   Nothing -> (newNamedNode:renamedNodes, newNameMap, newCounter) where
-    newNodeName = NodeName counter
-    newNameMap = (nodeName, newNodeName) : nameMap
-    (newSyntaxNode, newCounter) = renameSyntaxNode newNameMap syntaxNode (counter + 1)
-    newNamedNode = (newNodeName, newSyntaxNode)
+    (newNamedNode, newNameMap, newCounter) = renameNode nameMap counter node
   Just _ -> error $ "renameNode: node already in name map. State = " ++ show state ++ " Node = " ++ show node
 
-renameNamePort :: [(NodeName, NodeName)] -> NameAndPort -> NameAndPort
+renameNamePort :: NameMap -> NameAndPort -> NameAndPort
 renameNamePort nameMap nameAndPort@(NameAndPort name port) = NameAndPort newName port where
   newName = fromMaybeError errorStr $ lookup name nameMap
   errorStr = "renameNamePort: name not found. name = " ++ show name ++ "\nNameAndPort = " ++ show nameAndPort ++ "\nNameMap = " ++ show nameMap
 
-renameEdge :: [(NodeName, NodeName)] -> Edge -> Edge
+renameEdge :: NameMap -> Edge -> Edge
 renameEdge nameMap (Edge options ends (np1, np2)) =
   Edge options ends (renameNamePort nameMap np1, renameNamePort nameMap np2)
 
-renameSource :: [(NodeName, NodeName)] -> (String, Reference) -> (String, Reference)
+renameSource :: NameMap -> (String, Reference) -> (String, Reference)
 renameSource nameMap (str, ref) = (str, newRef) where
   newRef = case ref of
     Left _ -> ref
     Right namePort@(NameAndPort _ _) -> Right $ renameNamePort nameMap namePort
 
+renameEmbed :: NameMap -> (NodeName, NodeName) -> (NodeName, NodeName)
+renameEmbed nameMap (leftName, rightName) = (newLeftName, newRightName) where
+  newLeftName = fromMaybeError "renameEmbed: leftName not found" (lookup leftName nameMap)
+  newRightName = fromMaybeError "renameEmbed: RightName not found" (lookup rightName nameMap)
+
 -- TODO May want to remove names for sub-nodes
 removeNames :: SgNamedNode -> SyntaxNode
 removeNames (_, syntaxNode) = syntaxNode
 
--- TODO Rename sinks and embedMap
+-- TODO Rename sinks
 -- TODO Add unit tests for renameGraph
 renameGraph :: SyntaxGraph -> SyntaxGraph
 renameGraph (SyntaxGraph nodes edges sinks sources embedMap) =
-  SyntaxGraph renamedNodes renamedEdges sinks renamedSources embedMap
+  SyntaxGraph renamedNodes renamedEdges sinks renamedSources renamedEmbedMap
   where
-    (renamedNodes, nameMap, _) = foldl' renameNode ([], [], 0) $ sortOn removeNames nodes
+    (renamedNodes, nameMap, _) = foldl' renameNodeFolder ([], [], 0) $ sortOn removeNames nodes
     renamedEdges = sort $ fmap (renameEdge nameMap) edges
     renamedSources = sort $ fmap (renameSource nameMap) sources
+    renamedEmbedMap = sort $ fmap (renameEmbed nameMap) embedMap
   
 -- END renameGraph
 
@@ -290,7 +313,7 @@ enumTests = TestList [
   ]
 
 patternTests :: Test
-patternTests = TestList[
+patternTests = TestList [
   -- TODO Remove branch icon
   assertEqualSyntaxGraphs [
       "y (F x) = x",
@@ -300,6 +323,35 @@ patternTests = TestList[
   assertEqualSyntaxGraphs [
       "y = let {F x y = 3} in x y",
       "y = let {g = 3; F x y = g} in x y"
+      ]
+  ]
+
+lambdaTests :: Test
+lambdaTests = TestList [
+  assertEqualSyntaxGraphs [
+      "y x = (\\z -> x)",
+      "y = (\\x -> (\\z -> x))"
+      ]
+  ,
+  assertEqualSyntaxGraphs [
+      "y x = case x of {0 -> 1; 3 -> 5}",
+      "{y 0 = 1; y 3 = 5}"
+      ]
+  ,
+  assertEqualSyntaxGraphs [
+      "y p = case p of {F x -> x; G x -> x}",
+      "{y (F x) = x; y (G x) = x}"
+      ]
+  ,
+  assertEqualSyntaxGraphs [
+      -- TODO Since there are no patterns for z, this should just be "case p of"
+      "y p z = case (p, z) of {((F x), z') -> x z'; ((G x), z') -> z' x}",
+      "{y (F x) z = x z; y (G x) z = z x}"
+      ]
+  ,
+  assertEqualSyntaxGraphs [
+      "y x = f x y",
+      "y x = z where z = f x y"
       ]
   ]
 
@@ -320,6 +372,7 @@ translateUnitTests = TestList [
   , TestLabel "negateTests" negateTests
   , TestLabel "enumTests" enumTests
   , TestLabel "patternTests" patternTests
+  , TestLabel "lambdaTests" lambdaTests
   ]
 
 allUnitTests :: Test
