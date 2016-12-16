@@ -11,11 +11,11 @@ import Data.Maybe(catMaybes)
 import Control.Monad(replicateM)
 import Control.Monad.State(State, evalState)
 import Data.Either(partitionEithers)
-import Data.List(unzip5, unzip4, partition)
+import Data.List(unzip5, unzip4, partition, intercalate)
 import qualified Language.Haskell.Exts as Exts
 import Language.Haskell.Exts(Decl(..), parseDecl, Name(..), Pat(..), Rhs(..),
   Exp(..), QName(..), fromParseResult, Match(..), QOp(..), GuardedRhs(..),
-  Stmt(..), Binds(..), Alt(..), Module(..), SpecialCon(..))
+  Stmt(..), Binds(..), Alt(..), Module(..), SpecialCon(..), prettyPrint)
 import qualified Data.Graph.Inductive.PatriciaTree as FGR
 --import Data.Maybe(catMaybes)
 
@@ -581,10 +581,18 @@ evalMatches :: EvalContext -> [Match] -> State IDState SyntaxGraph
 evalMatches _ [] = pure mempty
 evalMatches c (firstMatch:restOfMatches) = matchesToCase firstMatch restOfMatches >>= evalMatch c
 
+-- Pretty printing the entire type sig results in extra whitespace in the middle
+-- TODO May want to trim whitespace from (prettyPrint typeForNames)
+evalTypeSig (TypeSig _ names typeForNames) = makeBox
+  (intercalate "," (fmap prettyPrint names)
+   ++ " :: "
+   ++ prettyPrint typeForNames)
+
 evalDecl :: EvalContext -> Decl -> State IDState SyntaxGraph
 evalDecl c d = case d of
     PatBind _ _ _ _ -> evalPatBind c d
     FunBind matches -> evalMatches c matches
+    TypeSig _ _ _ -> fst <$> evalTypeSig d
     --TODO: Add other cases here
     _ -> pure mempty
 
@@ -612,8 +620,11 @@ translateDeclToSyntaxGraph d = graph where
 translateStringToSyntaxGraph :: String -> SyntaxGraph
 translateStringToSyntaxGraph = translateDeclToSyntaxGraph . fromParseResult . parseDecl
 
+syntaxGraphToCollapsedGraph :: SyntaxGraph -> IngSyntaxGraph FGR.Gr
+syntaxGraphToCollapsedGraph = collapseNodes . syntaxGraphToFglGraph
+
 translateDeclToCollapsedGraph :: Decl -> IngSyntaxGraph FGR.Gr
-translateDeclToCollapsedGraph = collapseNodes . syntaxGraphToFglGraph . translateDeclToSyntaxGraph
+translateDeclToCollapsedGraph = syntaxGraphToCollapsedGraph . translateDeclToSyntaxGraph
 
 -- Profiling: about 1.5% of total time.
 translateStringToCollapsedGraphAndDecl :: String -> (IngSyntaxGraph FGR.Gr, Decl)

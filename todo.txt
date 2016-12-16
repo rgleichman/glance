@@ -1,6 +1,8 @@
 -- TODO Now --
+-- Eliminate BranchIcon in Alts.
+-- Eliminate BranchIcon for the identity function "y x = x"
 
-Put the name and type for top-level-binds in a text box below drawings.
+Consider adding binding variable names to the lambda icon and match icon. Don't display the name if it is only one character.
 
 -- TODO Later --
 -- Add documentation.
@@ -23,12 +25,8 @@ Use diagrams to shrink the drawing until icons start overlapping.
 Fix this test so that the line colors are correct. Consider connecting the t line to the origial rhs (3,4), not the pattern result.
 y = let {t@(_,_) = (3,4)} in t + 3
 
-Consider adding binding variable names to the lambda icon and match icon. Don't display the name if it is only one character.
-
 Fix applyComposeScore in Translate.hs not counting expressions that nest via reference. May need to move compose generation to after translate.
 
 -- Fix test case x of {0 -> 1; y -> y}.
 -- Add proper RecConstr, and RecUpdate support.
--- Eliminate BranchIcon in Alts.
--- Eliminate BranchIcon for the identity function "y x = x"
 -- Special case for otherwise.
