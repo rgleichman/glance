@@ -48,7 +48,6 @@ data Icon = ResultIcon | BranchIcon | TextBoxIcon String | GuardIcon Int
 data LikeApplyFlavor = ApplyNodeFlavor | ComposeNodeFlavor deriving (Show, Eq, Ord)
 
 -- TODO remove Ints from SyntaxNode data constructors.
--- TODO Add NestedApplyNode, and NestedPatternApplyNode
 data SyntaxNode =
   LikeApplyNode LikeApplyFlavor Int -- Function application, composition, and applying to a composition
   | NestedApplyNode LikeApplyFlavor Int [(SgNamedNode, Edge)]

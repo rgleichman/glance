@@ -115,7 +115,8 @@ caseTests = [
   "y = case x of {Foo a -> f a; Bar a -> f a}",
   "y = case x of {F x -> x; G x -> x}",
   "y = case x of {F -> 0; G -> 1}",
-  "z = case x of {0 -> 1; y -> y}"
+  "z = case x of {0 -> 1; y -> y}",
+  "y x = case f x of {0 -> x; Foo x -> x}"
   ]
 
 guardTests :: [String]

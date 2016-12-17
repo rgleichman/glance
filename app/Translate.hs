@@ -364,22 +364,23 @@ evalLet :: EvalContext -> Binds -> Exp -> State IDState (SyntaxGraph, Reference)
 evalLet context binds e = evalGeneralLet (`evalExp` e) context binds
 
 -- TODO: Refactor this with evalPatBind
-evalPatAndRhs :: EvalContext -> Pat -> Rhs -> Maybe Binds -> State IDState (Bool, SyntaxGraph, Reference, NameAndPort)
+evalPatAndRhs :: EvalContext -> Pat -> Rhs -> Maybe Binds -> State IDState (Bool, SyntaxGraph, Reference, Reference)
 evalPatAndRhs c pat rhs maybeWhereBinds = do
   patternNames <- namesInPattern <$> evalPattern pat
   let rhsContext = patternNames <> c
-  -- TODO: remove coerceExpressionResult
-  (rhsGraph, rhsRef) <- rhsWithBinds maybeWhereBinds rhs rhsContext >>= coerceExpressionResult
+  (rhsGraph, rhsRef) <- rhsWithBinds maybeWhereBinds rhs rhsContext
   (patGraph, patRef) <- evalPattern pat
   let
     grWithEdges = makeEdges (rhsGraph <> patGraph)
-    -- The pattern and rhs are conneted if makeEdges added extra edges.
-    patRhsAreConnected =
+    lookedUpRhsRef = lookupReference (sgSources grWithEdges) rhsRef
+    -- The pattern and rhs are conneted if makeEdges added extra edges, or if the rhsRef refers to a source
+    -- in the pattern
+    patRhsAreConnected = (rhsRef /= lookedUpRhsRef) ||
       length (sgEdges grWithEdges) > (length (sgEdges rhsGraph) + length (sgEdges patGraph))
-  pure (patRhsAreConnected, deleteBindings grWithEdges, patRef, rhsRef)
+  pure (patRhsAreConnected, deleteBindings grWithEdges, patRef, lookedUpRhsRef)
 
 -- returns (combined graph, pattern reference, rhs reference)
-evalAlt :: EvalContext -> Exts.Alt -> State IDState (Bool, SyntaxGraph, Reference, NameAndPort)
+evalAlt :: EvalContext -> Exts.Alt -> State IDState (Bool, SyntaxGraph, Reference, Reference)
 evalAlt c (Exts.Alt _ pat rhs maybeBinds) = evalPatAndRhs c pat rhs maybeBinds
 
 evalCase :: EvalContext -> Exp -> [Alt] -> State IDState (SyntaxGraph, NameAndPort)
@@ -399,12 +400,15 @@ evalCase c e alts = do
     (connectedRhss, unConnectedRhss) = partition fst rhsEdges
   resultIconNames <- replicateM numAlts (getUniqueName "caseResult")
   let
-    makeCaseResult resultIconName rhsPort = syntaxGraphFromNodesEdges rhsNewIcons rhsNewEdges
-      where
-        rhsNewIcons = [(resultIconName, CaseResultNode)]
-        rhsNewEdges = [makeSimpleEdge (rhsPort, justName resultIconName)]
+    makeCaseResult :: NodeName -> Reference -> SyntaxGraph
+    makeCaseResult resultIconName rhsRef = case rhsRef of
+      Left _ -> mempty
+      Right rhsPort -> syntaxGraphFromNodesEdges rhsNewIcons rhsNewEdges
+        where
+          rhsNewIcons = [(resultIconName, CaseResultNode)]
+          rhsNewEdges = [makeSimpleEdge (rhsPort, justName resultIconName)]
     caseResultGraphs = mconcat $ zipWith makeCaseResult resultIconNames (fmap (fst . snd) connectedRhss)
-    filteredRhsEdges = mapFst Right $ fmap snd unConnectedRhss
+    filteredRhsEdges = fmap snd unConnectedRhss
     patternEdgesGraph = edgesForRefPortList True patEdges
     caseEdgeGraph = edgesForRefPortList False (expEdge : filteredRhsEdges)
     finalGraph = mconcat [patternEdgesGraph, caseResultGraphs, expGraph, caseEdgeGraph, caseGraph, combindedAltGraph]
