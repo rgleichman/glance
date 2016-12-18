@@ -110,7 +110,6 @@ caseTests :: [String]
 caseTests = [
   "y = case x of {0 -> 1; 2 -> 3}",
   "y = case f x of {0 -> 1; 2 -> 3}",
-  -- TODO Remove the branch icon
   "y = case x of {Foo a -> a}",
   "y = case x of {Foo a -> f a; Bar a -> f a}",
   "y = case x of {F x -> x; G x -> x}",
@@ -132,7 +131,6 @@ patternTests :: [String]
 patternTests = [
   "Foo _ x = 3",
 
-  -- TODO Remove branch icon
   "y (F x) = x",
 
   "y = let {g = 3; F x y = h g} in x y",

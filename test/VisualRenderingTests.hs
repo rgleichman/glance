@@ -56,7 +56,7 @@ fact0Drawing = Drawing fact0Icons fact0Edges where
       (fTimes, TextBoxIcon "*"),
       (fRecurAp, ApplyAIcon 1),
       (fTimesAp, ApplyAIcon 2),
-      (fArg, BranchIcon),
+      -- (fArg, BranchIcon),
       (fRes, ResultIcon)
     ]
   fact0Edges = [
@@ -85,7 +85,7 @@ fact1Icons =
   (fTimes, TextBoxIcon "*"),
   (fRecurAp, ApplyAIcon 1),
   (fTimesAp, ApplyAIcon 2),
-  (fArg, BranchIcon),
+  -- (fArg, BranchIcon),
   (fRes, ResultIcon)
   ]
 

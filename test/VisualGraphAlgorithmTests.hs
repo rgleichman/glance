@@ -32,7 +32,10 @@ renderFglGraph fglGraph = do
   pure $ DiaGV.drawGraph
     nodeFunc
     --(\_ _ _ _ _ p -> lc white $ stroke p)
-    (\_ point1 _ point2 _ _ -> lcA (withOpacity white 0.5) $ arrowBetween (scaleFactor *^ point1) (scaleFactor *^ point2))
+    -- TODO Draw some type of arrow if point1 == point2
+    (\_ point1 _ point2 _ _ ->  if point1 == point2
+      then mempty
+      else lcA (withOpacity white 0.5) $ arrowBetween (scaleFactor *^ point1) (scaleFactor *^ point2))
     layedOutGraph
   where
     scaleFactor = 0.12

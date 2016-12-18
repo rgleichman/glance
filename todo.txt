@@ -1,6 +1,4 @@
 -- TODO Now --
--- Eliminate BranchIcon in Alts.
--- Eliminate BranchIcon for the identity function "y x = x"
 
 Consider adding binding variable names to the lambda icon and match icon. Don't display the name if it is only one character.
 

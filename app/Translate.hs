@@ -24,12 +24,12 @@ import TranslateCore(Reference, SyntaxGraph(..), EvalContext, GraphAndRef, Sink,
   syntaxGraphFromNodes, syntaxGraphFromNodesEdges, getUniqueName, combineExpressions,
   edgesForRefPortList, makeApplyGraph,
   namesInPattern, lookupReference, deleteBindings, makeEdges,
-  coerceExpressionResult, makeBox, nTupleString, nListString,
+  makeBox, nTupleString, nListString,
   syntaxGraphToFglGraph, getUniqueString)
 import Types(NameAndPort(..), IDState,
   initialIdState, Edge, SyntaxNode(..), IngSyntaxGraph, NodeName, Port(..), SgNamedNode,
   LikeApplyFlavor(..))
-import Util(makeSimpleEdge, nameAndPort, justName, mapFst)
+import Util(makeSimpleEdge, nameAndPort, justName)
 
 -- OVERVIEW --
 -- The core functions and data types used in this module are in TranslateCore.
@@ -523,14 +523,15 @@ generalEvalLambda context patterns rhsEvalFun = do
 
     (patternEdges, newBinds) =
       partitionEithers $ zipWith makePatternEdges patternVals lambdaPorts
-    numParameters = length patterns
-  -- TODO remove coerceExpressionResult here
-  (rhsRawGraph, rhsResult) <- rhsEvalFun rhsContext >>= coerceExpressionResult
+
+  (rhsRawGraph, rhsRef) <- rhsEvalFun rhsContext
   let
-    icons = [(lambdaName, FunctionDefNode numParameters)]
-    resultIconEdge = makeSimpleEdge (rhsResult, nameAndPort lambdaName (Port 0))
-    finalGraph = SyntaxGraph icons (resultIconEdge:patternEdges)
-      mempty newBinds mempty
+    icons = [(lambdaName, FunctionDefNode (length patterns))]
+    returnPort = nameAndPort lambdaName (Port 0)
+    (newEdges, newSinks) = case rhsRef of
+      Left s -> (patternEdges, [(s, returnPort)])
+      Right rhsPort ->  (makeSimpleEdge (rhsPort, returnPort) : patternEdges, mempty)
+    finalGraph = SyntaxGraph icons newEdges newSinks newBinds mempty
   pure (deleteBindings . makeEdges $ (rhsRawGraph <> patternGraph <> finalGraph), nameAndPort lambdaName (Port 1))
   where
     -- TODO Like evalPatBind, this edge should have an indicator that it is the input to a pattern.
@@ -587,6 +588,7 @@ evalMatches c (firstMatch:restOfMatches) = matchesToCase firstMatch restOfMatche
 
 -- Pretty printing the entire type sig results in extra whitespace in the middle
 -- TODO May want to trim whitespace from (prettyPrint typeForNames)
+evalTypeSig :: Decl -> State IDState (SyntaxGraph, NameAndPort)
 evalTypeSig (TypeSig _ names typeForNames) = makeBox
   (intercalate "," (fmap prettyPrint names)
    ++ " :: "

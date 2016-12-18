@@ -314,7 +314,6 @@ enumTests = TestList [
 
 patternTests :: Test
 patternTests = TestList [
-  -- TODO Remove branch icon
   assertEqualSyntaxGraphs [
       "y (F x) = x",
       "y = (\\(F x) -> x)"

@@ -32,11 +32,10 @@ import Data.Typeable(Typeable)
 
 -- TYPES --
 -- | A datatype that represents an icon.
--- The BranchIcon is used as a branching point for a line.
 -- The TextBoxIcon's data is the text that appears in the text box.
 -- The LambdaRegionIcon's data is the number of lambda ports, and the name of it's
 -- subdrawing.
-data Icon = ResultIcon | BranchIcon | TextBoxIcon String | GuardIcon Int
+data Icon = ResultIcon | TextBoxIcon String | GuardIcon Int
   | FlatLambdaIcon Int | ApplyAIcon Int | ComposeIcon Int
   | PAppIcon Int String | CaseIcon Int | CaseResultIcon
   | BindTextBoxIcon String
@@ -60,7 +59,6 @@ data SyntaxNode =
   | FunctionDefNode Int-- Function definition (ie. lambda expression)
   | GuardNode Int
   | CaseNode Int
-  | BranchNode -- TODO remove BranchNode
   | CaseResultNode -- TODO remove caseResultNode
   deriving (Show, Eq, Ord)
 

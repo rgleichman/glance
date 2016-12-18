@@ -17,7 +17,6 @@ module TranslateCore(
   deleteBindings,
   makeEdges,
   --makeEdgesCore,
-  coerceExpressionResult,
   makeBox,
   nTupleString,
   nListString,
@@ -149,20 +148,6 @@ makeEdges (SyntaxGraph icons edges sinks bindings eMap) = newGraph where
   (newSinks, newEdges) = makeEdgesCore sinks bindings
   newGraph = SyntaxGraph icons (newEdges <> edges) newSinks bindings eMap
 
--- TODO: Remove BranchNode
--- | This is used by the rhs for identity (eg. y x = x)
-coerceExpressionResult :: (SyntaxGraph, Reference) -> State IDState (SyntaxGraph, NameAndPort)
-coerceExpressionResult (_, Left str) = makeDummyRhs str where
-  makeDummyRhs :: String -> State IDState (SyntaxGraph, NameAndPort)
-  makeDummyRhs s = do
-    iconName <- getUniqueName s
-    let
-      graph = SyntaxGraph icons mempty [(s, port)] mempty mempty
-      icons = [(iconName, BranchNode)]
-      port = justName iconName
-    pure (graph, port)
-coerceExpressionResult (g, Right x) = pure (g, x)
-
 -- TODO: remove / change due toSyntaxGraph
 makeBox :: String -> State IDState (SyntaxGraph, NameAndPort)
 makeBox str = do
@@ -191,7 +176,6 @@ nodeToIcon (LiteralNode s) = TextBoxIcon s
 nodeToIcon (FunctionDefNode n) = FlatLambdaIcon n
 nodeToIcon (GuardNode n) = GuardIcon n
 nodeToIcon (CaseNode n) = CaseIcon n
-nodeToIcon BranchNode = BranchIcon
 nodeToIcon CaseResultNode = CaseResultIcon
 
 makeArg :: [(SgNamedNode, Edge)] -> Int -> Maybe (NodeName, Icon)
