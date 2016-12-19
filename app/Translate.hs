@@ -205,7 +205,6 @@ evalInfixApp :: EvalContext -> Exp -> QOp -> Exp -> State IDState (SyntaxGraph, 
 evalInfixApp c e1 op e2 = case op of
   QVarOp (UnQual (Symbol sym)) -> case sym of
     "$" -> evalExp c (App e1 e2)
-    "<$>" -> evalExp c $ App (App (makeVarExp "fmap") e1) e2
     "." -> fmap Right <$> evalCompose c (e1 : simplifyCompose e2)
     _ -> defaultCase
   _ -> defaultCase
@@ -237,6 +236,7 @@ simplifyExp e = case removeParen e of
   InfixApp exp1  (QVarOp (UnQual (Symbol "$"))) exp2 -> App exp1 exp2
   -- Don't convert compose to apply
   InfixApp _  (QVarOp (UnQual (Symbol "."))) _ -> e
+  App (Var (UnQual (Symbol "<$>"))) arg -> App (makeVarExp "fmap") arg
   InfixApp exp1 op exp2 -> App (App (qOpToExp op) exp1) exp2
   LeftSection exp1 op -> App (qOpToExp op) exp1
   x -> x

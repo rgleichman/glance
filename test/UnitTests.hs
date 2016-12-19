@@ -354,13 +354,23 @@ lambdaTests = TestList [
       ]
   ]
 
--- Yes, the commas get their own line
-translateUnitTests :: Test
-translateUnitTests = TestList [
-  TestLabel "fmapTest" $ assertEqualSyntaxGraphs [
+fmapTests :: Test
+fmapTests = TestList [
+  assertEqualSyntaxGraphs [
       "y = fmap f x",
       "y = f <$> x"
       ]
+  ,
+  assertEqualSyntaxGraphs [
+      "y = f1 (fmap f2 (f3 x))",
+      "y = f1 $ f2 <$> f3 x"
+      ]
+  ]
+
+-- Yes, the commas get their own line
+translateUnitTests :: Test
+translateUnitTests = TestList [
+  TestLabel "fmapTest" fmapTests
   ,
   TestLabel "applyTests" applyTests
   ,

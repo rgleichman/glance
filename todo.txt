@@ -1,4 +1,5 @@
 -- TODO Now --
+Case icon that can embed literals
 
 Consider adding binding variable names to the lambda icon and match icon. Don't display the name if it is only one character.
 
@@ -10,11 +11,11 @@ Fix the arrowheads being too big for SyntaxGraph drawings.
 
 -- Visual todos:
 Draw bounding boxes for lambdas (use dashed lines)
-Case icon that can embed literals
+
 -- Make an icon font/library with labeled ports. E.g. the apply icon would have text labels "function", "result", "arg 0", "arg 1", etc.
 -- Don't rotate text and nested icons, give them rectangular bounding boxes in GraphViz. (Perhaps use a typeclass for isRotateAble)
 -- Give lines a black border to make line crossings easier to see.
--- Let lines connect to ports in multiple locations (e.g. case value, or guard result)
+-- Let lines connect to ports in multiple locations (e.g. guard result)
 -- Use different line styles (e.g. dashed, solid, wavy) in addition to colors
 Use diagrams to shrink the drawing until icons start overlapping.
 
