@@ -187,6 +187,38 @@ nestedTextDrawing = Drawing nestedTestIcons nestedTestEdges where
     iconToIntPort t2 n2 2
     ]
 
+nestedCaseDrawing :: Drawing
+nestedCaseDrawing = Drawing icons [] where
+  [n0, n1, n2, n3, n4, n5, n6, n7, n8, n9] = fmap NodeName [0..9]
+  icons = [
+    (n0, NestedCaseIcon [Nothing, Nothing, Nothing]),
+    (n1, NestedCaseIcon [Nothing, Just (n2, TextBoxIcon "n2"), Nothing]),
+    (n3, NestedCaseIcon [Nothing, Nothing, Just (n4, TextBoxIcon "n4")]),
+    (n5, NestedCaseIcon [Nothing,
+                         Just (n6, TextBoxIcon "n6"),
+                         Just (n7, TextBoxIcon "n7"),
+                         Just (n8, TextBoxIcon "n8"),
+                         Just (n9, TextBoxIcon "n9")])
+    ]
+
+nestedGuardDrawing :: Drawing
+nestedGuardDrawing = Drawing icons edges where
+  [n0, n1, n2, n3, n4, n5, n6, n7, n8, n9, n10] = fmap NodeName [0..10]
+  icons = [
+    (n10, TextBoxIcon "n10"),
+    (n0, NestedGuardIcon [Nothing, Nothing, Nothing]),
+    (n1, NestedGuardIcon [Nothing, Just (n2, TextBoxIcon "n2"), Nothing]),
+    (n3, NestedGuardIcon [Nothing, Nothing, Just (n4, TextBoxIcon "n4")]),
+    (n5, NestedGuardIcon [Nothing,
+                          Just (n6, TextBoxIcon "n6"),
+                          Just (n7, TextBoxIcon "n7"),
+                          Just (n8, TextBoxIcon "n8"),
+                          Just (n9, TextBoxIcon "n9")])
+    ]
+  edges = [
+    iconToIntPort n10 n5 0
+    ]
+
 --renderTests :: IO (Diagram B)
 renderTests :: SpecialBackend b Double => IO (SpecialQDiagram b Double)
 renderTests = do
@@ -200,6 +232,8 @@ renderTests = do
       fact1Drawing,
       fact2Drawing,
       arrowTestDrawing,
-      nestedTextDrawing
+      nestedTextDrawing,
+      nestedCaseDrawing,
+      nestedGuardDrawing
       -- TODO Add a nested test where the function expression is nested.
       ]

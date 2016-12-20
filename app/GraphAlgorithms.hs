@@ -11,13 +11,14 @@ import Data.List(foldl', find)
 import Data.Maybe(catMaybes, isJust, fromMaybe)
 --import qualified Debug.Trace
 
-import Types(SyntaxNode(..), sgNamedNodeToSyntaxNode, IngSyntaxGraph, Edge(..))
+import Types(SyntaxNode(..), sgNamedNodeToSyntaxNode, IngSyntaxGraph, Edge(..),
+            CaseOrGuardTag(..))
 import Util(maybeBoolToBool)
 --import Util(printSelf)
 
 -- See graph_algs.txt for pseudocode
 
-data ParentType = ApplyParent | NotAParent
+data ParentType = ApplyParent | CaseOrGuardParent | NotAParent deriving (Eq, Show)
 
 -- START HELPER functions --
 
@@ -26,19 +27,20 @@ syntaxNodeIsEmbeddable :: ParentType -> SyntaxNode -> Bool
 syntaxNodeIsEmbeddable parentType n = case (parentType, n) of
   (ApplyParent, LikeApplyNode _ _) -> True 
   (ApplyParent, LiteralNode _) -> True
+  (CaseOrGuardParent, LiteralNode _) -> True
   _ -> False
 
 -- | A syntaxNodeCanEmbed if it can contain other nodes
 syntaxNodeCanEmbed :: SyntaxNode -> Bool
-syntaxNodeCanEmbed n = case n of
-  LikeApplyNode _ _ -> True
-  NestedApplyNode _ _ _ -> True -- This case should not happen
-  _ -> False
+syntaxNodeCanEmbed = (NotAParent /=) . parentTypeForNode
 
 parentTypeForNode :: SyntaxNode -> ParentType
 parentTypeForNode n = case n of
   LikeApplyNode _ _ -> ApplyParent
   NestedApplyNode _ _ _ -> ApplyParent
+  CaseNode _ -> CaseOrGuardParent
+  GuardNode _ -> CaseOrGuardParent
+  NestedCaseOrGuardNode _ _ _ -> CaseOrGuardParent
   -- The NotAParent case should never occur.
   _ -> NotAParent
 
@@ -205,6 +207,8 @@ embedChildSyntaxNodes parentNode childrenNodes oldGraph = case childrenNodes of
           newNodeLabel = (nodeName, newSyntaxNode)
           newSyntaxNode = case oldSyntaxNode of
             LikeApplyNode flavor x -> NestedApplyNode flavor x childrenAndEdgesToParent
+            CaseNode x -> NestedCaseOrGuardNode CaseTag x childrenAndEdgesToParent
+            GuardNode x -> NestedCaseOrGuardNode GuardTag x childrenAndEdgesToParent
             _ -> oldSyntaxNode
     childrenAndEdgesToParent = catMaybes $ fmap findChildAndEdge childrenNodes
     findChildAndEdge childNode =

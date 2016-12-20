@@ -274,7 +274,7 @@ evalIf c e1 e2 e3 = do
     combinedGraph =
       combineExpressions False $ zip [e1Val, e2Val, e3Val] (map (nameAndPort guardName . Port) [3, 2, 4])
     newGraph = syntaxGraphFromNodes icons <> combinedGraph
-  pure (newGraph, nameAndPort guardName (Port 0))
+  pure (newGraph, nameAndPort guardName (Port 1))
 
 evalStmt :: EvalContext -> Stmt -> State IDState GraphAndRef
 evalStmt c (Qualifier e) = evalExp c e

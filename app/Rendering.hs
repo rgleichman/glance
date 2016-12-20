@@ -92,7 +92,7 @@ getArrowOpts (t, h) _ (fromAngle, toAngle) (NameAndPort (NodeName nodeNum) mPort
     edgeColors = edgeListC colorScheme
     numEdgeColors = length edgeColors
     hashedColor = edgeColors !! namePortHash
-    namePortHash = mod (nodeNum + (503 * portNum)) numEdgeColors
+    namePortHash = mod (portNum + (503 * nodeNum)) numEdgeColors
     Port portNum = fromMaybe (Port 0) mPort
 
     ap1ArgTexture = solid (backgroundC colorScheme)

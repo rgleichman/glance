@@ -34,7 +34,7 @@ import Data.Semigroup(Semigroup, (<>))
 
 import Types(Icon, SyntaxNode(..), Edge(..), EdgeOption(..),
   NameAndPort(..), IDState, getId, SgNamedNode, NodeName(..), Port(..), nodeNameToInt,
-  LikeApplyFlavor(..))
+  LikeApplyFlavor(..), CaseOrGuardTag(..))
 import Util(noEnds, nameAndPort, makeSimpleEdge, justName, maybeBoolToBool)
 import Icons(Icon(..))
 
@@ -177,6 +177,7 @@ nodeToIcon (FunctionDefNode n) = FlatLambdaIcon n
 nodeToIcon (GuardNode n) = GuardIcon n
 nodeToIcon (CaseNode n) = CaseIcon n
 nodeToIcon CaseResultNode = CaseResultIcon
+nodeToIcon (NestedCaseOrGuardNode tag x edges) = nestedCaseOrGuardNodeToIcon tag x edges
 
 makeArg :: [(SgNamedNode, Edge)] -> Int -> Maybe (NodeName, Icon)
 makeArg args port = case find (findArg (Port port)) args of
@@ -189,6 +190,13 @@ nestedApplySyntaxNodeToIcon flavor numArgs args = NestedApply flavor argList whe
   -- port 0 is the function, ports 2..(numArgs+1) are the arguments
   -- TODO Don't use hardcoded port numbers
   argList = fmap (makeArg args) (0:[2..numArgs + 1])
+
+nestedCaseOrGuardNodeToIcon :: CaseOrGuardTag -> Int -> [(SgNamedNode, Edge)] -> Icon
+nestedCaseOrGuardNodeToIcon tag numArgs args = case tag of
+  CaseTag -> NestedCaseIcon argList
+  GuardTag -> NestedGuardIcon argList
+  where
+    argList = fmap (makeArg args) (0:[2..( 1 + (2 * numArgs))])
 
 nestedPatternNodeToIcon :: String -> [Maybe SgNamedNode] -> Icon
 nestedPatternNodeToIcon str children = NestedPApp $

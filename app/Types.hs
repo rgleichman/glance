@@ -18,6 +18,7 @@ module Types (
   SgNamedNode,
   IngSyntaxGraph,
   LikeApplyFlavor(..),
+  CaseOrGuardTag(..),
   initialIdState,
   getId,
   sgNamedNodeToSyntaxNode,
@@ -42,9 +43,13 @@ data Icon = ResultIcon | TextBoxIcon String | GuardIcon Int
   -- TODO: NestedApply should have the type NestedApply (Maybe (Name, Icon)) [Maybe (Name, Icon)]
   | NestedApply LikeApplyFlavor [Maybe (NodeName, Icon)]
   | NestedPApp [Maybe (NodeName, Icon)]
+  | NestedCaseIcon [Maybe (NodeName, Icon)]
+  | NestedGuardIcon [Maybe (NodeName, Icon)]
   deriving (Show, Eq, Ord)
 
 data LikeApplyFlavor = ApplyNodeFlavor | ComposeNodeFlavor deriving (Show, Eq, Ord)
+
+data CaseOrGuardTag = CaseTag | GuardTag deriving (Show, Eq, Ord)
 
 -- TODO remove Ints from SyntaxNode data constructors.
 data SyntaxNode =
@@ -60,6 +65,7 @@ data SyntaxNode =
   | GuardNode Int
   | CaseNode Int
   | CaseResultNode -- TODO remove caseResultNode
+  | NestedCaseOrGuardNode CaseOrGuardTag Int [(SgNamedNode, Edge)]
   deriving (Show, Eq, Ord)
 
 newtype NodeName = NodeName Int deriving (Typeable, Eq, Ord, Show)
