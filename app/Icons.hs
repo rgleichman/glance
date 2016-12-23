@@ -9,7 +9,6 @@ module Icons
     iconToDiagram,
     textBox,
     multilineComment,
-    resultIcon,
     guardIcon,
     caseIcon,
     defaultLineWidth,
@@ -44,7 +43,6 @@ iconToDiagram :: SpecialBackend b n => Icon -> TransformableDia b n
 iconToDiagram (ApplyAIcon n) = identDiaFunc $ applyADia n
 iconToDiagram (ComposeIcon n) = identDiaFunc $ composeDia n
 iconToDiagram (PAppIcon n str) = pAppDia n str
-iconToDiagram ResultIcon = identDiaFunc resultIcon
 iconToDiagram (TextBoxIcon s) = textBox s
 iconToDiagram (BindTextBoxIcon s) = identDiaFunc $ bindTextBox s
 iconToDiagram (GuardIcon n) = identDiaFunc $ guardIcon n
@@ -99,7 +97,6 @@ getPortAngles icon port maybeNodeName = case icon of
   ApplyAIcon _ -> applyPortAngles port
   ComposeIcon _ -> applyPortAngles port
   PAppIcon _ _ -> applyPortAngles port
-  ResultIcon -> []
   TextBoxIcon _ -> []
   BindTextBoxIcon _ -> []
   GuardIcon _ -> guardPortAngles port

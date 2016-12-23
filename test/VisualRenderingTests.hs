@@ -23,7 +23,7 @@ drawing0 = Drawing d0Icons d0Edges where
   d0Icons =
     [(d0A, ApplyAIcon 1),
      (d0B, ApplyAIcon 1),
-     (d0Res, ResultIcon),
+     (d0Res, CaseResultIcon),
      (d0Foo, TextBoxIcon "foo"),
      (d0Bar, TextBoxIcon "bar")
     ]
@@ -57,7 +57,7 @@ fact0Drawing = Drawing fact0Icons fact0Edges where
       (fRecurAp, ApplyAIcon 1),
       (fTimesAp, ApplyAIcon 2),
       -- (fArg, BranchIcon),
-      (fRes, ResultIcon)
+      (fRes, CaseResultIcon)
     ]
   fact0Edges = [
     iconToIntPort fEq0 fEq0Ap 0,
@@ -86,7 +86,7 @@ fact1Icons =
   (fRecurAp, ApplyAIcon 1),
   (fTimesAp, ApplyAIcon 2),
   -- (fArg, BranchIcon),
-  (fRes, ResultIcon)
+  (fRes, CaseResultIcon)
   ]
 
 fact1Edges :: [Edge]
@@ -119,7 +119,7 @@ fact2Icons =
   (fRecurAp, ApplyAIcon 1),
   (fTimesAp, ApplyAIcon 2),
   --(fArg, BranchIcon),
-  (fRes, ResultIcon)
+  (fRes, CaseResultIcon)
   ]
 
 fact2Edges :: [Edge]

@@ -36,7 +36,7 @@ import Data.Typeable(Typeable)
 -- The TextBoxIcon's data is the text that appears in the text box.
 -- The LambdaRegionIcon's data is the number of lambda ports, and the name of it's
 -- subdrawing.
-data Icon = ResultIcon | TextBoxIcon String | GuardIcon Int
+data Icon = TextBoxIcon String | GuardIcon Int
   | FlatLambdaIcon Int | ApplyAIcon Int | ComposeIcon Int
   | PAppIcon Int String | CaseIcon Int | CaseResultIcon
   | BindTextBoxIcon String
