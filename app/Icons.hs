@@ -9,8 +9,6 @@ module Icons
     iconToDiagram,
     textBox,
     multilineComment,
-    enclosure,
-    lambdaRegion,
     resultIcon,
     guardIcon,
     caseIcon,
@@ -292,29 +290,6 @@ commentTextArea :: SpecialBackend b n =>
 commentTextArea textColor t =
   alignL $ fontSize (local textBoxFontSize) (font "freemono" $ fc textColor $ topLeftText t)
   <>  alignTL (lw none $ rectForText (length t))
-
--- ENCLOSING REGION --
-enclosure :: SpecialBackend b n =>
-  SpecialQDiagram b n -> SpecialQDiagram b n
-enclosure dia = dia <> lwG defaultLineWidth (lc (regionPerimC colorScheme) $ boundingRect (frame 0.5 dia))
-
--- LAMBDA ICON --
--- Don't use === here to put the port under the text box since mempty will stay
--- at the origin of the text box.
-lambdaIcon ::
-  SpecialBackend b n =>
-  Int -> SpecialQDiagram b n
-lambdaIcon x = alignB (coloredTextBox (lamArgResC colorScheme) transparent "λ") <> makePort (Port x)
-
--- LAMBDA REGION --
-
--- | lambdaRegion takes as an argument the numbers of parameters to the lambda,
--- and draws the diagram inside a region with the lambda icons on top.
-lambdaRegion :: SpecialBackend b n =>
-  Int -> SpecialQDiagram b n -> SpecialQDiagram b n
-lambdaRegion n dia =
-  centerXY $ centerX lambdaIcons === centerX (enclosure dia)
-  where lambdaIcons = hsep 0.4 (take n (map lambdaIcon [0,1..]))
 
 -- RESULT ICON --
 resultIcon :: SpecialBackend b n => SpecialQDiagram b n
