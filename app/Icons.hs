@@ -38,19 +38,20 @@ lineCol = lineC colorScheme
 
 -- FUNCTIONS --
 iconToDiagram :: SpecialBackend b n => Icon -> TransformableDia b n
-iconToDiagram (ApplyAIcon n) = applyADia n
-iconToDiagram (ComposeIcon n) = identDiaFunc $ composeDia n
-iconToDiagram (PAppIcon n str) = pAppDia n str
-iconToDiagram (TextBoxIcon s) = textBox s
-iconToDiagram (BindTextBoxIcon s) = identDiaFunc $ bindTextBox s
-iconToDiagram (GuardIcon n) = guardIcon n
-iconToDiagram (CaseIcon n) = caseIcon n
-iconToDiagram CaseResultIcon = identDiaFunc caseResult
-iconToDiagram (FlatLambdaIcon n) = identDiaFunc $ flatLambda n
-iconToDiagram (NestedApply flavor args) = nestedApplyDia flavor args
-iconToDiagram (NestedPApp args) = nestedPAppDia args
-iconToDiagram (NestedCaseIcon args) = nestedCaseDia args
-iconToDiagram (NestedGuardIcon args) = nestedGuardDia args
+iconToDiagram icon = case icon of
+  ApplyAIcon n -> nestedApplyDia ApplyNodeFlavor $ replicate (1 + n) Nothing
+  ComposeIcon n -> nestedApplyDia ComposeNodeFlavor $ replicate (1 + n) Nothing
+  PAppIcon n str -> generalTextAppDia (patternTextC colorScheme) (patternC colorScheme) n str
+  TextBoxIcon s -> textBox s
+  BindTextBoxIcon s -> identDiaFunc $ bindTextBox s
+  GuardIcon n -> guardIcon n
+  CaseIcon n -> caseIcon n
+  CaseResultIcon -> identDiaFunc caseResult
+  FlatLambdaIcon n -> identDiaFunc $ flatLambda n
+  NestedApply flavor args -> nestedApplyDia flavor args
+  NestedPApp args -> nestedPAppDia args
+  NestedCaseIcon args -> nestedCaseDia args
+  NestedGuardIcon args -> nestedGuardDia args
 
 applyPortAngles :: Floating n => Port -> [Angle n]
 applyPortAngles (Port x) = fmap (@@ turn) $ case x of
@@ -162,20 +163,6 @@ coloredApplyADia appColor n = centerXY finalDia where
   topAndBottomLineWidth = width allPorts - circleRadius
   topAndBottomLine = alignL $ lwG defaultLineWidth $ lc appColor $ hrule topAndBottomLineWidth
   finalDia = topAndBottomLine === allPorts === topAndBottomLine
-
-applyADia :: SpecialBackend b n => Int -> TransformableDia b n
-applyADia n = nestedApplyDia ApplyNodeFlavor $ replicate (1 + n) Nothing -- coloredApplyADia (apply0C colorScheme)
-
-composeDia :: SpecialBackend b n => Int -> SpecialQDiagram b n
-composeDia = coloredApplyADia (apply1C colorScheme)
-
---textApplyADia :: SpecialBackend b n =>
---  Int -> String -> TransformableDia b n
---textApplyADia = generalTextAppDia (textBoxTextC colorScheme) (apply0C colorScheme)
-
-pAppDia :: SpecialBackend b n =>
-  Int -> String -> TransformableDia b n
-pAppDia = generalTextAppDia (patternTextC colorScheme) (patternC colorScheme)
 
 --Get the decimal part of a float
 reduceAngleRange :: SpecialNum a => a -> a
