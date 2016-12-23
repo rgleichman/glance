@@ -44,12 +44,12 @@ iconToDiagram icon = case icon of
   PAppIcon n str -> generalTextAppDia (patternTextC colorScheme) (patternC colorScheme) n str
   TextBoxIcon s -> textBox s
   BindTextBoxIcon s -> identDiaFunc $ bindTextBox s
-  GuardIcon n -> guardIcon n
-  CaseIcon n -> caseIcon n
+  GuardIcon n -> nestedGuardDia $ replicate (1 + (2 * n)) Nothing
+  CaseIcon n -> nestedCaseDia $ replicate (1 + (2 * n)) Nothing
   CaseResultIcon -> identDiaFunc caseResult
   FlatLambdaIcon n -> identDiaFunc $ flatLambda n
   NestedApply flavor args -> nestedApplyDia flavor args
-  NestedPApp args -> nestedPAppDia args
+  NestedPApp args -> generalNestedDia apply0Triangle (repeat $ patternC colorScheme) args
   NestedCaseIcon args -> nestedCaseDia args
   NestedGuardIcon args -> nestedGuardDia args
 
@@ -188,10 +188,6 @@ nestedApplyDia :: SpecialBackend b n =>
 nestedApplyDia flavor = case flavor of
   ApplyNodeFlavor -> generalNestedDia apply0Triangle (nestingC colorScheme)
   ComposeNodeFlavor -> generalNestedDia composeSemiCircle (repeat $ apply1C colorScheme)
-
-nestedPAppDia :: SpecialBackend b n =>
-  [Maybe (NodeName, Icon)] -> TransformableDia b n
-nestedPAppDia = generalNestedDia apply0Triangle (repeat $ patternC colorScheme)
 
 makeQualifiedPort :: SpecialNum n => NodeName -> Port -> SpecialQDiagram b n
 makeQualifiedPort n x = n .>> makePort x
@@ -336,22 +332,19 @@ generalNestedGuard triangleColor lBracket bottomDia inputAndArgs name nestingLev
       Nothing -> mempty
       Just (iconNodeName, icon) -> iconToDiagram icon iconNodeName nestingLevel reflect angle
 
+
 -- | The ports of the guard icon are as follows:
--- Port 0: Top result port
+-- Port 0: Top result port (not used)
 -- Port 1: Bottom result port
 -- Ports 3,5...: The left ports for the booleans
 -- Ports 2,4...: The right ports for the values
-guardIcon :: SpecialBackend b n =>
-  Int -> TransformableDia b n
-guardIcon n = nestedGuardDia $ replicate (1 + (2 * n)) Nothing--generalGuardIcon lineCol guardLBracket mempty
-
 nestedGuardDia :: SpecialBackend b n => [Maybe (NodeName, Icon)] -> TransformableDia b n
 nestedGuardDia = generalNestedGuard lineCol guardLBracket mempty
 
 -- TODO Improve design to be more than a circle.
 caseResult :: SpecialBackend b n =>
   SpecialQDiagram b n
-caseResult = lw none $ lc caseCColor $ fc caseCColor $ circle (circleRadius * 0.7)
+caseResult = lw none $ lc caseCColor $ fc caseCColor $ circle circleRadius
   where
     caseCColor = caseRhsC colorScheme
 
@@ -359,16 +352,11 @@ caseC :: SpecialBackend b n =>
   SpecialQDiagram b n -> SpecialQDiagram b n
 caseC portDia = caseResult <> portDia
 
-
 -- | The ports of the case icon are as follows:
--- Port 0: Top result port
+-- Port 0: Top input port
 -- Port 1: Bottom result port
 -- Ports 3,5...: The left ports for the results
 -- Ports 2,4...: The right ports for the patterns
-caseIcon :: SpecialBackend b n =>
-  Int -> TransformableDia b n
-caseIcon n = nestedCaseDia $ replicate (1 + (2 * n)) Nothing --generalGuardIcon (patternC colorScheme) caseC caseResult
-
 nestedCaseDia :: SpecialBackend b n => [Maybe (NodeName, Icon)] -> TransformableDia b n
 nestedCaseDia = generalNestedGuard (patternC colorScheme) caseC caseResult
 
