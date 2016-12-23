@@ -19,10 +19,6 @@ import Data.List(find)
 import Data.Maybe(catMaybes, listToMaybe)
 import Data.Either(partitionEithers)
 
--- import Diagrams.Backend.SVG(B)
---import Diagrams.TwoD.Text(Text)
---import Data.Maybe(fromMaybe)
-
 import Types(Icon(..), SpecialQDiagram, SpecialBackend, SpecialNum, NodeName, Port(..), LikeApplyFlavor(..))
 import DrawingColors(colorScheme, ColorStyle(..))
 
@@ -32,11 +28,20 @@ import DrawingColors(colorScheme, ColorStyle(..))
 -- angle it will be rotated.
 type TransformableDia b n = NodeName -> Int -> Bool -> Angle n -> SpecialQDiagram b n
 
+-- CONSTANTS --
+defaultLineWidth :: (Fractional a) => a
+defaultLineWidth = 0.15
+
+circleRadius :: (Fractional a) => a
+circleRadius = 0.5
+
 -- COLORS --
 lineCol :: Colour Double
 lineCol = lineC colorScheme
 
--- FUNCTIONS --
+
+-- BEGIN Exported icon functions --
+
 iconToDiagram :: SpecialBackend b n => Icon -> TransformableDia b n
 iconToDiagram icon = case icon of
   ApplyAIcon n -> nestedApplyDia ApplyNodeFlavor $ replicate (1 + n) Nothing
@@ -53,9 +58,11 @@ iconToDiagram icon = case icon of
   NestedCaseIcon args -> nestedCaseDia args
   NestedGuardIcon args -> nestedGuardDia args
 
+-- BEGIN getPortAngles --
+
 applyPortAngles :: Floating n => Port -> [Angle n]
 applyPortAngles (Port x) = fmap (@@ turn) $ case x of
-  0 -> [3/8, 1/2, 5/8] -- TODO Don't use angle of1/2 for nested icons here
+  0 -> [3/8, 1/2, 5/8] -- TODO Don't use angle of 1/2 for nested icons here
   --1 -> [1/8, 7/8, 0]
   1 -> [0]
   _ -> [1/4, 3/4]
@@ -107,17 +114,19 @@ getPortAngles icon port maybeNodeName = case icon of
   NestedCaseIcon _ -> guardPortAngles port
   NestedGuardIcon _ -> guardPortAngles port
 
--- END FUNCTIONS --
+-- END getPortAngles --
 
--- Make an identity TransformableDia
+-- END Exported icon functions --
 
--- Warning: the first argument to nameDiagram can be almost any type,
--- so be careful with the parameter order.
+
+-- BEGIN Diagram helper functions --
+
+-- | Make an identity TransformableDia
 identDiaFunc :: SpecialNum n => SpecialQDiagram b n -> TransformableDia b n
 identDiaFunc dia name _ _ _ = nameDiagram name dia
 
 -- | Names the diagram and puts all sub-names in the namespace of the top level name.
-nameDiagram :: (IsName nm, SpecialNum n) => nm -> SpecialQDiagram b n -> SpecialQDiagram b n
+nameDiagram :: SpecialNum n => NodeName -> SpecialQDiagram b n -> SpecialQDiagram b n
 nameDiagram name dia = named name (name .>> dia)
 
 -- | Make an port with an integer name. Always use <> to add a ports (not === or |||)
@@ -128,25 +137,35 @@ makePort x = named x mempty
 -- Note, the version of makePort below seems to have a different type.
 --makePort x = textBox (show x) # fc green # named x
 
--- CONSTANTS --
-defaultLineWidth :: (Fractional a) => a
-defaultLineWidth = 0.15
+makeQualifiedPort :: SpecialNum n => NodeName -> Port -> SpecialQDiagram b n
+makeQualifiedPort n x = n .>> makePort x
 
-circleRadius :: (Fractional a) => a
-circleRadius = 0.5
+-- END Diagram helper functions
 
--- APPLY0 ICON --
+
+-- BEGIN Icons --
+
+-- BEGIN Sub-diagrams --
+
 apply0Triangle :: SpecialBackend b n => Colour Double -> SpecialQDiagram b n
 apply0Triangle col = fc col $ lw none $ rotateBy (-1/12) $ eqTriangle (2 * circleRadius)
 
 composeSemiCircle :: SpecialBackend b n => Colour Double -> SpecialQDiagram b n
-composeSemiCircle col = lc col $ lwG defaultLineWidth $ wedge circleRadius yDir halfTurn -- eqTriangle (2 * circleRadius)
+composeSemiCircle col = lc col $ lwG defaultLineWidth $ wedge circleRadius yDir halfTurn
 
 portCircle :: SpecialBackend b n => SpecialQDiagram b n
 portCircle = lw none $ fc lineCol $ circle (circleRadius * 0.5)
 
--- applyA Icon--
--- | apply0N port locations:
+resultIcon :: SpecialBackend b n => SpecialQDiagram b n
+resultIcon =  lw none $ fc (lamArgResC colorScheme) unitSquare
+
+-- END Sub-diagrams
+
+-- BEGIN Main icons
+
+-- BEGIN Apply like icons
+
+-- | apply port locations:
 -- Port 0: Function
 -- Port 1: Result
 -- Ports 2,3..: Arguments
@@ -164,33 +183,11 @@ coloredApplyADia appColor n = centerXY finalDia where
   topAndBottomLine = alignL $ lwG defaultLineWidth $ lc appColor $ hrule topAndBottomLineWidth
   finalDia = topAndBottomLine === allPorts === topAndBottomLine
 
---Get the decimal part of a float
-reduceAngleRange :: SpecialNum a => a -> a
-reduceAngleRange x = x - fromInteger (floor x)
-
 generalTextAppDia :: SpecialBackend b n =>
   Colour Double -> Colour Double -> Int -> String -> TransformableDia b n
 generalTextAppDia textCol borderCol numArgs str name _ reflect angle = nameDiagram name rotateDia where
   rotateDia = transformCorrectedTextBox str textCol borderCol reflect angle |||
     coloredApplyADia borderCol numArgs
-
-transformCorrectedTextBox :: SpecialBackend b n =>
-  String -> Colour Double -> Colour Double -> Bool -> Angle n -> SpecialQDiagram b n
-transformCorrectedTextBox str textCol borderCol reflect angle =
-  rotateBy textBoxRotation (reflectIfTrue reflect (coloredTextBox textCol (opaque borderCol) str))
-  where
-    reducedAngle = reduceAngleRange (angle ^. turn)
-    textBoxRotation = if (reducedAngle > (1/4)) && (reducedAngle < (3/4)) then 1 / 2 else 0
-    reflectIfTrue shouldReflect dia = if shouldReflect then reflectX dia else dia
-
-nestedApplyDia :: SpecialBackend b n =>
-  LikeApplyFlavor -> [Maybe (NodeName, Icon)] -> TransformableDia b n
-nestedApplyDia flavor = case flavor of
-  ApplyNodeFlavor -> generalNestedDia apply0Triangle (nestingC colorScheme)
-  ComposeNodeFlavor -> generalNestedDia composeSemiCircle (repeat $ apply1C colorScheme)
-
-makeQualifiedPort :: SpecialNum n => NodeName -> Port -> SpecialQDiagram b n
-makeQualifiedPort n x = n .>> makePort x
 
 generalNestedDia :: SpecialBackend b n =>
   (Colour Double -> SpecialQDiagram b n) -> [Colour Double] -> [Maybe (NodeName, Icon)] -> TransformableDia b n
@@ -220,8 +217,17 @@ generalNestedDia dia borderCols funcNodeNameAndArgs name nestingLevel reflect an
       makeInnerIcon func _ (Just (iconNodeName, icon)) = iconToDiagram icon iconNodeName innerLevel reflect angle where
         innerLevel = if func then nestingLevel else nestingLevel + 1
 
+nestedApplyDia :: SpecialBackend b n =>
+  LikeApplyFlavor -> [Maybe (NodeName, Icon)] -> TransformableDia b n
+nestedApplyDia flavor = case flavor of
+  ApplyNodeFlavor -> generalNestedDia apply0Triangle (nestingC colorScheme)
+  ComposeNodeFlavor -> generalNestedDia composeSemiCircle (repeat $ apply1C colorScheme)
 
--- TEXT ICON --
+-- END Apply like diagrams
+
+-- BEGIN Text boxes and icons --
+
+-- Text constants --
 textBoxFontSize :: (Num a) => a
 textBoxFontSize = 1
 monoLetterWidthToHeightFraction :: (Fractional a) => a
@@ -229,13 +235,29 @@ monoLetterWidthToHeightFraction = 0.61
 textBoxHeightFactor :: (Fractional a) => a
 textBoxHeightFactor = 1.1
 
-textBox :: SpecialBackend b n =>
-  String -> TransformableDia b n
-textBox t name _ reflect angle = nameDiagram name $ transformCorrectedTextBox t (textBoxTextC colorScheme) (textBoxC colorScheme) reflect angle
+-- BEGIN Text helper functions --
 
-bindTextBox :: SpecialBackend b n =>
-  String -> SpecialQDiagram b n
-bindTextBox = coloredTextBox (bindTextBoxTextC colorScheme) $ opaque (bindTextBoxC colorScheme)
+-- TODO May want to use normalizeAngle instead
+--Get the decimal part of a float
+reduceAngleRange :: SpecialNum a => a -> a
+reduceAngleRange x = x - fromInteger (floor x)
+
+-- | Given the number of letters in a textbox string, make a rectangle that will
+-- enclose the text box. Since the normal SVG text has no size, some hackery is
+-- needed to determine the size of the text's bounding box.
+rectForText :: (InSpace V2 n t, TrailLike t) => Int -> t
+rectForText n = rect rectangleWidth (textBoxFontSize * textBoxHeightFactor)
+  where
+    rectangleWidth = fromIntegral n * textBoxFontSize * monoLetterWidthToHeightFraction
+      + (textBoxFontSize * 0.2)
+
+-- END Text helper functions
+
+commentTextArea :: SpecialBackend b n =>
+  Colour Double -> String -> SpecialQDiagram b n
+commentTextArea textColor t =
+  alignL $ fontSize (local textBoxFontSize) (font "freemono" $ fc textColor $ topLeftText t)
+  <>  alignTL (lw none $ rectForText (length t))
 
 multilineComment :: SpecialBackend b n =>
   Colour Double
@@ -246,16 +268,6 @@ multilineComment textColor boxColor t = lwG (0.6 * defaultLineWidth) textDia
     textAreas = map (commentTextArea textColor) textLines
     textDia = vcat textAreas
 
--- | Given the number of letters in a textbox string, make a rectangle that will
--- enclose the text box.
-rectForText :: (InSpace V2 n t, TrailLike t) => Int -> t
-rectForText n = rect rectangleWidth (textBoxFontSize * textBoxHeightFactor)
-  where
-    rectangleWidth = fromIntegral n * textBoxFontSize * monoLetterWidthToHeightFraction
-      + (textBoxFontSize * 0.2)
-
--- Since the normal SVG text has no size, some hackery is needed to determine
--- the size of the text's bounding box.
 coloredTextBox :: SpecialBackend b n =>
   Colour Double
   -> AlphaColour Double -> String -> SpecialQDiagram b n
@@ -263,17 +275,26 @@ coloredTextBox textColor boxColor t =
   fontSize (local textBoxFontSize) (bold $ font "freemono" $ fc textColor $ text t)
   <>  lwG (0.6 * defaultLineWidth) (lcA boxColor $ rectForText (length t))
 
-commentTextArea :: SpecialBackend b n =>
-  Colour Double -> String -> SpecialQDiagram b n
-commentTextArea textColor t =
-  alignL $ fontSize (local textBoxFontSize) (font "freemono" $ fc textColor $ topLeftText t)
-  <>  alignTL (lw none $ rectForText (length t))
+bindTextBox :: SpecialBackend b n =>
+  String -> SpecialQDiagram b n
+bindTextBox = coloredTextBox (bindTextBoxTextC colorScheme) $ opaque (bindTextBoxC colorScheme)
 
--- RESULT ICON --
-resultIcon :: SpecialBackend b n => SpecialQDiagram b n
-resultIcon =  lw none $ fc (lamArgResC colorScheme) unitSquare
+transformCorrectedTextBox :: SpecialBackend b n =>
+  String -> Colour Double -> Colour Double -> Bool -> Angle n -> SpecialQDiagram b n
+transformCorrectedTextBox str textCol borderCol reflect angle =
+  rotateBy textBoxRotation (reflectIfTrue reflect (coloredTextBox textCol (opaque borderCol) str))
+  where
+    reducedAngle = reduceAngleRange (angle ^. turn)
+    textBoxRotation = if (reducedAngle > (1/4)) && (reducedAngle < (3/4)) then 1 / 2 else 0
+    reflectIfTrue shouldReflect dia = if shouldReflect then reflectX dia else dia
 
--- GUARD ICON --
+textBox :: SpecialBackend b n =>
+  String -> TransformableDia b n
+textBox t name _ reflect angle = nameDiagram name $ transformCorrectedTextBox t (textBoxTextC colorScheme) (textBoxC colorScheme) reflect angle
+
+-- END Text boxes and icons
+
+-- BEGIN Guard and case icons --
 guardSize :: (Fractional a) => a
 guardSize = 0.7
 
@@ -284,13 +305,6 @@ guardTriangle portDia =
   where
     triangleAndPort = alignR $ alignT $ lwG defaultLineWidth $ rotateBy (1/8) $
       polygon (polyType .~ PolySides [90 @@ deg, 45 @@ deg] [guardSize, guardSize] $ with)
-
-guardLBracket :: SpecialBackend b n =>
-  SpecialQDiagram b n -> SpecialQDiagram b n
-guardLBracket portDia = alignL (alignT ell) <> portDia
-  where
-    ellShape = fromOffsets $ map r2 [(0, guardSize), (-guardSize,0)]
-    ell = lineJoin LineJoinRound $ lwG defaultLineWidth $ lc (boolC colorScheme) (strokeLine ellShape)
 
 -- | generalNestedGuard port layout:
 -- 0 -> top
@@ -332,6 +346,12 @@ generalNestedGuard triangleColor lBracket bottomDia inputAndArgs name nestingLev
       Nothing -> mempty
       Just (iconNodeName, icon) -> iconToDiagram icon iconNodeName nestingLevel reflect angle
 
+guardLBracket :: SpecialBackend b n =>
+  SpecialQDiagram b n -> SpecialQDiagram b n
+guardLBracket portDia = alignL (alignT ell) <> portDia
+  where
+    ellShape = fromOffsets $ map r2 [(0, guardSize), (-guardSize,0)]
+    ell = lineJoin LineJoinRound $ lwG defaultLineWidth $ lc (boolC colorScheme) (strokeLine ellShape)
 
 -- | The ports of the guard icon are as follows:
 -- Port 0: Top result port (not used)
@@ -360,6 +380,9 @@ caseC portDia = caseResult <> portDia
 nestedCaseDia :: SpecialBackend b n => [Maybe (NodeName, Icon)] -> TransformableDia b n
 nestedCaseDia = generalNestedGuard (patternC colorScheme) caseC caseResult
 
+-- END Guard and case icons
+
+-- Lambda icon --
 -- | The ports of flatLambdaIcon are:
 -- 0: Result icon
 -- 1: The lambda function value
@@ -373,3 +396,6 @@ flatLambda n = finalDia where
   topAndBottomLineWidth = width middle - circleRadius
   topAndBottomLine = alignL $ lwG defaultLineWidth $ lc (regionPerimC colorScheme) $ hrule topAndBottomLineWidth
   finalDia = topAndBottomLine <> alignB (topAndBottomLine <> alignT middle)
+
+-- END Main icons
+-- END Icons
