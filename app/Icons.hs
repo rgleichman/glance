@@ -237,10 +237,10 @@ textBoxHeightFactor = 1.1
 
 -- BEGIN Text helper functions --
 
--- TODO May want to use normalizeAngle instead
+-- This may be a faster implementation of normalizeAngle
 --Get the decimal part of a float
-reduceAngleRange :: SpecialNum a => a -> a
-reduceAngleRange x = x - fromInteger (floor x)
+-- reduceAngleRange :: SpecialNum a => a -> a
+-- reduceAngleRange x = x - fromInteger (floor x)
 
 -- | Given the number of letters in a textbox string, make a rectangle that will
 -- enclose the text box. Since the normal SVG text has no size, some hackery is
@@ -284,7 +284,8 @@ transformCorrectedTextBox :: SpecialBackend b n =>
 transformCorrectedTextBox str textCol borderCol reflect angle =
   rotateBy textBoxRotation (reflectIfTrue reflect (coloredTextBox textCol (opaque borderCol) str))
   where
-    reducedAngle = reduceAngleRange (angle ^. turn)
+    -- If normalizeAngle is slow, the commented out function reduceAngleRange might be faster
+    reducedAngle = normalizeAngle angle ^. turn
     textBoxRotation = if (reducedAngle > (1/4)) && (reducedAngle < (3/4)) then 1 / 2 else 0
     reflectIfTrue shouldReflect dia = if shouldReflect then reflectX dia else dia
 
