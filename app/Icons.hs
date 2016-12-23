@@ -1,4 +1,4 @@
-{-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeFamilies, RankNTypes, PartialTypeSignatures, ScopedTypeVariables #-}
+{-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeFamilies #-}
 module Icons
     (
     Icon(..),
