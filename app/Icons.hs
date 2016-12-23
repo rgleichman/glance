@@ -277,11 +277,6 @@ commentTextArea textColor t =
 resultIcon :: SpecialBackend b n => SpecialQDiagram b n
 resultIcon =  lw none $ fc (lamArgResC colorScheme) unitSquare
 
--- BRANCH ICON --
--- Currently not used
-branchIcon :: SpecialBackend b n => SpecialQDiagram b n
-branchIcon = lw none $ lc lineCol $ fc lineCol $ circle circleRadius
-
 -- GUARD ICON --
 guardSize :: (Fractional a) => a
 guardSize = 0.7
