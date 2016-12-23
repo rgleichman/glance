@@ -4,17 +4,12 @@ module Icons
     Icon(..),
     TransformableDia,
     getPortAngles,
-    applyADia,
-    flatLambda,
     iconToDiagram,
     textBox,
     multilineComment,
-    guardIcon,
-    caseIcon,
     defaultLineWidth,
     ColorStyle(..),
     colorScheme,
-    nestedApplyDia,
     coloredTextBox
     ) where
 
@@ -32,6 +27,9 @@ import Types(Icon(..), SpecialQDiagram, SpecialBackend, SpecialNum, NodeName, Po
 import DrawingColors(colorScheme, ColorStyle(..))
 
 -- TYPES --
+-- | A TransformableDia is a function that returns a diagram for an icon when given
+-- the icon's name, its nesting depth, whether it will be reflected, and by what
+-- angle it will be rotated.
 type TransformableDia b n = NodeName -> Int -> Bool -> Angle n -> SpecialQDiagram b n
 
 -- COLORS --
@@ -40,13 +38,13 @@ lineCol = lineC colorScheme
 
 -- FUNCTIONS --
 iconToDiagram :: SpecialBackend b n => Icon -> TransformableDia b n
-iconToDiagram (ApplyAIcon n) = identDiaFunc $ applyADia n
+iconToDiagram (ApplyAIcon n) = applyADia n
 iconToDiagram (ComposeIcon n) = identDiaFunc $ composeDia n
 iconToDiagram (PAppIcon n str) = pAppDia n str
 iconToDiagram (TextBoxIcon s) = textBox s
 iconToDiagram (BindTextBoxIcon s) = identDiaFunc $ bindTextBox s
-iconToDiagram (GuardIcon n) = identDiaFunc $ guardIcon n
-iconToDiagram (CaseIcon n) = identDiaFunc $ caseIcon n
+iconToDiagram (GuardIcon n) = guardIcon n
+iconToDiagram (CaseIcon n) = caseIcon n
 iconToDiagram CaseResultIcon = identDiaFunc caseResult
 iconToDiagram (FlatLambdaIcon n) = identDiaFunc $ flatLambda n
 iconToDiagram (NestedApply flavor args) = nestedApplyDia flavor args
@@ -165,8 +163,8 @@ coloredApplyADia appColor n = centerXY finalDia where
   topAndBottomLine = alignL $ lwG defaultLineWidth $ lc appColor $ hrule topAndBottomLineWidth
   finalDia = topAndBottomLine === allPorts === topAndBottomLine
 
-applyADia :: SpecialBackend b n => Int -> SpecialQDiagram b n
-applyADia = coloredApplyADia (apply0C colorScheme)
+applyADia :: SpecialBackend b n => Int -> TransformableDia b n
+applyADia n = nestedApplyDia ApplyNodeFlavor $ replicate (1 + n) Nothing -- coloredApplyADia (apply0C colorScheme)
 
 composeDia :: SpecialBackend b n => Int -> SpecialQDiagram b n
 composeDia = coloredApplyADia (apply1C colorScheme)
@@ -316,31 +314,16 @@ guardLBracket portDia = alignL (alignT ell) <> portDia
     ellShape = fromOffsets $ map r2 [(0, guardSize), (-guardSize,0)]
     ell = lineJoin LineJoinRound $ lwG defaultLineWidth $ lc (boolC colorScheme) (strokeLine ellShape)
 
--- | generalGuardIcon port layout:
+-- | generalNestedGuard port layout:
 -- 0 -> top
 -- 1 -> bottom
 -- odds -> left
 -- evens -> right
-generalGuardIcon :: SpecialBackend b n =>
-  Colour Double -> (SpecialQDiagram b n -> SpecialQDiagram b n) -> SpecialQDiagram b n -> Int -> SpecialQDiagram b n
-generalGuardIcon triangleColor lBracket bottomDia n = centerXY $ alignT (bottomDia <> makePort (Port 1)) <> alignB (bigVerticalLine <> guardDia <> makePort (Port 0))
-  where
-    --guardTriangles = vsep 0.4 (take n (map guardTriangle [0,1..]))
-    trianglesWithPorts = map (guardTriangle . makePort . Port) [2,4..]
-    lBrackets = map (lBracket . makePort . Port) [3, 5..]
-    trianglesAndBrackets =
-      zipWith zipper trianglesWithPorts lBrackets
-    zipper thisTriangle lBrack = verticalLine === (alignR (extrudeRight guardSize lBrack) <> lc triangleColor (alignL thisTriangle))
-      where
-        verticalLine = strutY 0.4
-    guardDia = vcat (alignT $ take n trianglesAndBrackets)
-    bigVerticalLine = alignT $ lwG defaultLineWidth $ lc triangleColor $ vrule (height guardDia)
-
 generalNestedGuard :: SpecialBackend b n =>
   Colour Double -> (SpecialQDiagram b n -> SpecialQDiagram b n) -> SpecialQDiagram b n -> [Maybe (NodeName, Icon)] -> TransformableDia b n
 generalNestedGuard triangleColor lBracket bottomDia inputAndArgs name nestingLevel reflect angle = named name $ case inputAndArgs of
   [] -> mempty
-  (input : args) -> centerXY finalDia where
+  input : args -> centerXY finalDia where
     finalDia = alignT (bottomDia <> makeQualifiedPort name (Port 1)) <> alignB (inputIcon === (bigVerticalLine <> guardDia <> makeQualifiedPort name (Port 0)))
 
     argPortNums = [2..]
@@ -350,7 +333,7 @@ generalNestedGuard triangleColor lBracket bottomDia inputAndArgs name nestingLev
       | even portNum = Right $ guardTriangle port ||| innerIcon
       | otherwise = Left $ innerIcon ||| lBracket port
       where
-        port = (makeQualifiedPort name (Port portNum))
+        port = makeQualifiedPort name (Port portNum)
 
     -- TODO argPortNums is duplicated
     (lBrackets, trianglesWithPorts) = partitionEithers $ zipWith iconMapper argPortNums innerIcons
@@ -364,7 +347,7 @@ generalNestedGuard triangleColor lBracket bottomDia inputAndArgs name nestingLev
 
     inputIcon = makeInnerIcon input
     
-    guardDia = vcat (alignT $ trianglesAndBrackets)
+    guardDia = vcat (alignT trianglesAndBrackets)
     bigVerticalLine = alignT $ lwG defaultLineWidth $ lc triangleColor $ vrule (height guardDia)
 
     makeInnerIcon mNameAndIcon = case mNameAndIcon of
@@ -377,8 +360,8 @@ generalNestedGuard triangleColor lBracket bottomDia inputAndArgs name nestingLev
 -- Ports 3,5...: The left ports for the booleans
 -- Ports 2,4...: The right ports for the values
 guardIcon :: SpecialBackend b n =>
-  Int -> SpecialQDiagram b n
-guardIcon = generalGuardIcon lineCol guardLBracket mempty
+  Int -> TransformableDia b n
+guardIcon n = nestedGuardDia $ replicate (1 + (2 * n)) Nothing--generalGuardIcon lineCol guardLBracket mempty
 
 nestedGuardDia :: SpecialBackend b n => [Maybe (NodeName, Icon)] -> TransformableDia b n
 nestedGuardDia = generalNestedGuard lineCol guardLBracket mempty
@@ -401,8 +384,8 @@ caseC portDia = caseResult <> portDia
 -- Ports 3,5...: The left ports for the results
 -- Ports 2,4...: The right ports for the patterns
 caseIcon :: SpecialBackend b n =>
-  Int -> SpecialQDiagram b n
-caseIcon = generalGuardIcon (patternC colorScheme) caseC caseResult
+  Int -> TransformableDia b n
+caseIcon n = nestedCaseDia $ replicate (1 + (2 * n)) Nothing --generalGuardIcon (patternC colorScheme) caseC caseResult
 
 nestedCaseDia :: SpecialBackend b n => [Maybe (NodeName, Icon)] -> TransformableDia b n
 nestedCaseDia = generalNestedGuard (patternC colorScheme) caseC caseResult

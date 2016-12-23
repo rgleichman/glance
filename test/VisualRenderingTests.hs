@@ -219,6 +219,24 @@ nestedGuardDrawing = Drawing icons edges where
     iconToIntPort n10 n5 0
     ]
 
+flatCaseDrawing :: Drawing
+flatCaseDrawing = Drawing icons edges where
+  icons = [
+    (NodeName 0, CaseIcon 0),
+    (NodeName 1, CaseIcon 1),
+    (NodeName 2, CaseIcon 2)
+    ]
+  edges = []
+
+flatGuardDrawing :: Drawing
+flatGuardDrawing = Drawing icons edges where
+  icons = [
+    (NodeName 1, GuardIcon 1),
+    (NodeName 2, GuardIcon 2),
+    (NodeName 3, GuardIcon 3)
+    ]
+  edges = []
+
 --renderTests :: IO (Diagram B)
 renderTests :: SpecialBackend b Double => IO (SpecialQDiagram b Double)
 renderTests = do
@@ -234,6 +252,8 @@ renderTests = do
       arrowTestDrawing,
       nestedTextDrawing,
       nestedCaseDrawing,
-      nestedGuardDrawing
+      nestedGuardDrawing,
+      flatCaseDrawing,
+      flatGuardDrawing
       -- TODO Add a nested test where the function expression is nested.
       ]
