@@ -115,19 +115,18 @@ findParentsThatCanEmbed graph child = filter parentFilter (findParentsWithEdges 
 findEdge :: ING.Graph gr => gr a b -> ING.Node -> ING.Node -> Maybe b
 findEdge graph fromNode toNode = lookup toNode $ ING.lsuc graph fromNode
 
+edgeIsSingular :: ING.Graph gr => gr a Edge -> ING.Node -> Edge -> Bool
+edgeIsSingular graph node edge = numEdges == 1 where
+  (childNamePort, _) = edgeConnection edge
+  edgeLabels = filter (childNamePort ==) $ (fst . edgeConnection . snd) <$> ING.lsuc graph node
+  numEdges = length edgeLabels
+
 parentIsOnlyEdge :: ING.Graph gr => IngSyntaxGraph gr -> ING.Node -> ING.Node -> Bool
 parentIsOnlyEdge graph parent child = case findEdge graph child parent of
+  Just edge -> edgeIsSingular graph child edge
   Nothing -> case findEdge graph parent child of
+    Just edge -> edgeIsSingular graph parent edge
     Nothing -> error "parentIsOnlyEdge: There is no edge from the child to the parent."
-    -- TODO Finish this case
-    Just edge -> numEdges == 1 where
-      (parentNamePort, _) = edgeConnection edge
-      edgeLabels = filter (parentNamePort ==) $ (fst . edgeConnection . snd) <$> ING.lsuc graph parent
-      numEdges = length edgeLabels
-  Just edge -> numEdges == 1 where
-    (childNamePort, _) = edgeConnection edge
-    edgeLabels = filter (childNamePort ==) $ (fst . edgeConnection . snd) <$> ING.lsuc graph child
-    numEdges = length edgeLabels
     
 findParentThatWillEmbed :: ING.Graph gr => IngSyntaxGraph gr -> ING.Node -> Maybe (DirectionalEdge Edge, ING.Node)
 findParentThatWillEmbed graph child =
