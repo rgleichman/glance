@@ -63,7 +63,9 @@ nestedTests = [
   "Foo (Bar x) (Baz y) = 1",
   "Foo (Bar x) = f 2",
   "Foo (Bar x) = f x",
-  "y x = case x of {Just w -> (let (z,_) = w in z)}"
+  "y x = case x of {Just w -> (let (z,_) = w in z)}",
+  "y = case x of 1 -> f 0",
+  "y (Port x) = case x of 0 -> 1"
   ]
 
 specialTests :: [String]

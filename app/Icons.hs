@@ -98,6 +98,14 @@ nestedApplyPortAngles args port maybeNodeName = case maybeNodeName of
     Nothing -> []
     Just icon -> getPortAngles icon port Nothing
 
+-- TODO reflect the angles for the right side sub-icons
+nestedGuardPortAngles :: Floating n => [Maybe (NodeName, Icon)] -> Port -> Maybe NodeName -> [Angle n]
+nestedGuardPortAngles args port maybeNodeName = case maybeNodeName of
+  Nothing -> guardPortAngles port
+  Just name -> case findIcon name args of
+    Nothing -> []
+    Just icon -> getPortAngles icon port Nothing
+
 getPortAngles :: (Floating n) => Icon -> Port -> Maybe NodeName -> [Angle n]
 getPortAngles icon port maybeNodeName = case icon of
   ApplyAIcon _ -> applyPortAngles port
@@ -111,8 +119,8 @@ getPortAngles icon port maybeNodeName = case icon of
   FlatLambdaIcon _ -> applyPortAngles port
   NestedApply _ args -> nestedApplyPortAngles args port maybeNodeName
   NestedPApp args -> nestedApplyPortAngles args port maybeNodeName
-  NestedCaseIcon _ -> guardPortAngles port
-  NestedGuardIcon _ -> guardPortAngles port
+  NestedCaseIcon args -> nestedGuardPortAngles args port maybeNodeName
+  NestedGuardIcon args -> nestedGuardPortAngles args port maybeNodeName
 
 -- END getPortAngles --
 
@@ -273,7 +281,7 @@ coloredTextBox :: SpecialBackend b n =>
   -> AlphaColour Double -> String -> SpecialQDiagram b n
 coloredTextBox textColor boxColor t =
   fontSize (local textBoxFontSize) (bold $ font "freemono" $ fc textColor $ text t)
-  <>  lwG (0.6 * defaultLineWidth) (lcA boxColor $ rectForText (length t))
+  <>  lwG (0.6 * defaultLineWidth) (lcA boxColor $ fcA (withOpacity (backgroundC colorScheme) 0.5) $ rectForText (length t))
 
 bindTextBox :: SpecialBackend b n =>
   String -> SpecialQDiagram b n
@@ -320,16 +328,14 @@ generalNestedGuard triangleColor lBracket bottomDia inputAndArgs name nestingLev
     finalDia = alignT (bottomDia <> makeQualifiedPort name (Port 1)) <> alignB (inputIcon === (bigVerticalLine <> guardDia <> makeQualifiedPort name (Port 0)))
 
     argPortNums = [2..]
-    innerIcons = fmap makeInnerIcon args
 
-    iconMapper portNum innerIcon
-      | even portNum = Right $ guardTriangle port ||| innerIcon
-      | otherwise = Left $ innerIcon ||| lBracket port
+    iconMapper portNum arg
+      | even portNum = Right $ guardTriangle port ||| makeInnerIcon True arg
+      | otherwise = Left $ makeInnerIcon False arg ||| lBracket port
       where
         port = makeQualifiedPort name (Port portNum)
 
-    -- TODO argPortNums is duplicated
-    (lBrackets, trianglesWithPorts) = partitionEithers $ zipWith iconMapper argPortNums innerIcons
+    (lBrackets, trianglesWithPorts) = partitionEithers $ zipWith iconMapper argPortNums args
 
     trianglesAndBrackets =
       zipWith zipper trianglesWithPorts lBrackets
@@ -338,14 +344,18 @@ generalNestedGuard triangleColor lBracket bottomDia inputAndArgs name nestingLev
       where
         verticalLine = strutY 0.4
 
-    inputIcon = makeInnerIcon input
+    inputIcon = makeInnerIcon False input
     
     guardDia = vcat (alignT trianglesAndBrackets)
     bigVerticalLine = alignT $ lwG defaultLineWidth $ lc triangleColor $ vrule (height guardDia)
 
-    makeInnerIcon mNameAndIcon = case mNameAndIcon of
+    makeInnerIcon innerReflected mNameAndIcon = case mNameAndIcon of
       Nothing -> mempty
-      Just (iconNodeName, icon) -> iconToDiagram icon iconNodeName nestingLevel reflect angle
+      Just (iconNodeName, icon) -> if innerReflected
+        then reflectX dia
+        else dia
+        where
+          dia = iconToDiagram icon iconNodeName nestingLevel (innerReflected /= reflect) angle
 
 guardLBracket :: SpecialBackend b n =>
   SpecialQDiagram b n -> SpecialQDiagram b n
