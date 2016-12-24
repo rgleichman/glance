@@ -90,7 +90,11 @@ edgesForRefPortList inPattern portExpPairs = mconcat $ fmap makeGraph portExpPai
     Left str -> if inPattern
       then SyntaxGraph mempty mempty mempty [(str, Right port)] mempty
       else SyntaxGraph mempty mempty [(str, port)] mempty mempty
-    Right resultPort -> SyntaxGraph mempty [Edge edgeOpts noEnds (resultPort, port)] mempty mempty mempty
+    Right resultPort -> SyntaxGraph mempty [Edge edgeOpts noEnds connection] mempty mempty mempty where
+      connection = if inPattern
+        -- If in a pattern, then the port on the case icon is the data source.
+        then (port, resultPort)
+        else (resultPort, port)
 
 combineExpressions :: Bool -> [(GraphAndRef, NameAndPort)] -> SyntaxGraph
 combineExpressions inPattern portExpPairs = mconcat $ fmap makeGraph portExpPairs where

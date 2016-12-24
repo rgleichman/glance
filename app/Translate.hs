@@ -303,7 +303,7 @@ evalGuardedRhss c rhss = do
 
 -- This is in Translate and not Translate core since currently it is only used by evalLit.
 makeLiteral :: (Show x) => x -> State IDState (SyntaxGraph, NameAndPort)
-makeLiteral = makeBox. show
+makeLiteral = makeBox . show
 
 evalLit :: Exts.Literal -> State IDState (SyntaxGraph, NameAndPort)
 evalLit (Exts.Int x) = makeLiteral x
