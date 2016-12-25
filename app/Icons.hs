@@ -16,8 +16,9 @@ module Icons
 import Diagrams.Prelude hiding ((&), (#), Name)
 
 import Data.List(find)
-import Data.Maybe(catMaybes, listToMaybe)
+import Data.Maybe(catMaybes, listToMaybe, isJust, fromJust)
 import Data.Either(partitionEithers)
+import qualified Control.Arrow as Arrow
 
 import Types(Icon(..), SpecialQDiagram, SpecialBackend, SpecialNum, NodeName, Port(..), LikeApplyFlavor(..))
 import DrawingColors(colorScheme, ColorStyle(..))
@@ -77,36 +78,51 @@ guardPortAngles (Port port) = case port of
 
 findNestedIcon :: NodeName -> Icon -> Maybe Icon
 findNestedIcon name icon = case icon of
-  NestedApply _ args -> findIcon name args
-  NestedPApp args -> findIcon name args
+  NestedApply _ args -> snd <$> findIcon name args
+  NestedPApp args -> snd <$> findIcon name args
   _ -> Nothing
 
-findIcon :: NodeName -> [Maybe (NodeName, Icon)] -> Maybe Icon
+findIcon :: NodeName -> [Maybe (NodeName, Icon)] -> Maybe (Int, Icon)
 findIcon name args = icon where
-  filteredArgs = catMaybes args
-  nameMatches (n, _) = n == name
-  icon = case filteredArgs of
-    [] -> Nothing
-    _ ->  case find nameMatches filteredArgs of
-      Nothing -> listToMaybe $ catMaybes $ fmap (findNestedIcon name . snd) filteredArgs
-      Just (_, finalIcon) -> Just finalIcon
+  numberedArgs = zip ([0,1..] :: [Int]) args
+  filteredArgs = Arrow.second fromJust <$> filter (isJust . snd) numberedArgs
+  nameMatches (_, (n, _)) = n == name
+  icon = case find nameMatches filteredArgs of
+    Nothing -> listToMaybe $ catMaybes $ fmap findSubSubIcon filteredArgs
+    Just (argNum, (_, finalIcon)) -> Just (argNum, finalIcon)
+    where
+      findSubSubIcon (argNum, (_, icon)) = case findNestedIcon name icon of
+        Nothing -> Nothing
+        Just x -> Just (argNum, x)
   
-nestedApplyPortAngles :: Floating n => [Maybe (NodeName, Icon)] -> Port -> Maybe NodeName -> [Angle n]
+nestedApplyPortAngles :: SpecialNum n => [Maybe (NodeName, Icon)] -> Port -> Maybe NodeName -> [Angle n]
 nestedApplyPortAngles args port maybeNodeName = case maybeNodeName of
   Nothing -> applyPortAngles port
   Just name -> case findIcon name args of
     Nothing -> []
-    Just icon -> getPortAngles icon port Nothing
+    Just (argNum, icon) -> getPortAngles icon port Nothing
+
+reflectXAngle :: SpecialNum n => Angle n -> Angle n
+reflectXAngle x = reflectedAngle where
+  normalizedAngle = normalizeAngle x
+  reflectedAngle = (-) <$> halfTurn <*> normalizedAngle
 
 -- TODO reflect the angles for the right side sub-icons
-nestedGuardPortAngles :: Floating n => [Maybe (NodeName, Icon)] -> Port -> Maybe NodeName -> [Angle n]
-nestedGuardPortAngles args port maybeNodeName = case maybeNodeName of
+nestedGuardPortAngles :: SpecialNum n => [Maybe (NodeName, Icon)] -> Port -> Maybe NodeName -> [Angle n]
+nestedGuardPortAngles args port@(Port portInt) maybeNodeName = case maybeNodeName of
   Nothing -> guardPortAngles port
   Just name -> case findIcon name args of
     Nothing -> []
-    Just icon -> getPortAngles icon port Nothing
+    -- TODO Don't use hardcoded numbers
+    -- The arguments correspond to ports [0, 2, 3, 4 ...]
+    Just (argNum, icon) -> if odd argNum && argNum >= 1
+      -- The icon will be reflected
+      then fmap reflectXAngle subAngles
+      else subAngles --fmap reflectXAngle subAngles
+      where
+        subAngles = getPortAngles icon port Nothing
 
-getPortAngles :: (Floating n) => Icon -> Port -> Maybe NodeName -> [Angle n]
+getPortAngles :: SpecialNum n => Icon -> Port -> Maybe NodeName -> [Angle n]
 getPortAngles icon port maybeNodeName = case icon of
   ApplyAIcon _ -> applyPortAngles port
   ComposeIcon _ -> applyPortAngles port

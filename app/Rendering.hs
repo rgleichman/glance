@@ -134,7 +134,7 @@ nameAndPortToName (NameAndPort name mPort) = case mPort of
   Nothing -> toName name
   Just port -> name .> port
 
-findPortAngles :: Floating n => (NodeName, Icon) -> NameAndPort -> [Angle n]
+findPortAngles :: SpecialNum n => (NodeName, Icon) -> NameAndPort -> [Angle n]
 findPortAngles (nodeName, nodeIcon) (NameAndPort diaName mPort) = case mPort of
   Nothing -> []
   Just port -> foundAngles where
