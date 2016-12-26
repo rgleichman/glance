@@ -19,7 +19,7 @@ import Util(maybeBoolToBool)
 
 -- See graph_algs.txt for pseudocode
 
-data ParentType = ApplyParent | CaseOrGuardParent | NotAParent deriving (Eq, Show)
+data ParentType = ApplyParent | CaseParent | GuardParent | NotAParent deriving (Eq, Show)
 
 data DirectionalEdge a = ParentToChild a | ChildToParent a deriving (Eq, Show)
 
@@ -35,9 +35,14 @@ syntaxNodeIsEmbeddable :: ParentType -> SyntaxNode -> Maybe Port -> Bool
 syntaxNodeIsEmbeddable parentType n mParentPort = case (parentType, n) of
   (ApplyParent, LikeApplyNode _ _) -> notResultPort
   (ApplyParent, LiteralNode _) -> notResultPort
-  (CaseOrGuardParent, LiteralNode _) -> notResultPort
-  (CaseOrGuardParent, LikeApplyNode _ _) -> notResultPort && notInputPort
-  (CaseOrGuardParent, NestedPatternApplyNode _ _) -> notResultPort && notInputPort
+
+  (CaseParent, LiteralNode _) -> notResultPort
+  (CaseParent, LikeApplyNode _ _) -> notResultPort && notInputPort
+  (CaseParent, NestedPatternApplyNode _ _) -> notResultPort && notInputPort
+
+  (GuardParent, LiteralNode _) -> notResultPort
+  (GuardParent, LikeApplyNode _ _) -> notResultPort && notInputPort
+
   _ -> False
   where
     notInputPort = case mParentPort of
@@ -48,6 +53,7 @@ syntaxNodeIsEmbeddable parentType n mParentPort = case (parentType, n) of
       Just (Port 1) -> False
       _ -> True
 
+
 -- | A syntaxNodeCanEmbed if it can contain other nodes
 syntaxNodeCanEmbed :: SyntaxNode -> Bool
 syntaxNodeCanEmbed = (NotAParent /=) . parentTypeForNode
@@ -56,9 +62,10 @@ parentTypeForNode :: SyntaxNode -> ParentType
 parentTypeForNode n = case n of
   LikeApplyNode _ _ -> ApplyParent
   NestedApplyNode _ _ _ -> ApplyParent
-  CaseNode _ -> CaseOrGuardParent
-  GuardNode _ -> CaseOrGuardParent
-  NestedCaseOrGuardNode _ _ _ -> CaseOrGuardParent
+  CaseNode _ -> CaseParent
+  GuardNode _ -> GuardParent
+  NestedCaseOrGuardNode CaseTag _ _ -> CaseParent
+  NestedCaseOrGuardNode GuardTag _ _ -> GuardParent
   -- The NotAParent case should never occur.
   _ -> NotAParent
 

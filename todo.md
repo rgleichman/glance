@@ -1,8 +1,6 @@
 # Todo
 
 ## Todo Now
-* Don't allow guards to embed patterns. This is only happening because @ values come from the PApp, not the actual source.
-
 * Consider adding binding variable names to the lambda icon and match icon. Don't display the name if it is only one character.
 
 ## Todo Later
