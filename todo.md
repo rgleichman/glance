@@ -1,6 +1,8 @@
 # Todo
 
 ## Todo Now
+* Remove parameter from getUniqueName
+
 * Consider adding binding variable names to the lambda icon and match icon. Don't display the name if it is only one character.
 
 ## Todo Later
