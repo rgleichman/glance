@@ -25,14 +25,7 @@
 * Use diagrams to shrink the drawing until icons start overlapping.
 
 ### Translate todos
-* Allow case and guard nodes to embed simple patterns and expressions.
-
-* Fix this test so that the line colors are correct. Consider connecting the t line to the origial rhs (3,4), not the pattern result.
-y = let {t@(_,_) = (3,4)} in t + 3
-
 * Fix applyComposeScore in Translate.hs not counting expressions that nest via reference. May need to move compose generation to after translate.
-
-* Fix test case x of {0 -> 1; y -> y}.
 
 * Add proper RecConstr, and RecUpdate support.
 

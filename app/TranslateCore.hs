@@ -117,9 +117,16 @@ makeApplyGraph applyFlavor inPattern applyIconName funVal argVals numArgs = (new
     icons = [(applyIconName, LikeApplyNode applyFlavor numArgs)]
     newGraph = syntaxGraphFromNodes icons
 
-namesInPattern :: GraphAndRef -> [String]
-namesInPattern (_, Left str) = [str]
-namesInPattern (SyntaxGraph _ _ _ bindings _, Right _) = fmap fst bindings
+namesInPatternHelper :: GraphAndRef -> [String]
+namesInPatternHelper (_, Left str) = [str]
+namesInPatternHelper (SyntaxGraph _ _ _ bindings _, Right _) = fmap fst bindings
+
+namesInPattern :: (GraphAndRef, Maybe String) -> [String]
+namesInPattern (graphAndRef, mName) = case mName of
+  Nothing -> otherNames
+  Just n -> n : otherNames
+  where
+    otherNames = namesInPatternHelper graphAndRef
 
 -- | Recursivly find the matching reference in a list of bindings.
 -- TODO: Might want to present some indication if there is a reference cycle.

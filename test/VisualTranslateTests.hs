@@ -146,9 +146,12 @@ patternTests = [
   "Foo (Bar x) (Baz y) = f 1 2 x y",
   "Foo x y = f 1 y x",
 
-  -- TODO Fix so that "t" connects to the apply result, not the pattern.
   "t@(x,y) = (x,y)",
   "y = let {t@(_,_) = (3,4)} in t + 3",
+  "n1@(n2@(x,y)) = f n1 n2 x y",
+  "n0@(Foo n1@(Bar x) n2@(Baz y)) = f n0 n1 x n2 y",
+  "baz = case 0 of {n0@(Foo n1@(Bar x) n2@(Baz y)) -> f n0 n1 x n2 y}",
+  "func n0@(Foo n1@(Bar x) n2@(Baz y)) = f n0 n1 x n2 y",
 
   "y = let {(x, y) = (1,2)} in x + y",
   "y = let {(x, y) = (1,2); (z, w) = x; (m, g) = y} in foo x y z w m g",
