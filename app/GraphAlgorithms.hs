@@ -36,7 +36,7 @@ syntaxNodeIsEmbeddable parentType n mParentPort = case (parentType, n) of
   (ApplyParent, LikeApplyNode _ _) -> notResultPort
   (ApplyParent, LiteralNode _) -> notResultPort
   (CaseOrGuardParent, LiteralNode _) -> notResultPort
-  (CaseOrGuardParent, LikeApplyNode _ _) -> notResultPort
+  (CaseOrGuardParent, LikeApplyNode _ _) -> notResultPort && notInputPort
   (CaseOrGuardParent, NestedPatternApplyNode _ _) -> notResultPort && notInputPort
   _ -> False
   where

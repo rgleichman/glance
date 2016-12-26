@@ -1,7 +1,7 @@
 # Todo
 
 ## Todo Now
-* Change the PApp icon so that from left to right it looks like: list of args, constructor name, result. If there is only one arg, then the arg port can have an additional angle of (1/2 turn).
+* Don't allow guards to embed patterns. This is only happening because @ values come from the PApp, not the actual source.
 
 * Consider adding binding variable names to the lambda icon and match icon. Don't display the name if it is only one character.
 

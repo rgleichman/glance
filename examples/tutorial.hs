@@ -196,8 +196,8 @@ y = (((2 + 4 * 4) - (7+ 2 + baz)*8)/21)
 (Just x) = Just 3
 
 {-
-Since constructors are functions, the match icon has the same shape as
-the apply icon. The match icon is magenta to help distinguish
+Since constructors are functions, the match icon has a same shape similar
+to the apply icon. The match icon is magenta to help distinguish
 it from the apply icon. In a future iteration of the Glance icons, the match and
 apply icons should be made more dissimilar so that they can not be confused with
 each other, even when displaying Glance drawings in black and white.
