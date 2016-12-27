@@ -20,12 +20,12 @@ import Language.Haskell.Exts(Decl(..), parseDecl, Name(..), Pat(..), Rhs(..),
   Stmt(..), Binds(..), Alt(..), Module(..), SpecialCon(..), prettyPrint)
 
 import GraphAlgorithms(collapseNodes)
-import TranslateCore(Reference, SyntaxGraph(..), EvalContext, GraphAndRef, SgSink(..), SgBind(..),
+import TranslateCore(Reference, SyntaxGraph(..), EvalContext, GraphAndRef(..), SgSink(..), SgBind(..),
   syntaxGraphFromNodes, syntaxGraphFromNodesEdges, getUniqueName, combineExpressions,
   edgesForRefPortList, makeApplyGraph,
   namesInPattern, lookupReference, deleteBindings, makeEdges,
   makeBox, nTupleString, nListString,
-  syntaxGraphToFglGraph, getUniqueString, bindsToSyntaxGraph)
+  syntaxGraphToFglGraph, getUniqueString, bindsToSyntaxGraph, graphAndRefToGraph)
 import Types(NameAndPort(..), IDState,
   initialIdState, Edge, SyntaxNode(..), IngSyntaxGraph, NodeName, Port(..), SgNamedNode,
   LikeApplyFlavor(..))
@@ -54,6 +54,9 @@ makeAsBindGraph ref asNames = bindsToSyntaxGraph $ catMaybes $ fmap makeBind asN
   makeBind mName = case mName of
     Nothing -> Nothing
     Just asName -> Just $ SgBind asName ref
+
+grNamePortToGrRef :: (SyntaxGraph, NameAndPort) -> GraphAndRef
+grNamePortToGrRef (graph, np) = GraphAndRef graph (Right np)
 
 -- END Helper Functions --
 
@@ -102,13 +105,15 @@ evalLit (Exts.PrimString x) = makeLiteral x
 
 -- BEGIN evalPApp
 -- TODO Refactor decideIfNested and makePatternGraph
-decideIfNested :: ((SyntaxGraph, t1), t) ->
-  (Maybe ((SyntaxGraph, t1), t), Maybe SgNamedNode, [SgSink], [SgBind], [(NodeName, NodeName)])
-decideIfNested ((SyntaxGraph [nameAndIcon] [] sinks bindings eMap, _), _) = (Nothing, Just nameAndIcon, sinks, bindings, eMap)
+decideIfNested ::
+  (GraphAndRef, t)
+  -> (Maybe (GraphAndRef, t), Maybe SgNamedNode, [SgSink], [SgBind],
+      [(NodeName, NodeName)])
+decideIfNested (GraphAndRef (SyntaxGraph [nameAndIcon] [] sinks bindings eMap) _ , _) = (Nothing, Just nameAndIcon, sinks, bindings, eMap)
 decideIfNested valAndPort = (Just valAndPort, Nothing, [], [], [])
 
 asNameBind :: (GraphAndRef, Maybe String) -> Maybe SgBind
-asNameBind ((_, ref), mAsName) = case mAsName of
+asNameBind ((GraphAndRef _ ref), mAsName) = case mAsName of
   Nothing -> Nothing
   Just asName -> Just $ SgBind asName ref
 
@@ -135,7 +140,7 @@ makePatternGraph applyIconName funStr argVals _ = nestedApplyResult
     newGraph = SyntaxGraph icons [] allSinks allBinds newEMap
     nestedApplyResult = (newGraph <> combinedGraph, nameAndPort applyIconName (Port 1))
 
-makePatternGraph' :: NodeName -> String -> [(SyntaxGraph, Reference)] -> Int -> (SyntaxGraph, NameAndPort)
+makePatternGraph' :: NodeName -> String -> [GraphAndRef] -> Int -> (SyntaxGraph, NameAndPort)
 makePatternGraph' applyIconName funStr argVals numArgs = (newGraph <> combinedGraph, nameAndPort applyIconName (Port 1))
   where
     argumentPorts = map (nameAndPort applyIconName . Port) [2,3..]
@@ -177,18 +182,18 @@ evalPLit sign l = case sign of
 
 evalPAsPat :: Name -> Pat -> State IDState (GraphAndRef, Maybe String)
 evalPAsPat n p = do
-  ((evaledPatGraph, evaledPatRef), mInnerName) <- evalPattern p
+  (GraphAndRef evaledPatGraph evaledPatRef, mInnerName) <- evalPattern p
   let
     outerName = nameToString n
     asBindGraph = makeAsBindGraph (Left outerName) [mInnerName]
-  pure ((asBindGraph <> evaledPatGraph, evaledPatRef), Just outerName)
+  pure ((GraphAndRef (asBindGraph <> evaledPatGraph) evaledPatRef), Just outerName)
 
-makePatternResult :: Functor f => f (t, b) -> f ((t, Either a b), Maybe a)
-makePatternResult = fmap (\(graph, namePort) -> ((graph, Right namePort), Nothing))
+makePatternResult :: Functor f => f (SyntaxGraph, NameAndPort) -> f (GraphAndRef, Maybe String)
+makePatternResult = fmap (\(graph, namePort) -> (GraphAndRef graph (Right namePort), Nothing))
 
 evalPattern :: Pat -> State IDState (GraphAndRef, Maybe String)
 evalPattern p = case p of
-  PVar n -> pure ((mempty, Left $ nameToString n), Nothing)
+  PVar n -> pure (GraphAndRef mempty (Left $ nameToString n), Nothing)
   PLit s l -> makePatternResult $ evalPLit s l
   PInfixApp p1 qName p2 -> evalPattern (PApp qName [p1, p2])
   PApp name patterns -> makePatternResult $ evalPApp name patterns
@@ -208,17 +213,17 @@ evalPattern p = case p of
 -- BEGIN evalQName
 
 -- strToGraphRef is not in TranslateCore, since it is only used by evalQName.
-strToGraphRef :: EvalContext -> String -> State IDState (SyntaxGraph, Reference)
+strToGraphRef :: EvalContext -> String -> State IDState GraphAndRef
 strToGraphRef c str = fmap mapper (makeBox str) where
   mapper gr = if str `elem` c
-    then (mempty, Left str)
-    else fmap Right gr
+    then GraphAndRef mempty (Left str)
+    else grNamePortToGrRef gr
 
-evalQName :: QName -> EvalContext -> State IDState (SyntaxGraph, Reference)
+evalQName :: QName -> EvalContext -> State IDState GraphAndRef
 evalQName qName c = case qName of
   UnQual _ -> graphRef
   Qual _ _ -> graphRef
-  _ -> fmap Right <$> makeBox qNameString
+  _ -> grNamePortToGrRef <$> makeBox qNameString
   where
     qNameString = qNameToString qName
     graphRef = strToGraphRef c qNameString
@@ -226,7 +231,7 @@ evalQName qName c = case qName of
 -- END evalQName
 
 
--- evalQOp :: QOp -> EvalContext -> State IDState (SyntaxGraph, Reference)
+-- evalQOp :: QOp -> EvalContext -> State IDState GraphAndRef
 -- evalQOp (QVarOp n) = evalQName n
 -- evalQOp (QConOp n) = evalQName n
 
@@ -265,18 +270,18 @@ evalPureCompose c functions = do
   neverUsedPort <- Left <$> getUniqueString "unusedArgument"
   applyIconName <- getUniqueName "compose"
   pure $ makeApplyGraph ComposeNodeFlavor False applyIconName
-    (mempty, neverUsedPort) evaluatedFunctions (length evaluatedFunctions)
+    (GraphAndRef mempty neverUsedPort) evaluatedFunctions (length evaluatedFunctions)
 
 simplifyPureCompose :: Exp -> [Exp]
 simplifyPureCompose e = case removeParen e of
   (InfixApp exp1  (QVarOp (UnQual (Symbol "."))) exp2) -> exp1 : simplifyPureCompose exp2
   x -> [x]
 
-evalInfixApp :: EvalContext -> Exp -> QOp -> Exp -> State IDState (SyntaxGraph, Reference)
+evalInfixApp :: EvalContext -> Exp -> QOp -> Exp -> State IDState GraphAndRef
 evalInfixApp c e1 op e2 = case op of
   QVarOp (UnQual (Symbol sym)) -> case sym of
     "$" -> evalExp c (App e1 e2)
-    "." -> fmap Right <$> evalPureCompose c (e1 : simplifyPureCompose e2)
+    "." -> grNamePortToGrRef <$> evalPureCompose c (e1 : simplifyPureCompose e2)
     _ -> defaultCase
   _ -> defaultCase
   where
@@ -381,19 +386,19 @@ evalBinds c (BDecls decls) = do
   evaledDecl <- mconcat <$> mapM (evalDecl augmentedContext) decls
   pure (evaledDecl, augmentedContext)
 
-evalGeneralLet :: (EvalContext -> State IDState (SyntaxGraph, Reference)) -> EvalContext -> Binds -> State IDState (SyntaxGraph, Reference)
+evalGeneralLet :: (EvalContext -> State IDState GraphAndRef) -> EvalContext -> Binds -> State IDState GraphAndRef
 evalGeneralLet expOrRhsEvaler c bs = do
   (bindGraph, bindContext) <- evalBinds c bs
   expVal <- expOrRhsEvaler bindContext
   let
-    (expGraph, expResult) = expVal
+    GraphAndRef expGraph expResult = expVal
     newGraph = deleteBindings . makeEdges $ expGraph <> bindGraph
     bindings = sgBinds bindGraph
-  pure (newGraph, lookupReference bindings expResult)
+  pure $ GraphAndRef newGraph (lookupReference bindings expResult)
 
 -- END evalGeneralLet
 
-evalLet :: EvalContext -> Binds -> Exp -> State IDState (SyntaxGraph, Reference)
+evalLet :: EvalContext -> Binds -> Exp -> State IDState GraphAndRef
 evalLet context binds e = evalGeneralLet (`evalExp` e) context binds
 
 -- BEGIN rhsWithBinds
@@ -425,11 +430,11 @@ evalGuardedRhss c rhss = do
 
 -- | First argument is the right hand side.
 -- The second arugement is a list of strings that are bound in the environment.
-evalRhs :: EvalContext -> Rhs -> State IDState (SyntaxGraph, Reference)
+evalRhs :: EvalContext -> Rhs -> State IDState GraphAndRef
 evalRhs c (UnGuardedRhs e) = evalExp c e
-evalRhs c (GuardedRhss rhss) = fmap Right <$> evalGuardedRhss c rhss
+evalRhs c (GuardedRhss rhss) = grNamePortToGrRef <$> evalGuardedRhss c rhss
 
-rhsWithBinds :: Maybe Binds -> Rhs -> EvalContext -> State IDState (SyntaxGraph, Reference)
+rhsWithBinds :: Maybe Binds -> Rhs -> EvalContext -> State IDState GraphAndRef
 rhsWithBinds maybeWhereBinds rhs rhsContext = case maybeWhereBinds of
   Nothing -> evalRhs rhsContext rhs
   Just b -> evalGeneralLet (`evalRhs` rhs) rhsContext b
@@ -443,8 +448,8 @@ evalPatAndRhs :: EvalContext -> Pat -> Rhs -> Maybe Binds -> State IDState (Bool
 evalPatAndRhs c pat rhs maybeWhereBinds = do
   patternNames <- namesInPattern <$> evalPattern pat
   let rhsContext = patternNames <> c
-  (rhsGraph, rhsRef) <- rhsWithBinds maybeWhereBinds rhs rhsContext
-  ((patGraph, patRef), mPatAsName) <- evalPattern pat
+  GraphAndRef rhsGraph rhsRef <- rhsWithBinds maybeWhereBinds rhs rhsContext
+  (GraphAndRef patGraph patRef, mPatAsName) <- evalPattern pat
   let
     grWithEdges = makeEdges (rhsGraph <> patGraph)
     lookedUpRhsRef = lookupReference (sgBinds grWithEdges) rhsRef
@@ -461,7 +466,7 @@ evalAlt c (Exts.Alt _ pat rhs maybeBinds) = evalPatAndRhs c pat rhs maybeBinds
 evalCase :: EvalContext -> Exp -> [Alt] -> State IDState (SyntaxGraph, NameAndPort)
 evalCase c e alts = do
   evaledAlts <- mapM (evalAlt c) alts
-  (expGraph, expRef) <- evalExp c e
+  GraphAndRef expGraph expRef <- evalExp c e
   caseIconName <- getUniqueName "case"
   let
     (patRhsConnected, altGraphs, patRefs, rhsRefs, asNames) = unzip5 evaledAlts
@@ -499,13 +504,13 @@ evalTuple c exps = do
   argVals <- mapM (evalExp c) exps
   funVal <- makeBox $ nTupleString (length exps)
   applyIconName <- getUniqueName "tupleApp"
-  pure $ makeApplyGraph ApplyNodeFlavor False applyIconName (fmap Right funVal) argVals (length exps)
+  pure $ makeApplyGraph ApplyNodeFlavor False applyIconName (grNamePortToGrRef funVal) argVals (length exps)
 
 evalListExp :: EvalContext -> [Exp] -> State IDState (SyntaxGraph, NameAndPort)
 evalListExp _ [] = makeBox "[]"
 evalListExp c exps = evalApp c ApplyNodeFlavor (makeVarExp . nListString . length $ exps, exps)
 
-evalLeftSection :: EvalContext -> Exp -> QOp -> State IDState (SyntaxGraph, Reference)
+evalLeftSection :: EvalContext -> Exp -> QOp -> State IDState GraphAndRef
 evalLeftSection c e op = evalExp c $ App (qOpToExp op) e
 
 evalRightSection :: EvalContext -> QOp -> Exp -> State IDState (SyntaxGraph, NameAndPort)
@@ -515,11 +520,11 @@ evalRightSection c op e = do
   applyIconName <- getUniqueName "tupleApp"
   -- TODO: A better option would be for makeApplyGraph to take the list of expressions as Maybes.
   neverUsedPort <- Left <$> getUniqueString "unusedArgument"
-  pure $ makeApplyGraph ApplyNodeFlavor False applyIconName funVal [(mempty, neverUsedPort), expVal] 2
+  pure $ makeApplyGraph ApplyNodeFlavor False applyIconName funVal [GraphAndRef mempty neverUsedPort, expVal] 2
 
 -- evalEnums is only used by evalExp
-evalEnums :: EvalContext -> String -> [Exp] -> State IDState (SyntaxGraph, Reference)
-evalEnums c s exps = fmap Right <$> evalApp c ApplyNodeFlavor (makeVarExp s, exps)
+evalEnums :: EvalContext -> String -> [Exp] -> State IDState GraphAndRef
+evalEnums c s exps = grNamePortToGrRef <$> evalApp c ApplyNodeFlavor (makeVarExp s, exps)
 
 desugarDo :: [Stmt] -> Exp
 desugarDo [Qualifier e] = e
@@ -530,7 +535,7 @@ desugarDo (Generator srcLoc pat e : stmts) =
 desugarDo (LetStmt binds : stmts) = Let binds (desugarDo stmts)
 
 -- TODO: Finish evalRecConstr
-evalRecConstr :: EvalContext -> QName -> [Exts.FieldUpdate] -> State IDState (SyntaxGraph, Reference)
+evalRecConstr :: EvalContext -> QName -> [Exts.FieldUpdate] -> State IDState GraphAndRef
 evalRecConstr c qName _ = evalQName qName c
 
 -- BEGIN generalEvalLambda
@@ -548,12 +553,12 @@ generalEvalLambda context patterns rhsEvalFun = do
     patternStrings = concatMap namesInPattern patternValsWithAsNames
     rhsContext = patternStrings <> context
     lambdaPorts = map (nameAndPort lambdaName . Port) [2,3..]
-    patternGraph = mconcat $ map fst patternVals
+    patternGraph = mconcat $ fmap graphAndRefToGraph patternVals
 
     (patternEdges, newBinds) =
       partitionEithers $ zipWith makePatternEdges patternVals lambdaPorts
 
-  (rhsRawGraph, rhsRef) <- rhsEvalFun rhsContext
+  GraphAndRef rhsRawGraph rhsRef <- rhsEvalFun rhsContext
   let
     icons = [(lambdaName, FunctionDefNode (length patterns))]
     returnPort = nameAndPort lambdaName (Port 0)
@@ -569,34 +574,34 @@ generalEvalLambda context patterns rhsEvalFun = do
     -- TODO Like evalPatBind, this edge should have an indicator that it is the input to a pattern.
     -- makePatternEdges creates the edges between the patterns and the parameter ports.
     makePatternEdges :: GraphAndRef -> NameAndPort -> Either Edge SgBind
-    makePatternEdges (_, Right patPort) lamPort =
-      Left $ makeSimpleEdge (lamPort, patPort)
-    makePatternEdges (_, Left str) lamPort = Right $ SgBind str (Right lamPort)
+    makePatternEdges (GraphAndRef _ ref) lamPort = case ref of
+      Right patPort -> Left $ makeSimpleEdge (lamPort, patPort)
+      Left str -> Right $ SgBind str (Right lamPort)
 
 -- END generalEvalLambda
 
 evalLambda :: EvalContext -> [Pat] -> Exp -> State IDState (SyntaxGraph, NameAndPort)
 evalLambda c patterns e = generalEvalLambda c patterns (`evalExp` e)
 
-evalExp :: EvalContext  -> Exp -> State IDState (SyntaxGraph, Reference)
+evalExp :: EvalContext  -> Exp -> State IDState GraphAndRef
 evalExp c x = case x of
   Var n -> evalQName n c
   Con n -> evalQName n c
-  Lit l -> fmap Right <$> evalLit l
+  Lit l -> grNamePortToGrRef <$> evalLit l
   InfixApp e1 op e2 -> evalInfixApp c e1 op e2
-  App f arg -> fmap Right <$> evaluateAppExpression c f arg
+  App f arg -> grNamePortToGrRef <$> evaluateAppExpression c f arg
   NegApp e -> evalExp c (App (makeVarExp "negate") e)
-  Lambda _ patterns e -> fmap Right <$> evalLambda c patterns e
+  Lambda _ patterns e -> grNamePortToGrRef <$> evalLambda c patterns e
   Let bs e -> evalLet c bs e
-  If e1 e2 e3 -> fmap Right <$> evalIf c e1 e2 e3
-  Case e alts -> fmap Right <$> evalCase c e alts
+  If e1 e2 e3 -> grNamePortToGrRef <$> evalIf c e1 e2 e3
+  Case e alts -> grNamePortToGrRef <$> evalCase c e alts
   Do stmts -> evalExp c (desugarDo stmts)
   -- TODO special tuple symbol
-  Tuple _ exps -> fmap Right <$> evalTuple c exps
-  List exps -> fmap Right <$> evalListExp c exps
+  Tuple _ exps -> grNamePortToGrRef <$> evalTuple c exps
+  List exps -> grNamePortToGrRef <$> evalListExp c exps
   Paren e -> evalExp c e
   LeftSection e op -> evalLeftSection c e op
-  RightSection op e -> fmap Right <$> evalRightSection c op e
+  RightSection op e -> grNamePortToGrRef <$> evalRightSection c op e
   RecConstr n updates -> evalRecConstr c n updates
   -- TODO: Do RecUpdate correcly
   RecUpdate e _ -> evalExp c e
@@ -659,8 +664,8 @@ evalPatBind :: EvalContext -> Decl -> State IDState SyntaxGraph
 evalPatBind c (PatBind _ pat rhs maybeWhereBinds) = do
   patternNames <- namesInPattern <$> evalPattern pat
   let rhsContext = patternNames <> c
-  (rhsGraph, rhsRef) <- rhsWithBinds maybeWhereBinds rhs rhsContext
-  ((patGraph, patRef), patAsName) <- evalPattern pat
+  GraphAndRef rhsGraph rhsRef <- rhsWithBinds maybeWhereBinds rhs rhsContext
+  (GraphAndRef patGraph patRef, patAsName) <- evalPattern pat
   let
     (newEdges, newSinks, bindings) = case patRef of
       (Left s) -> (mempty, mempty, [SgBind s rhsRef])

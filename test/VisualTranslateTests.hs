@@ -148,7 +148,10 @@ patternTests = [
 
   "t@(x,y) = (x,y)",
   "y = let {t@(_,_) = (3,4)} in t + 3",
+
+  -- TODO There is no bind text box for n2
   "n1@(n2@(x,y)) = f n1 n2 x y",
+
   "n0@(Foo n1@(Bar x) n2@(Baz y)) = f n0 n1 x n2 y",
   "baz = case 0 of {n0@(Foo n1@(Bar x) n2@(Baz y)) -> f n0 n1 x n2 y}",
   "func n0@(Foo n1@(Bar x) n2@(Baz y)) = f n0 n1 x n2 y",

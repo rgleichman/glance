@@ -2,12 +2,13 @@ module TranslateCore(
   Reference,
   SyntaxGraph(..),
   EvalContext,
-  GraphAndRef,
+  GraphAndRef(..),
   SgSink(..),
   SgBind(..),
   syntaxGraphFromNodes,
   syntaxGraphFromNodesEdges,
   bindsToSyntaxGraph,
+  graphAndRefToGraph,
   getUniqueName,
   getUniqueString,
   edgesForRefPortList,
@@ -72,7 +73,9 @@ instance Monoid SyntaxGraph where
   mappend = (<>)
 
 type EvalContext = [String]
-type GraphAndRef = (SyntaxGraph, Reference)
+data GraphAndRef = GraphAndRef SyntaxGraph Reference
+
+-- BEGIN Constructors and Destructors
 
 sgBindToString :: SgBind -> String
 sgBindToString (SgBind s _) = s
@@ -94,6 +97,11 @@ sinksToSyntaxGraph sinks = SyntaxGraph mempty mempty sinks mempty mempty
 
 edgesToSyntaxGraph :: [Edge] -> SyntaxGraph
 edgesToSyntaxGraph edges = SyntaxGraph mempty edges mempty mempty mempty
+
+graphAndRefToGraph :: GraphAndRef -> SyntaxGraph
+graphAndRefToGraph (GraphAndRef g _) = g
+
+-- END Constructors and Destructors
 
 -- TODO Remove string parameter
 getUniqueName :: String -> State IDState NodeName
@@ -119,7 +127,7 @@ edgesForRefPortList inPattern portExpPairs = mconcat $ fmap makeGraph portExpPai
 combineExpressions :: Bool -> [(GraphAndRef, NameAndPort)] -> SyntaxGraph
 combineExpressions inPattern portExpPairs = mconcat $ fmap makeGraph portExpPairs where
   edgeOpts = if inPattern then [EdgeInPattern] else []
-  makeGraph ((graph, ref), port) = graph <> case ref of
+  makeGraph (GraphAndRef graph ref, port) = graph <> case ref of
     Left str -> if inPattern
       then bindsToSyntaxGraph [SgBind str (Right port)]
       else sinksToSyntaxGraph [SgSink str port]
@@ -138,8 +146,9 @@ makeApplyGraph applyFlavor inPattern applyIconName funVal argVals numArgs = (new
     newGraph = syntaxGraphFromNodes icons
 
 namesInPatternHelper :: GraphAndRef -> [String]
-namesInPatternHelper (_, Left str) = [str]
-namesInPatternHelper (SyntaxGraph _ _ _ bindings _, Right _) = fmap sgBindToString bindings
+namesInPatternHelper (GraphAndRef graph ref) = case ref of
+  Left str -> [str]
+  Right _ -> sgBindToString <$> sgBinds graph
 
 namesInPattern :: (GraphAndRef, Maybe String) -> [String]
 namesInPattern (graphAndRef, mName) = case mName of
