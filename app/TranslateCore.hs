@@ -3,10 +3,11 @@ module TranslateCore(
   SyntaxGraph(..),
   EvalContext,
   GraphAndRef,
-  Sink,
+  SgSink(..),
   SgBind(..),
   syntaxGraphFromNodes,
   syntaxGraphFromNodesEdges,
+  bindsToSyntaxGraph,
   getUniqueName,
   getUniqueString,
   edgesForRefPortList,
@@ -48,13 +49,15 @@ type Reference = Either String NameAndPort
 
 data SgBind = SgBind String Reference deriving (Eq, Show, Ord)
 
+data SgSink = SgSink String NameAndPort deriving (Eq, Ord, Show)
+
 -- TODO Replace lists with sets
 -- | SyntaxGraph is an abstract representation for Haskell syntax. SyntaxGraphs are
 -- generated from the Haskell syntax tree, and are used to generate Drawings
 data SyntaxGraph = SyntaxGraph {
   sgNodes :: [SgNamedNode],
   sgEdges :: [Edge],
-  sgSinks :: [(String, NameAndPort)],
+  sgSinks :: [SgSink],
   sgBinds :: [SgBind],
   -- sgEmbedMap keeps track of nodes embedded in other nodes. If (child, parent) is in the Map, then child is embedded inside parent.
   sgEmbedMap :: [(NodeName, NodeName)]
@@ -70,7 +73,6 @@ instance Monoid SyntaxGraph where
 
 type EvalContext = [String]
 type GraphAndRef = (SyntaxGraph, Reference)
-type Sink = (String, NameAndPort)
 
 sgBindToString :: SgBind -> String
 sgBindToString (SgBind s _) = s
@@ -83,6 +85,9 @@ syntaxGraphFromNodes icons = SyntaxGraph icons mempty mempty mempty mempty
 
 syntaxGraphFromNodesEdges :: [(NodeName, SyntaxNode)] -> [Edge] -> SyntaxGraph
 syntaxGraphFromNodesEdges icons edges = SyntaxGraph icons edges mempty mempty mempty
+
+bindsToSyntaxGraph :: [SgBind] -> SyntaxGraph
+bindsToSyntaxGraph binds = SyntaxGraph mempty mempty mempty binds mempty
 
 -- TODO Remove string parameter
 getUniqueName :: String -> State IDState NodeName
@@ -98,7 +103,7 @@ edgesForRefPortList inPattern portExpPairs = mconcat $ fmap makeGraph portExpPai
   makeGraph (ref, port) = case ref of
     Left str -> if inPattern
       then SyntaxGraph mempty mempty mempty [SgBind str (Right port)] mempty
-      else SyntaxGraph mempty mempty [(str, port)] mempty mempty
+      else SyntaxGraph mempty mempty [SgSink str port] mempty mempty
     Right resultPort -> SyntaxGraph mempty [Edge edgeOpts noEnds connection] mempty mempty mempty where
       connection = if inPattern
         -- If in a pattern, then the port on the case icon is the data source.
@@ -111,7 +116,7 @@ combineExpressions inPattern portExpPairs = mconcat $ fmap makeGraph portExpPair
   makeGraph ((graph, ref), port) = graph <> case ref of
     Left str -> if inPattern
       then SyntaxGraph mempty mempty mempty [SgBind str (Right port)] mempty
-      else SyntaxGraph mempty mempty [(str, port)] mempty mempty
+      else SyntaxGraph mempty mempty [SgSink str port] mempty mempty
     Right resultPort -> SyntaxGraph mempty [Edge edgeOpts noEnds (resultPort, port)] mempty mempty mempty
 
 -- qualifyNameAndPort :: String -> NameAndPort -> NameAndPort
@@ -153,14 +158,14 @@ lookupReference bindings ref@(Left originalS) = lookupHelper ref where
 deleteBindings :: SyntaxGraph -> SyntaxGraph
 deleteBindings (SyntaxGraph a b c _ e) = SyntaxGraph a b c mempty e
 
-makeEdgesCore :: [Sink] -> [SgBind] -> ([Sink], [Edge])
+makeEdgesCore :: [SgSink] -> [SgBind] -> ([SgSink], [Edge])
 makeEdgesCore sinks bindings = partitionEithers $ fmap renameOrMakeEdge sinks
   where
-    renameOrMakeEdge :: (String, NameAndPort) -> Either (String, NameAndPort) Edge
-    renameOrMakeEdge orig@(s, destPort) = case lookup s (fmap sgBindToTuple bindings) of
+    renameOrMakeEdge :: SgSink -> Either SgSink Edge
+    renameOrMakeEdge orig@(SgSink s destPort) = case lookup s (fmap sgBindToTuple bindings) of
       Just ref -> case lookupReference bindings ref of
         (Right sourcePort) -> Right $ makeSimpleEdge (sourcePort, destPort)
-        (Left newStr) -> Left (newStr, destPort)
+        (Left newStr) -> Left $ SgSink newStr destPort
       Nothing -> Left orig
 
 makeEdges :: SyntaxGraph -> SyntaxGraph

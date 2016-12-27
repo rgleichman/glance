@@ -20,12 +20,12 @@ import Language.Haskell.Exts(Decl(..), parseDecl, Name(..), Pat(..), Rhs(..),
   Stmt(..), Binds(..), Alt(..), Module(..), SpecialCon(..), prettyPrint)
 
 import GraphAlgorithms(collapseNodes)
-import TranslateCore(Reference, SyntaxGraph(..), EvalContext, GraphAndRef, Sink, SgBind(..),
+import TranslateCore(Reference, SyntaxGraph(..), EvalContext, GraphAndRef, SgSink(..), SgBind(..),
   syntaxGraphFromNodes, syntaxGraphFromNodesEdges, getUniqueName, combineExpressions,
   edgesForRefPortList, makeApplyGraph,
   namesInPattern, lookupReference, deleteBindings, makeEdges,
   makeBox, nTupleString, nListString,
-  syntaxGraphToFglGraph, getUniqueString)
+  syntaxGraphToFglGraph, getUniqueString, bindsToSyntaxGraph)
 import Types(NameAndPort(..), IDState,
   initialIdState, Edge, SyntaxNode(..), IngSyntaxGraph, NodeName, Port(..), SgNamedNode,
   LikeApplyFlavor(..))
@@ -47,9 +47,6 @@ makeQVarOp = QVarOp . UnQual . Ident
 qOpToExp :: QOp -> Exp
 qOpToExp (QVarOp n) = Var n
 qOpToExp (QConOp n) = Con n
-
-bindsToSyntaxGraph :: [SgBind] -> SyntaxGraph
-bindsToSyntaxGraph binds = SyntaxGraph mempty mempty mempty binds mempty
 
 -- | Make a syntax graph that has the bindings for a list of "as pattern" (@) names.
 makeAsBindGraph :: Reference -> [Maybe String] -> SyntaxGraph
@@ -106,7 +103,7 @@ evalLit (Exts.PrimString x) = makeLiteral x
 -- BEGIN evalPApp
 -- TODO Refactor decideIfNested and makePatternGraph
 decideIfNested :: ((SyntaxGraph, t1), t) ->
-  (Maybe ((SyntaxGraph, t1), t), Maybe SgNamedNode, [Sink], [SgBind], [(NodeName, NodeName)])
+  (Maybe ((SyntaxGraph, t1), t), Maybe SgNamedNode, [SgSink], [SgBind], [(NodeName, NodeName)])
 decideIfNested ((SyntaxGraph [nameAndIcon] [] sinks bindings eMap, _), _) = (Nothing, Just nameAndIcon, sinks, bindings, eMap)
 decideIfNested valAndPort = (Just valAndPort, Nothing, [], [], [])
 
@@ -561,7 +558,7 @@ generalEvalLambda context patterns rhsEvalFun = do
     icons = [(lambdaName, FunctionDefNode (length patterns))]
     returnPort = nameAndPort lambdaName (Port 0)
     (newEdges, newSinks) = case rhsRef of
-      Left s -> (patternEdges, [(s, returnPort)])
+      Left s -> (patternEdges, [SgSink s returnPort])
       Right rhsPort ->  (makeSimpleEdge (rhsPort, returnPort) : patternEdges, mempty)
     finalGraph = SyntaxGraph icons newEdges newSinks newBinds mempty
 
@@ -669,7 +666,7 @@ evalPatBind c (PatBind _ pat rhs maybeWhereBinds) = do
       (Left s) -> (mempty, mempty, [SgBind s rhsRef])
       (Right patPort) -> case rhsRef of
         -- TODO This edge/sink should have a special arrow head to indicate an input to a pattern.
-        (Left rhsStr) -> (mempty, [(rhsStr, patPort)], mempty)
+        (Left rhsStr) -> (mempty, [SgSink rhsStr patPort], mempty)
         (Right rhsPort) -> ([makeSimpleEdge (rhsPort, patPort)], mempty, mempty)
     asBindGraph = makeAsBindGraph rhsRef [patAsName]
     gr = asBindGraph <> SyntaxGraph mempty newEdges newSinks bindings mempty
