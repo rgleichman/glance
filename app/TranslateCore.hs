@@ -89,6 +89,12 @@ syntaxGraphFromNodesEdges icons edges = SyntaxGraph icons edges mempty mempty me
 bindsToSyntaxGraph :: [SgBind] -> SyntaxGraph
 bindsToSyntaxGraph binds = SyntaxGraph mempty mempty mempty binds mempty
 
+sinksToSyntaxGraph :: [SgSink] -> SyntaxGraph
+sinksToSyntaxGraph sinks = SyntaxGraph mempty mempty sinks mempty mempty
+
+edgesToSyntaxGraph :: [Edge] -> SyntaxGraph
+edgesToSyntaxGraph edges = SyntaxGraph mempty edges mempty mempty mempty
+
 -- TODO Remove string parameter
 getUniqueName :: String -> State IDState NodeName
 getUniqueName _ = fmap NodeName getId
@@ -102,9 +108,9 @@ edgesForRefPortList inPattern portExpPairs = mconcat $ fmap makeGraph portExpPai
   edgeOpts = if inPattern then [EdgeInPattern] else []
   makeGraph (ref, port) = case ref of
     Left str -> if inPattern
-      then SyntaxGraph mempty mempty mempty [SgBind str (Right port)] mempty
-      else SyntaxGraph mempty mempty [SgSink str port] mempty mempty
-    Right resultPort -> SyntaxGraph mempty [Edge edgeOpts noEnds connection] mempty mempty mempty where
+      then bindsToSyntaxGraph [SgBind str (Right port)]
+      else sinksToSyntaxGraph [SgSink str port]
+    Right resultPort -> edgesToSyntaxGraph [Edge edgeOpts noEnds connection] where
       connection = if inPattern
         -- If in a pattern, then the port on the case icon is the data source.
         then (port, resultPort)
@@ -115,9 +121,9 @@ combineExpressions inPattern portExpPairs = mconcat $ fmap makeGraph portExpPair
   edgeOpts = if inPattern then [EdgeInPattern] else []
   makeGraph ((graph, ref), port) = graph <> case ref of
     Left str -> if inPattern
-      then SyntaxGraph mempty mempty mempty [SgBind str (Right port)] mempty
-      else SyntaxGraph mempty mempty [SgSink str port] mempty mempty
-    Right resultPort -> SyntaxGraph mempty [Edge edgeOpts noEnds (resultPort, port)] mempty mempty mempty
+      then bindsToSyntaxGraph [SgBind str (Right port)]
+      else sinksToSyntaxGraph [SgSink str port]
+    Right resultPort -> edgesToSyntaxGraph [Edge edgeOpts noEnds (resultPort, port)]
 
 -- qualifyNameAndPort :: String -> NameAndPort -> NameAndPort
 -- qualifyNameAndPort s (NameAndPort n p) = NameAndPort (s DIA..> n) p
