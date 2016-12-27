@@ -36,9 +36,9 @@ import Data.List(find)
 import Data.Semigroup(Semigroup, (<>))
 
 import Types(Icon, SyntaxNode(..), Edge(..), EdgeOption(..),
-  NameAndPort(..), IDState, getId, SgNamedNode, NodeName(..), Port(..), nodeNameToInt,
+  NameAndPort(..), IDState, getId, SgNamedNode(..), NodeName(..), Port(..), nodeNameToInt,
   LikeApplyFlavor(..), CaseOrGuardTag(..))
-import Util(noEnds, nameAndPort, makeSimpleEdge, justName, maybeBoolToBool)
+import Util(noEnds, nameAndPort, makeSimpleEdge, justName, maybeBoolToBool, mapNodeInNamedNode)
 import Icons(Icon(..))
 
 -- OVERVIEW --
@@ -83,10 +83,10 @@ sgBindToString (SgBind s _) = s
 sgBindToTuple :: SgBind -> (String, Reference)
 sgBindToTuple (SgBind s r) = (s, r)
 
-syntaxGraphFromNodes :: [(NodeName, SyntaxNode)] -> SyntaxGraph
+syntaxGraphFromNodes :: [SgNamedNode] -> SyntaxGraph
 syntaxGraphFromNodes icons = SyntaxGraph icons mempty mempty mempty mempty
 
-syntaxGraphFromNodesEdges :: [(NodeName, SyntaxNode)] -> [Edge] -> SyntaxGraph
+syntaxGraphFromNodesEdges :: [SgNamedNode] -> [Edge] -> SyntaxGraph
 syntaxGraphFromNodesEdges icons edges = SyntaxGraph icons edges mempty mempty mempty
 
 bindsToSyntaxGraph :: [SgBind] -> SyntaxGraph
@@ -142,7 +142,7 @@ makeApplyGraph applyFlavor inPattern applyIconName funVal argVals numArgs = (new
     argumentPorts = map (nameAndPort applyIconName . Port) [2,3..]
     functionPort = nameAndPort applyIconName (Port 0)
     combinedGraph = combineExpressions inPattern $ zip (funVal:argVals) (functionPort:argumentPorts)
-    icons = [(applyIconName, LikeApplyNode applyFlavor numArgs)]
+    icons = [SgNamedNode applyIconName (LikeApplyNode applyFlavor numArgs)]
     newGraph = syntaxGraphFromNodes icons
 
 namesInPatternHelper :: GraphAndRef -> [String]
@@ -192,7 +192,7 @@ makeEdges (SyntaxGraph icons edges sinks bindings eMap) = newGraph where
 makeBox :: String -> State IDState (SyntaxGraph, NameAndPort)
 makeBox str = do
   name <- getUniqueName str
-  let graph = syntaxGraphFromNodes [(name, LiteralNode str)]
+  let graph = syntaxGraphFromNodes [SgNamedNode name (LiteralNode str)]
   pure (graph, justName name)
 
 nTupleString :: Int -> String
@@ -222,7 +222,7 @@ nodeToIcon (NestedCaseOrGuardNode tag x edges) = nestedCaseOrGuardNodeToIcon tag
 makeArg :: [(SgNamedNode, Edge)] -> Int -> Maybe (NodeName, Icon)
 makeArg args port = case find (findArg (Port port)) args of
   Nothing -> Nothing
-  Just ((argName, argSyntaxNode), _) -> Just (argName, nodeToIcon argSyntaxNode)
+  Just (SgNamedNode argName argSyntaxNode, _) -> Just (argName, nodeToIcon argSyntaxNode)
 
 nestedApplySyntaxNodeToIcon :: LikeApplyFlavor -> Int -> [(SgNamedNode, Edge)] -> Icon
 nestedApplySyntaxNodeToIcon flavor numArgs args = NestedApply flavor argList where
@@ -242,7 +242,7 @@ nestedPatternNodeToIcon :: String -> [Maybe SgNamedNode] -> Icon
 nestedPatternNodeToIcon str children = NestedPApp $
   Just (NodeName (-1), TextBoxIcon str)
   :
-  fmap (fmap (second nodeToIcon)) children
+  (fmap (mapNodeInNamedNode nodeToIcon) <$> children)
 
 nestedPatternNodeToIcon' :: String -> Int -> [(SgNamedNode, Edge)] -> Icon
 nestedPatternNodeToIcon' str numArgs args = NestedPApp argList where
@@ -251,13 +251,13 @@ nestedPatternNodeToIcon' str numArgs args = NestedPApp argList where
   argList = Just (NodeName (-1), TextBoxIcon str) : fmap (makeArg args) [2..numArgs + 1]
 
 findArg :: Port -> (SgNamedNode, Edge) -> Bool
-findArg currentPort ((argName, _), Edge _ _ (NameAndPort fromName fromPort, NameAndPort toName toPort))
+findArg currentPort (SgNamedNode argName _, Edge _ _ (NameAndPort fromName fromPort, NameAndPort toName toPort))
   | argName == fromName = maybeBoolToBool $ fmap (== currentPort) toPort
   | argName == toName = maybeBoolToBool $ fmap (== currentPort) fromPort
   | otherwise = False -- This case should never happen
 
 makeLNode :: SgNamedNode -> ING.LNode SgNamedNode
-makeLNode namedNode@(NodeName name, _) = (name, namedNode)
+makeLNode namedNode@(SgNamedNode (NodeName name) _) = (name, namedNode)
 
 lookupInEmbeddingMap :: NodeName -> [(NodeName, NodeName)] -> NodeName
 lookupInEmbeddingMap origName eMap = lookupHelper origName where

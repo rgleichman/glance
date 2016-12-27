@@ -15,7 +15,8 @@ module Util (
   mapFst,
   printSelf,
   eitherToMaybes,
-  maybeBoolToBool
+  maybeBoolToBool,
+  mapNodeInNamedNode
 )where
 
 import Control.Arrow(first)
@@ -23,7 +24,8 @@ import Control.Arrow(first)
 import Data.Maybe(fromMaybe)
 import qualified Debug.Trace
 
-import Types(EdgeEnd(..), Edge(..), NameAndPort(..), Connection, NodeName, Port)
+import Types(EdgeEnd(..), Edge(..), NameAndPort(..), Connection, NodeName, Port,
+             SyntaxNode, SgNamedNode(..))
 
 mapFst :: Functor f => (a -> b) -> f (a, c) -> f (b, c)
 mapFst f = fmap (first f)
@@ -75,3 +77,6 @@ eitherToMaybes (Right y) = (Nothing, Just y)
 -- | (Just True) = True, Nothing = False
 maybeBoolToBool :: Maybe Bool -> Bool
 maybeBoolToBool = or
+
+mapNodeInNamedNode :: (SyntaxNode -> a) -> SgNamedNode -> (NodeName, a)
+mapNodeInNamedNode f (SgNamedNode name node) = (name, f node)

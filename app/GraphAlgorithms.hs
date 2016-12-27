@@ -13,7 +13,7 @@ import Data.Maybe(catMaybes, isJust, fromMaybe)
 --import qualified Debug.Trace
 
 import Types(SyntaxNode(..), sgNamedNodeToSyntaxNode, IngSyntaxGraph, Edge(..),
-            CaseOrGuardTag(..), Port(..), NameAndPort(..))
+            CaseOrGuardTag(..), Port(..), NameAndPort(..), SgNamedNode(..))
 import Util(maybeBoolToBool)
 --import Util(printSelf)
 
@@ -246,8 +246,8 @@ embedChildSyntaxNodes parentNode childrenNodes oldGraph = case childrenNodes of
       Nothing -> oldGraph
       Just oldNodeLabel -> changeNodeLabel oldGraph parentNode newNodeLabel
         where
-          (nodeName, oldSyntaxNode) = oldNodeLabel
-          newNodeLabel = (nodeName, newSyntaxNode)
+          SgNamedNode nodeName oldSyntaxNode = oldNodeLabel
+          newNodeLabel = SgNamedNode nodeName newSyntaxNode
           newSyntaxNode = case oldSyntaxNode of
             LikeApplyNode flavor x -> NestedApplyNode flavor x childrenAndEdgesToParent
             CaseNode x -> NestedCaseOrGuardNode CaseTag x childrenAndEdgesToParent

@@ -11,7 +11,7 @@ import qualified Data.GraphViz.Attributes.Complete as GVA
 
 import qualified Data.Graph.Inductive.PatriciaTree as FGR
 
-import Types(SpecialQDiagram, SpecialBackend, SyntaxNode(..), NameAndPort(..), SgNamedNode, Edge(..))
+import Types(SpecialQDiagram, SpecialBackend, SyntaxNode(..), NameAndPort(..), SgNamedNode(..), Edge(..))
 import Translate(translateStringToSyntaxGraph)
 import TranslateCore(syntaxGraphToFglGraph)
 import GraphAlgorithms(collapseNodes)
@@ -22,7 +22,7 @@ prettyPrintSyntaxNode :: SyntaxNode -> String
 prettyPrintSyntaxNode (NestedApplyNode _ _ namedNodesAndEdges) = concatMap printNameAndEdge namedNodesAndEdges
   where
     printNameAndEdge (namedNode, edge) = "(" ++ prettyPrintNamedNode namedNode ++ "," ++ printEdge edge ++ ")"
-    prettyPrintNamedNode = show. fst --  "(" ++ show name ++ "," ++ prettyPrintSyntaxNode syntaxNode ++ ")"
+    prettyPrintNamedNode (SgNamedNode name _) = show name --  "(" ++ show name ++ "," ++ prettyPrintSyntaxNode syntaxNode ++ ")"
     printEdge (Edge _ _ (NameAndPort n1 _, NameAndPort n2 _)) = show (n1, n2)
 prettyPrintSyntaxNode x = show x
 
@@ -39,7 +39,7 @@ renderFglGraph fglGraph = do
     layedOutGraph
   where
     scaleFactor = 0.12
-    nodeFunc (name, syntaxNode) point =
+    nodeFunc (SgNamedNode name syntaxNode) point =
       place (coloredTextBox white (opaque white) (show name ++ prettyPrintSyntaxNode syntaxNode) {- :: Diagram B -})
       (scaleFactor *^ point)
     layoutParams :: GV.GraphvizParams Int v e () v

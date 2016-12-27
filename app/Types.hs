@@ -15,7 +15,7 @@ module Types (
   SpecialQDiagram,
   SpecialBackend,
   SpecialNum,
-  SgNamedNode,
+  SgNamedNode(..),
   IngSyntaxGraph,
   LikeApplyFlavor(..),
   CaseOrGuardTag(..),
@@ -91,6 +91,8 @@ data EdgeEnd = EndAp1Result | EndAp1Arg | EndNone deriving (Show, Eq, Ord)
 -- and a map of names to subDrawings
 data Drawing = Drawing [(NodeName, Icon)] [Edge] deriving (Show, Eq)
 
+data SgNamedNode = SgNamedNode NodeName SyntaxNode deriving (Ord, Eq, Show)
+
 -- | IDState is an Abstract Data Type that is used as a state whose value is a unique id.
 newtype IDState = IDState Int deriving (Eq, Show)
 
@@ -101,11 +103,10 @@ type SpecialBackend b n = (SpecialNum n, Renderable (Path V2 n) b, Renderable (T
 
 type SpecialQDiagram b n = QDiagram b V2 n Any
 
-type SgNamedNode = (NodeName, SyntaxNode)
 type IngSyntaxGraph gr = gr SgNamedNode Edge
 
 sgNamedNodeToSyntaxNode :: SgNamedNode -> SyntaxNode
-sgNamedNodeToSyntaxNode = snd
+sgNamedNodeToSyntaxNode (SgNamedNode _ n) = n
 
 initialIdState :: IDState
 initialIdState = IDState 0

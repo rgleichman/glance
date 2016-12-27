@@ -29,8 +29,9 @@ import Data.Typeable(Typeable)
 import Icons(colorScheme, iconToDiagram, defaultLineWidth, ColorStyle(..), getPortAngles)
 import TranslateCore(nodeToIcon)
 import Types(Edge(..), Icon, EdgeOption(..), Drawing(..), EdgeEnd(..),
-  NameAndPort(..), SpecialQDiagram, SpecialBackend, SyntaxNode, SpecialNum, NodeName(..), Port(..))
-import Util(fromMaybeError)
+  NameAndPort(..), SpecialQDiagram, SpecialBackend, SyntaxNode, SpecialNum, NodeName(..), Port(..),
+  SgNamedNode)
+import Util(fromMaybeError, mapNodeInNamedNode)
 
 -- If the inferred types for these functions becomes unweildy,
 -- try using PartialTypeSignitures.
@@ -353,8 +354,8 @@ renderDrawing = renderIconGraph . drawingToIconGraph
 
 renderIngSyntaxGraph ::
   SpecialBackend b Double =>
-  Gr (NodeName, SyntaxNode) Edge -> IO (SpecialQDiagram b Double)
-renderIngSyntaxGraph = renderIconGraph . ING.nmap (Control.Arrow.second nodeToIcon)
+  Gr SgNamedNode Edge -> IO (SpecialQDiagram b Double)
+renderIngSyntaxGraph = renderIconGraph . ING.nmap (mapNodeInNamedNode nodeToIcon)
 
 renderIconGraph :: SpecialBackend b Double => Gr (NodeName, Icon) Edge -> IO (SpecialQDiagram b Double)
 renderIconGraph = doGraphLayout

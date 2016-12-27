@@ -27,7 +27,7 @@ import TranslateCore(Reference, SyntaxGraph(..), EvalContext, GraphAndRef(..), S
   makeBox, nTupleString, nListString,
   syntaxGraphToFglGraph, getUniqueString, bindsToSyntaxGraph, graphAndRefToGraph)
 import Types(NameAndPort(..), IDState,
-  initialIdState, Edge, SyntaxNode(..), IngSyntaxGraph, NodeName, Port(..), SgNamedNode,
+  initialIdState, Edge, SyntaxNode(..), IngSyntaxGraph, NodeName, Port(..), SgNamedNode(..),
   LikeApplyFlavor(..))
 import Util(makeSimpleEdge, nameAndPort, justName)
 
@@ -113,7 +113,7 @@ decideIfNested (GraphAndRef (SyntaxGraph [nameAndIcon] [] sinks bindings eMap) _
 decideIfNested valAndPort = (Just valAndPort, Nothing, [], [], [])
 
 asNameBind :: (GraphAndRef, Maybe String) -> Maybe SgBind
-asNameBind ((GraphAndRef _ ref), mAsName) = case mAsName of
+asNameBind (GraphAndRef _ ref, mAsName) = case mAsName of
   Nothing -> Nothing
   Just asName -> Just $ SgBind asName ref
 
@@ -134,8 +134,8 @@ makePatternGraph applyIconName funStr argVals _ = nestedApplyResult
     originalPortExpPairs = catMaybes unnestedArgsAndPort
     portExpressionPairs = originalPortExpPairs
     combinedGraph = combineExpressions True portExpressionPairs
-    icons = [(applyIconName, NestedPatternApplyNode funStr nestedArgs)]
-    newEMap = ((\(n, _) -> (n, applyIconName))  <$> catMaybes nestedArgs) <> mconcat nestedEMaps
+    icons = [SgNamedNode applyIconName (NestedPatternApplyNode funStr nestedArgs)]
+    newEMap = ((\(SgNamedNode n _) -> (n, applyIconName))  <$> catMaybes nestedArgs) <> mconcat nestedEMaps
     
     newGraph = SyntaxGraph icons [] allSinks allBinds newEMap
     nestedApplyResult = (newGraph <> combinedGraph, nameAndPort applyIconName (Port 1))
@@ -145,7 +145,7 @@ makePatternGraph' applyIconName funStr argVals numArgs = (newGraph <> combinedGr
   where
     argumentPorts = map (nameAndPort applyIconName . Port) [2,3..]
     combinedGraph = combineExpressions True $ zip argVals argumentPorts
-    icons = [(applyIconName, PatternApplyNode funStr numArgs)]
+    icons = [SgNamedNode applyIconName (PatternApplyNode funStr numArgs)]
     newGraph = syntaxGraphFromNodes icons
 
 evalPApp :: QName -> [Pat] -> State IDState (SyntaxGraph, NameAndPort)
@@ -186,7 +186,7 @@ evalPAsPat n p = do
   let
     outerName = nameToString n
     asBindGraph = makeAsBindGraph (Left outerName) [mInnerName]
-  pure ((GraphAndRef (asBindGraph <> evaledPatGraph) evaledPatRef), Just outerName)
+  pure (GraphAndRef (asBindGraph <> evaledPatGraph) evaledPatRef, Just outerName)
 
 makePatternResult :: Functor f => f (SyntaxGraph, NameAndPort) -> f (GraphAndRef, Maybe String)
 makePatternResult = fmap (\(graph, namePort) -> (GraphAndRef graph (Right namePort), Nothing))
@@ -361,7 +361,7 @@ evalIf c e1 e2 e3 = do
   e3Val <- evalExp c e3
   guardName <- getUniqueName "if"
   let
-    icons = [(guardName, GuardNode 2)]
+    icons = [SgNamedNode guardName (GuardNode 2)]
     combinedGraph =
       combineExpressions False $ zip [e1Val, e2Val, e3Val] (map (nameAndPort guardName . Port) [3, 2, 4])
     newGraph = syntaxGraphFromNodes icons <> combinedGraph
@@ -424,7 +424,7 @@ evalGuardedRhss c rhss = do
     expsWithPorts = zip exps $ map (nameAndPort guardName . Port) [2,4..]
     boolsWithPorts = zip bools $ map (nameAndPort guardName . Port) [3,5..]
     combindedGraph = combineExpressions False $ expsWithPorts <> boolsWithPorts
-    icons = [(guardName, GuardNode (length rhss))]
+    icons = [SgNamedNode guardName $ GuardNode (length rhss)]
     newGraph = syntaxGraphFromNodes icons <> combindedGraph
   pure (newGraph, nameAndPort guardName (Port 1))
 
@@ -472,7 +472,7 @@ evalCase c e alts = do
     (patRhsConnected, altGraphs, patRefs, rhsRefs, asNames) = unzip5 evaledAlts
     combindedAltGraph = mconcat altGraphs
     numAlts = length alts
-    icons = [(caseIconName, CaseNode numAlts)]
+    icons = [SgNamedNode caseIconName (CaseNode numAlts)]
     caseGraph = syntaxGraphFromNodes icons
     expEdge = (expRef, nameAndPort caseIconName (Port 0))
     patEdges = zip patRefs $ map (nameAndPort caseIconName . Port) [2,4..]
@@ -485,7 +485,7 @@ evalCase c e alts = do
       Left _ -> mempty
       Right rhsPort -> syntaxGraphFromNodesEdges rhsNewIcons rhsNewEdges
         where
-          rhsNewIcons = [(resultIconName, CaseResultNode)]
+          rhsNewIcons = [SgNamedNode resultIconName CaseResultNode]
           rhsNewEdges = [makeSimpleEdge (rhsPort, justName resultIconName)]
     caseResultGraphs = mconcat $ zipWith makeCaseResult resultIconNames (fmap (fst . snd) connectedRhss)
     filteredRhsEdges = fmap snd unConnectedRhss
@@ -560,7 +560,7 @@ generalEvalLambda context patterns rhsEvalFun = do
 
   GraphAndRef rhsRawGraph rhsRef <- rhsEvalFun rhsContext
   let
-    icons = [(lambdaName, FunctionDefNode (length patterns))]
+    icons = [SgNamedNode lambdaName $ FunctionDefNode (length patterns)]
     returnPort = nameAndPort lambdaName (Port 0)
     (newEdges, newSinks) = case rhsRef of
       Left s -> (patternEdges, [SgSink s returnPort])
@@ -705,7 +705,7 @@ showTopLevelBinds gr = do
     addBind (SgBind patName (Right port)) = do
       uniquePatName <- getUniqueName patName
       let
-        icons = [(uniquePatName, BindNameNode patName)]
+        icons = [SgNamedNode uniquePatName (BindNameNode patName)]
         edges = [makeSimpleEdge (port, justName uniquePatName)]
         edgeGraph = syntaxGraphFromNodesEdges icons edges
       pure edgeGraph

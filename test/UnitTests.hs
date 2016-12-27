@@ -11,7 +11,7 @@ import Data.List(foldl', sort, sortOn)
 
 import Translate(translateStringToSyntaxGraph)
 import TranslateCore(syntaxGraphToFglGraph, SyntaxGraph(..), Reference, SgBind(..))
-import Types(SgNamedNode, Edge(..), SyntaxNode(..),
+import Types(SgNamedNode(..), Edge(..), SyntaxNode(..),
              IngSyntaxGraph, NodeName(..), LikeApplyFlavor(..), NameAndPort(..))
 import qualified GraphAlgorithms
 import Util(fromMaybeError)
@@ -31,11 +31,11 @@ type NameMap = [(NodeName, NodeName)]
 
 renameNode
   :: NameMap -> Int -> SgNamedNode -> (SgNamedNode, NameMap, Int)
-renameNode nameMap counter (nodeName, syntaxNode) = (newNamedNode, nameMap3, newCounter) where
+renameNode nameMap counter (SgNamedNode nodeName syntaxNode) = (newNamedNode, nameMap3, newCounter) where
   newNodeName = NodeName counter
   nameMap2 = (nodeName, newNodeName) : nameMap
   (newSyntaxNode, nameMap3, newCounter) = renameSyntaxNode nameMap2 syntaxNode (counter + 1)
-  newNamedNode = (newNodeName, newSyntaxNode)
+  newNamedNode = SgNamedNode newNodeName newSyntaxNode
 
 maybeRenameNodeFolder ::
   ([Maybe SgNamedNode], NameMap, Int) -> Maybe SgNamedNode -> ([Maybe SgNamedNode], NameMap, Int)
@@ -53,7 +53,7 @@ renameSyntaxNode nameMap node counter = case node of
   _ -> (node, nameMap, counter)
 
 renameNodeFolder :: ([SgNamedNode], NameMap, Int) -> SgNamedNode -> ([SgNamedNode], NameMap, Int)
-renameNodeFolder state@(renamedNodes, nameMap, counter) node@(nodeName, _) = case lookup nodeName nameMap of
+renameNodeFolder state@(renamedNodes, nameMap, counter) node@(SgNamedNode nodeName _) = case lookup nodeName nameMap of
   Nothing -> (newNamedNode:renamedNodes, newNameMap, newCounter) where
     (newNamedNode, newNameMap, newCounter) = renameNode nameMap counter node
   Just _ -> error $ "renameNode: node already in name map. State = " ++ show state ++ " Node = " ++ show node
@@ -80,7 +80,7 @@ renameEmbed nameMap (leftName, rightName) = (newLeftName, newRightName) where
 
 -- TODO May want to remove names for sub-nodes
 removeNames :: SgNamedNode -> SyntaxNode
-removeNames (_, syntaxNode) = syntaxNode
+removeNames (SgNamedNode _ syntaxNode) = syntaxNode
 
 -- TODO Rename sinks
 -- TODO Add unit tests for renameGraph
@@ -114,10 +114,10 @@ makeTreeRootTest (testName, expected, haskellString) = TestCase $ assertEqual te
 treeRootTests :: Test
 treeRootTests = TestList $ fmap makeTreeRootTest treeRootTestList where
   treeRootTestList = [
-    ("single apply", [Just (NodeName 2, LikeApplyNode ApplyNodeFlavor 1)], "y = f x"),
+    ("single apply", [Just $ SgNamedNode (NodeName 2) (LikeApplyNode ApplyNodeFlavor 1)], "y = f x"),
     -- TODO Fix test below
-    ("double apply", [Just (NodeName 3, LikeApplyNode ComposeNodeFlavor 2)], "y = f (g x)"),
-    ("recursive apply", [Just (NodeName 3,LikeApplyNode ComposeNodeFlavor 2)], "y = f (g y)")
+    ("double apply", [Just $ SgNamedNode (NodeName 3) (LikeApplyNode ComposeNodeFlavor 2)], "y = f (g x)"),
+    ("recursive apply", [Just $ SgNamedNode (NodeName 3) (LikeApplyNode ComposeNodeFlavor 2)], "y = f (g y)")
     ]
 
 makeChildCanBeEmbeddedTest ::
