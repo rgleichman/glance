@@ -25,9 +25,10 @@ import TranslateCore(Reference, SyntaxGraph(..), EvalContext, GraphAndRef(..), S
   edgesForRefPortList, makeApplyGraph,
   namesInPattern, lookupReference, deleteBindings, makeEdges,
   makeBox, nTupleString, nListString,
-  syntaxGraphToFglGraph, getUniqueString, bindsToSyntaxGraph, graphAndRefToGraph)
+  syntaxGraphToFglGraph, getUniqueString, bindsToSyntaxGraph, graphAndRefToGraph,
+  initialIdState)
 import Types(NameAndPort(..), IDState,
-  initialIdState, Edge, SyntaxNode(..), IngSyntaxGraph, NodeName, Port(..), SgNamedNode(..),
+  Edge, SyntaxNode(..), IngSyntaxGraph, NodeName, Port(..), SgNamedNode(..),
   LikeApplyFlavor(..))
 import Util(makeSimpleEdge, nameAndPort, justName)
 

@@ -12,9 +12,9 @@ import Data.List(foldl', find)
 import Data.Maybe(catMaybes, isJust, fromMaybe)
 --import qualified Debug.Trace
 
-import Types(SyntaxNode(..), sgNamedNodeToSyntaxNode, IngSyntaxGraph, Edge(..),
+import Types(SyntaxNode(..), IngSyntaxGraph, Edge(..),
             CaseOrGuardTag(..), Port(..), NameAndPort(..), SgNamedNode(..))
-import Util(maybeBoolToBool)
+import Util(maybeBoolToBool, sgNamedNodeToSyntaxNode)
 --import Util(printSelf)
 
 -- See graph_algs.txt for pseudocode

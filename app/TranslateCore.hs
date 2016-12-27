@@ -24,11 +24,12 @@ module TranslateCore(
   nTupleString,
   nListString,
   syntaxGraphToFglGraph,
-  nodeToIcon
+  nodeToIcon,
+  initialIdState
 ) where
 
 import Control.Arrow(second)
-import Control.Monad.State(State)
+import Control.Monad.State(State, state)
 import Data.Either(partitionEithers)
 import qualified Data.Graph.Inductive.PatriciaTree as FGR
 import qualified Data.Graph.Inductive.Graph as ING
@@ -36,9 +37,9 @@ import Data.List(find)
 import Data.Semigroup(Semigroup, (<>))
 
 import Types(Icon, SyntaxNode(..), Edge(..), EdgeOption(..),
-  NameAndPort(..), IDState, getId, SgNamedNode(..), NodeName(..), Port(..), nodeNameToInt,
-  LikeApplyFlavor(..), CaseOrGuardTag(..))
-import Util(noEnds, nameAndPort, makeSimpleEdge, justName, maybeBoolToBool, mapNodeInNamedNode)
+  NameAndPort(..), IDState, SgNamedNode(..), NodeName(..), Port(..),
+  LikeApplyFlavor(..), CaseOrGuardTag(..), IDState(..))
+import Util(noEnds, nameAndPort, makeSimpleEdge, justName, maybeBoolToBool, mapNodeInNamedNode, nodeNameToInt)
 import Icons(Icon(..))
 
 -- OVERVIEW --
@@ -104,11 +105,28 @@ graphAndRefToGraph (GraphAndRef g _) = g
 
 -- END Constructors and Destructors
 
+-- BEGIN IDState
+
+initialIdState :: IDState
+initialIdState = IDState 0
+
+getId :: State IDState Int
+getId = state incrementer where
+  incrementer (IDState x) = (x, IDState checkedIncrement) where
+    xPlusOne = x + 1
+    checkedIncrement = if xPlusOne > x
+      then xPlusOne
+      else error "getId: the ID state has overflowed."
+
+
+
 getUniqueName :: State IDState NodeName
 getUniqueName = fmap NodeName getId
 
 getUniqueString :: String -> State IDState String
 getUniqueString base = fmap ((base ++). show) getId
+
+-- END IDState
 
 -- TODO: Refactor with combineExpressions
 edgesForRefPortList :: Bool -> [(Reference, NameAndPort)] -> SyntaxGraph

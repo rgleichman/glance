@@ -16,7 +16,9 @@ module Util (
   printSelf,
   eitherToMaybes,
   maybeBoolToBool,
-  mapNodeInNamedNode
+  mapNodeInNamedNode,
+  sgNamedNodeToSyntaxNode,
+  nodeNameToInt
 )where
 
 import Control.Arrow(first)
@@ -24,7 +26,7 @@ import Control.Arrow(first)
 import Data.Maybe(fromMaybe)
 import qualified Debug.Trace
 
-import Types(EdgeEnd(..), Edge(..), NameAndPort(..), Connection, NodeName, Port,
+import Types(EdgeEnd(..), Edge(..), NameAndPort(..), Connection, NodeName(..), Port,
              SyntaxNode, SgNamedNode(..))
 
 mapFst :: Functor f => (a -> b) -> f (a, c) -> f (b, c)
@@ -42,7 +44,7 @@ nameAndPort n p = NameAndPort n (Just p)
 justName :: NodeName -> NameAndPort
 justName n = NameAndPort n Nothing
 
--- Edge constructors --
+-- BEGIN Edge constructors --
 portToPort :: NodeName -> Port -> NodeName -> Port -> Edge
 portToPort a b c d = makeSimpleEdge (nameAndPort a b, nameAndPort c d)
 
@@ -64,6 +66,8 @@ iconToIconEnds a b c d = Edge [] (b, d) (justName a, justName c)
 iconTailToPort :: NodeName -> EdgeEnd -> NodeName -> Port -> Edge
 iconTailToPort a endTail c d = Edge [] (endTail, EndNone) (justName a, nameAndPort c d)
 
+-- END Edge constructors --
+
 fromMaybeError :: String -> Maybe a -> a
 fromMaybeError s = fromMaybe (error s)
 
@@ -80,3 +84,9 @@ maybeBoolToBool = or
 
 mapNodeInNamedNode :: (SyntaxNode -> a) -> SgNamedNode -> (NodeName, a)
 mapNodeInNamedNode f (SgNamedNode name node) = (name, f node)
+
+sgNamedNodeToSyntaxNode :: SgNamedNode -> SyntaxNode
+sgNamedNodeToSyntaxNode (SgNamedNode _ n) = n
+
+nodeNameToInt :: NodeName -> Int
+nodeNameToInt (NodeName x) = x

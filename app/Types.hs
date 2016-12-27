@@ -11,18 +11,14 @@ module Types (
   EdgeOption(..),
   EdgeEnd(..),
   Drawing(..),
-  IDState,
+  IDState(..),
   SpecialQDiagram,
   SpecialBackend,
   SpecialNum,
   SgNamedNode(..),
   IngSyntaxGraph,
   LikeApplyFlavor(..),
-  CaseOrGuardTag(..),
-  initialIdState,
-  getId,
-  sgNamedNodeToSyntaxNode,
-  nodeNameToInt
+  CaseOrGuardTag(..)
 ) where
 
 import Diagrams.Prelude(QDiagram, V2, Any, Renderable, Path, IsName)
@@ -104,20 +100,3 @@ type SpecialBackend b n = (SpecialNum n, Renderable (Path V2 n) b, Renderable (T
 type SpecialQDiagram b n = QDiagram b V2 n Any
 
 type IngSyntaxGraph gr = gr SgNamedNode Edge
-
-sgNamedNodeToSyntaxNode :: SgNamedNode -> SyntaxNode
-sgNamedNodeToSyntaxNode (SgNamedNode _ n) = n
-
-initialIdState :: IDState
-initialIdState = IDState 0
-
-getId :: State IDState Int
-getId = state incrementer where
-  incrementer (IDState x) = (x, IDState checkedIncrement) where
-    xPlusOne = x + 1
-    checkedIncrement = if xPlusOne > x
-      then xPlusOne
-      else error "getId: the ID state has overflowed."
-
-nodeNameToInt :: NodeName -> Int
-nodeNameToInt (NodeName x) = x
