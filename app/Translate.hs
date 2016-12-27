@@ -20,7 +20,7 @@ import Language.Haskell.Exts(Decl(..), parseDecl, Name(..), Pat(..), Rhs(..),
   Stmt(..), Binds(..), Alt(..), Module(..), SpecialCon(..), prettyPrint)
 
 import GraphAlgorithms(collapseNodes)
-import TranslateCore(Reference, SyntaxGraph(..), EvalContext, GraphAndRef, Sink,
+import TranslateCore(Reference, SyntaxGraph(..), EvalContext, GraphAndRef, Sink, SgBind(..),
   syntaxGraphFromNodes, syntaxGraphFromNodesEdges, getUniqueName, combineExpressions,
   edgesForRefPortList, makeApplyGraph,
   namesInPattern, lookupReference, deleteBindings, makeEdges,
@@ -48,7 +48,7 @@ qOpToExp :: QOp -> Exp
 qOpToExp (QVarOp n) = Var n
 qOpToExp (QConOp n) = Con n
 
-bindsToSyntaxGraph :: [(String, Reference)] -> SyntaxGraph
+bindsToSyntaxGraph :: [SgBind] -> SyntaxGraph
 bindsToSyntaxGraph binds = SyntaxGraph mempty mempty mempty binds mempty
 
 -- | Make a syntax graph that has the bindings for a list of "as pattern" (@) names.
@@ -56,7 +56,7 @@ makeAsBindGraph :: Reference -> [Maybe String] -> SyntaxGraph
 makeAsBindGraph ref asNames = bindsToSyntaxGraph $ catMaybes $ fmap makeBind asNames where
   makeBind mName = case mName of
     Nothing -> Nothing
-    Just asName -> Just (asName, ref)
+    Just asName -> Just $ SgBind asName ref
 
 -- END Helper Functions --
 
@@ -106,14 +106,14 @@ evalLit (Exts.PrimString x) = makeLiteral x
 -- BEGIN evalPApp
 -- TODO Refactor decideIfNested and makePatternGraph
 decideIfNested :: ((SyntaxGraph, t1), t) ->
-  (Maybe ((SyntaxGraph, t1), t), Maybe SgNamedNode, [Sink], [(String, Reference)], [(NodeName, NodeName)])
+  (Maybe ((SyntaxGraph, t1), t), Maybe SgNamedNode, [Sink], [SgBind], [(NodeName, NodeName)])
 decideIfNested ((SyntaxGraph [nameAndIcon] [] sinks bindings eMap, _), _) = (Nothing, Just nameAndIcon, sinks, bindings, eMap)
 decideIfNested valAndPort = (Just valAndPort, Nothing, [], [], [])
 
-asNameBind :: (GraphAndRef, Maybe String) -> Maybe (String, Reference)
+asNameBind :: (GraphAndRef, Maybe String) -> Maybe SgBind
 asNameBind ((_, ref), mAsName) = case mAsName of
   Nothing -> Nothing
-  Just asName -> Just (asName, ref)
+  Just asName -> Just $ SgBind asName ref
 
 -- TODO Consider removing the Int numArgs parameter.
 makePatternGraph :: NodeName -> String -> [(GraphAndRef, Maybe String)] -> Int -> (SyntaxGraph, NameAndPort)
@@ -391,7 +391,7 @@ evalGeneralLet expOrRhsEvaler c bs = do
   let
     (expGraph, expResult) = expVal
     newGraph = deleteBindings . makeEdges $ expGraph <> bindGraph
-    bindings = sgSources bindGraph
+    bindings = sgBinds bindGraph
   pure (newGraph, lookupReference bindings expResult)
 
 -- END evalGeneralLet
@@ -450,7 +450,7 @@ evalPatAndRhs c pat rhs maybeWhereBinds = do
   ((patGraph, patRef), mPatAsName) <- evalPattern pat
   let
     grWithEdges = makeEdges (rhsGraph <> patGraph)
-    lookedUpRhsRef = lookupReference (sgSources grWithEdges) rhsRef
+    lookedUpRhsRef = lookupReference (sgBinds grWithEdges) rhsRef
     -- The pattern and rhs are conneted if makeEdges added extra edges, or if the rhsRef refers to a source
     -- in the pattern
     patRhsAreConnected = (rhsRef /= lookedUpRhsRef) ||
@@ -571,10 +571,10 @@ generalEvalLambda context patterns rhsEvalFun = do
   where
     -- TODO Like evalPatBind, this edge should have an indicator that it is the input to a pattern.
     -- makePatternEdges creates the edges between the patterns and the parameter ports.
-    makePatternEdges :: GraphAndRef -> NameAndPort -> Either Edge (String, Reference)
+    makePatternEdges :: GraphAndRef -> NameAndPort -> Either Edge SgBind
     makePatternEdges (_, Right patPort) lamPort =
       Left $ makeSimpleEdge (lamPort, patPort)
-    makePatternEdges (_, Left str) lamPort = Right (str, Right lamPort)
+    makePatternEdges (_, Left str) lamPort = Right $ SgBind str (Right lamPort)
 
 -- END generalEvalLambda
 
@@ -649,7 +649,7 @@ evalMatch c (Match _ name patterns _ rhs maybeWhereBinds) = do
   (lambdaGraph, lambdaPort) <-
     generalEvalLambda newContext patterns (rhsWithBinds maybeWhereBinds rhs)
   let
-    newBinding = bindsToSyntaxGraph [(matchFunNameString, Right lambdaPort)]
+    newBinding = bindsToSyntaxGraph [SgBind matchFunNameString (Right lambdaPort)]
   pure $ makeEdges (newBinding <> lambdaGraph)
 
 evalMatches :: EvalContext -> [Match] -> State IDState SyntaxGraph
@@ -666,7 +666,7 @@ evalPatBind c (PatBind _ pat rhs maybeWhereBinds) = do
   ((patGraph, patRef), patAsName) <- evalPattern pat
   let
     (newEdges, newSinks, bindings) = case patRef of
-      (Left s) -> (mempty, mempty, [(s, rhsRef)])
+      (Left s) -> (mempty, mempty, [SgBind s rhsRef])
       (Right patPort) -> case rhsRef of
         -- TODO This edge/sink should have a special arrow head to indicate an input to a pattern.
         (Left rhsStr) -> (mempty, [(rhsStr, patPort)], mempty)
@@ -698,9 +698,9 @@ evalDecl c d = case d of
 showTopLevelBinds :: SyntaxGraph -> State IDState SyntaxGraph
 showTopLevelBinds gr = do
   let
-    binds = sgSources gr
-    addBind (_, Left _) = pure mempty
-    addBind (patName, Right port) = do
+    binds = sgBinds gr
+    addBind (SgBind _ (Left _)) = pure mempty
+    addBind (SgBind patName (Right port)) = do
       uniquePatName <- getUniqueName patName
       let
         icons = [(uniquePatName, BindNameNode patName)]

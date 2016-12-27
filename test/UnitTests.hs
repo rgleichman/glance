@@ -10,7 +10,7 @@ import qualified Data.Graph.Inductive.PatriciaTree as FGR
 import Data.List(foldl', sort, sortOn)
 
 import Translate(translateStringToSyntaxGraph)
-import TranslateCore(syntaxGraphToFglGraph, SyntaxGraph(..), Reference)
+import TranslateCore(syntaxGraphToFglGraph, SyntaxGraph(..), Reference, SgBind(..))
 import Types(SgNamedNode, Edge(..), SyntaxNode(..),
              IngSyntaxGraph, NodeName(..), LikeApplyFlavor(..), NameAndPort(..))
 import qualified GraphAlgorithms
@@ -67,8 +67,8 @@ renameEdge :: NameMap -> Edge -> Edge
 renameEdge nameMap (Edge options ends (np1, np2)) =
   Edge options ends (renameNamePort nameMap np1, renameNamePort nameMap np2)
 
-renameSource :: NameMap -> (String, Reference) -> (String, Reference)
-renameSource nameMap (str, ref) = (str, newRef) where
+renameSource :: NameMap -> SgBind -> SgBind
+renameSource nameMap (SgBind str ref) = SgBind str newRef where
   newRef = case ref of
     Left _ -> ref
     Right namePort@(NameAndPort _ _) -> Right $ renameNamePort nameMap namePort

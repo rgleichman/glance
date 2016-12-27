@@ -6,7 +6,7 @@
 * Consider adding binding variable names to the lambda icon and match icon. Don't display the name if it is only one character.
 
 ## Todo Later
-* Add wiki pages discussing: Why a visual language?, Glance design goals, History of Glance, FAQ's, How to contribute, etc..
+* Add wiki pages discussing: Why a visual language?, Glance design goals, History of Glance, FAQ's, How to contribute, Code guide [code style, ...], Related projects etc..
 
 ### Testing todos
 * Fix the arrowheads being too big for SyntaxGraph drawings.

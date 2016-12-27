@@ -4,6 +4,7 @@ module TranslateCore(
   EvalContext,
   GraphAndRef,
   Sink,
+  SgBind(..),
   syntaxGraphFromNodes,
   syntaxGraphFromNodesEdges,
   getUniqueName,
@@ -45,6 +46,8 @@ import Icons(Icon(..))
 
 type Reference = Either String NameAndPort
 
+data SgBind = SgBind String Reference deriving (Eq, Show, Ord)
+
 -- TODO Replace lists with sets
 -- | SyntaxGraph is an abstract representation for Haskell syntax. SyntaxGraphs are
 -- generated from the Haskell syntax tree, and are used to generate Drawings
@@ -52,7 +55,7 @@ data SyntaxGraph = SyntaxGraph {
   sgNodes :: [SgNamedNode],
   sgEdges :: [Edge],
   sgSinks :: [(String, NameAndPort)],
-  sgSources :: [(String, Reference)],
+  sgBinds :: [SgBind],
   -- sgEmbedMap keeps track of nodes embedded in other nodes. If (child, parent) is in the Map, then child is embedded inside parent.
   sgEmbedMap :: [(NodeName, NodeName)]
   } deriving (Show, Eq)
@@ -68,6 +71,12 @@ instance Monoid SyntaxGraph where
 type EvalContext = [String]
 type GraphAndRef = (SyntaxGraph, Reference)
 type Sink = (String, NameAndPort)
+
+sgBindToString :: SgBind -> String
+sgBindToString (SgBind s _) = s
+
+sgBindToTuple :: SgBind -> (String, Reference)
+sgBindToTuple (SgBind s r) = (s, r)
 
 syntaxGraphFromNodes :: [(NodeName, SyntaxNode)] -> SyntaxGraph
 syntaxGraphFromNodes icons = SyntaxGraph icons mempty mempty mempty mempty
@@ -88,7 +97,7 @@ edgesForRefPortList inPattern portExpPairs = mconcat $ fmap makeGraph portExpPai
   edgeOpts = if inPattern then [EdgeInPattern] else []
   makeGraph (ref, port) = case ref of
     Left str -> if inPattern
-      then SyntaxGraph mempty mempty mempty [(str, Right port)] mempty
+      then SyntaxGraph mempty mempty mempty [SgBind str (Right port)] mempty
       else SyntaxGraph mempty mempty [(str, port)] mempty mempty
     Right resultPort -> SyntaxGraph mempty [Edge edgeOpts noEnds connection] mempty mempty mempty where
       connection = if inPattern
@@ -101,7 +110,7 @@ combineExpressions inPattern portExpPairs = mconcat $ fmap makeGraph portExpPair
   edgeOpts = if inPattern then [EdgeInPattern] else []
   makeGraph ((graph, ref), port) = graph <> case ref of
     Left str -> if inPattern
-      then SyntaxGraph mempty mempty mempty [(str, Right port)] mempty
+      then SyntaxGraph mempty mempty mempty [SgBind str (Right port)] mempty
       else SyntaxGraph mempty mempty [(str, port)] mempty mempty
     Right resultPort -> SyntaxGraph mempty [Edge edgeOpts noEnds (resultPort, port)] mempty mempty mempty
 
@@ -119,7 +128,7 @@ makeApplyGraph applyFlavor inPattern applyIconName funVal argVals numArgs = (new
 
 namesInPatternHelper :: GraphAndRef -> [String]
 namesInPatternHelper (_, Left str) = [str]
-namesInPatternHelper (SyntaxGraph _ _ _ bindings _, Right _) = fmap fst bindings
+namesInPatternHelper (SyntaxGraph _ _ _ bindings _, Right _) = fmap sgBindToString bindings
 
 namesInPattern :: (GraphAndRef, Maybe String) -> [String]
 namesInPattern (graphAndRef, mName) = case mName of
@@ -130,11 +139,11 @@ namesInPattern (graphAndRef, mName) = case mName of
 
 -- | Recursivly find the matching reference in a list of bindings.
 -- TODO: Might want to present some indication if there is a reference cycle.
-lookupReference :: [(String, Reference)] -> Reference -> Reference
+lookupReference :: [SgBind] -> Reference -> Reference
 lookupReference _ ref@(Right _) = ref
 lookupReference bindings ref@(Left originalS) = lookupHelper ref where
   lookupHelper newRef@(Right _) = newRef
-  lookupHelper newRef@(Left s)= case lookup s bindings of
+  lookupHelper newRef@(Left s)= case lookup s (fmap sgBindToTuple bindings) of
     Just r -> failIfCycle r $ lookupHelper r
     Nothing -> newRef
     where
@@ -144,11 +153,11 @@ lookupReference bindings ref@(Left originalS) = lookupHelper ref where
 deleteBindings :: SyntaxGraph -> SyntaxGraph
 deleteBindings (SyntaxGraph a b c _ e) = SyntaxGraph a b c mempty e
 
-makeEdgesCore :: [Sink] -> [(String, Reference)] -> ([Sink], [Edge])
+makeEdgesCore :: [Sink] -> [SgBind] -> ([Sink], [Edge])
 makeEdgesCore sinks bindings = partitionEithers $ fmap renameOrMakeEdge sinks
   where
     renameOrMakeEdge :: (String, NameAndPort) -> Either (String, NameAndPort) Edge
-    renameOrMakeEdge orig@(s, destPort) = case lookup s bindings of
+    renameOrMakeEdge orig@(s, destPort) = case lookup s (fmap sgBindToTuple bindings) of
       Just ref -> case lookupReference bindings ref of
         (Right sourcePort) -> Right $ makeSimpleEdge (sourcePort, destPort)
         (Left newStr) -> Left (newStr, destPort)
