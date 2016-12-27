@@ -48,6 +48,8 @@ import Icons(Icon(..))
 
 type Reference = Either String NameAndPort
 
+type EvalContext = [String]
+
 data SgBind = SgBind String Reference deriving (Eq, Show, Ord)
 
 data SgSink = SgSink String NameAndPort deriving (Eq, Ord, Show)
@@ -72,7 +74,6 @@ instance Monoid SyntaxGraph where
   mempty = SyntaxGraph mempty mempty mempty mempty mempty
   mappend = (<>)
 
-type EvalContext = [String]
 data GraphAndRef = GraphAndRef SyntaxGraph Reference
 
 -- BEGIN Constructors and Destructors
@@ -103,9 +104,8 @@ graphAndRefToGraph (GraphAndRef g _) = g
 
 -- END Constructors and Destructors
 
--- TODO Remove string parameter
-getUniqueName :: String -> State IDState NodeName
-getUniqueName _ = fmap NodeName getId
+getUniqueName :: State IDState NodeName
+getUniqueName = fmap NodeName getId
 
 getUniqueString :: String -> State IDState String
 getUniqueString base = fmap ((base ++). show) getId
@@ -191,7 +191,7 @@ makeEdges (SyntaxGraph icons edges sinks bindings eMap) = newGraph where
 -- TODO: remove / change due toSyntaxGraph
 makeBox :: String -> State IDState (SyntaxGraph, NameAndPort)
 makeBox str = do
-  name <- getUniqueName str
+  name <- getUniqueName
   let graph = syntaxGraphFromNodes [SgNamedNode name (LiteralNode str)]
   pure (graph, justName name)
 

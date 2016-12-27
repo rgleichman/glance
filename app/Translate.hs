@@ -152,7 +152,7 @@ evalPApp :: QName -> [Pat] -> State IDState (SyntaxGraph, NameAndPort)
 evalPApp name patterns = case patterns of
   [] -> makeBox constructorName
   _ ->  do
-    patName <- getUniqueName "pat"
+    patName <- getUniqueName
     evaledPatterns <- mapM evalPattern patterns
     pure $ makePatternGraph patName constructorName evaledPatterns (length evaledPatterns)
   where
@@ -256,7 +256,7 @@ evalApp :: EvalContext -> LikeApplyFlavor -> (Exp, [Exp]) -> State IDState (Synt
 evalApp c flavor (funExp, argExps) = do
   funVal <- evalExp c funExp
   argVals <- mapM (evalExp c) argExps
-  applyIconName <- getUniqueName "app0"
+  applyIconName <- getUniqueName
   pure $ makeApplyGraph flavor False applyIconName funVal argVals (length argExps)
 
 -- END apply and compose helper functions
@@ -268,7 +268,7 @@ evalPureCompose c functions = do
   let reversedFunctios = reverse functions
   evaluatedFunctions <- mapM (evalExp c) reversedFunctios
   neverUsedPort <- Left <$> getUniqueString "unusedArgument"
-  applyIconName <- getUniqueName "compose"
+  applyIconName <- getUniqueName
   pure $ makeApplyGraph ComposeNodeFlavor False applyIconName
     (GraphAndRef mempty neverUsedPort) evaluatedFunctions (length evaluatedFunctions)
 
@@ -359,7 +359,7 @@ evalIf c e1 e2 e3 = do
   e1Val <- evalExp c e1
   e2Val <- evalExp c e2
   e3Val <- evalExp c e3
-  guardName <- getUniqueName "if"
+  guardName <- getUniqueName
   let
     icons = [SgNamedNode guardName (GuardNode 2)]
     combinedGraph =
@@ -417,7 +417,7 @@ evalGuaredRhs c (GuardedRhs _ stmts e) = do
 
 evalGuardedRhss :: EvalContext -> [GuardedRhs] -> State IDState (SyntaxGraph, NameAndPort)
 evalGuardedRhss c rhss = do
-  guardName <- getUniqueName "guard"
+  guardName <- getUniqueName
   evaledRhss <- mapM (evalGuaredRhs c) rhss
   let
     (bools, exps) = unzip evaledRhss
@@ -467,7 +467,7 @@ evalCase :: EvalContext -> Exp -> [Alt] -> State IDState (SyntaxGraph, NameAndPo
 evalCase c e alts = do
   evaledAlts <- mapM (evalAlt c) alts
   GraphAndRef expGraph expRef <- evalExp c e
-  caseIconName <- getUniqueName "case"
+  caseIconName <- getUniqueName
   let
     (patRhsConnected, altGraphs, patRefs, rhsRefs, asNames) = unzip5 evaledAlts
     combindedAltGraph = mconcat altGraphs
@@ -478,7 +478,7 @@ evalCase c e alts = do
     patEdges = zip patRefs $ map (nameAndPort caseIconName . Port) [2,4..]
     rhsEdges = zip patRhsConnected $ zip rhsRefs $ map (nameAndPort caseIconName . Port) [3,5..]
     (connectedRhss, unConnectedRhss) = partition fst rhsEdges
-  resultIconNames <- replicateM numAlts (getUniqueName "caseResult")
+  resultIconNames <- replicateM numAlts getUniqueName
   let
     makeCaseResult :: NodeName -> Reference -> SyntaxGraph
     makeCaseResult resultIconName rhsRef = case rhsRef of
@@ -503,7 +503,7 @@ evalTuple :: EvalContext -> [Exp] -> State IDState (SyntaxGraph, NameAndPort)
 evalTuple c exps = do
   argVals <- mapM (evalExp c) exps
   funVal <- makeBox $ nTupleString (length exps)
-  applyIconName <- getUniqueName "tupleApp"
+  applyIconName <- getUniqueName
   pure $ makeApplyGraph ApplyNodeFlavor False applyIconName (grNamePortToGrRef funVal) argVals (length exps)
 
 evalListExp :: EvalContext -> [Exp] -> State IDState (SyntaxGraph, NameAndPort)
@@ -517,7 +517,7 @@ evalRightSection :: EvalContext -> QOp -> Exp -> State IDState (SyntaxGraph, Nam
 evalRightSection c op e = do
   expVal <- evalExp c e
   funVal <- evalExp c (qOpToExp op)
-  applyIconName <- getUniqueName "tupleApp"
+  applyIconName <- getUniqueName
   -- TODO: A better option would be for makeApplyGraph to take the list of expressions as Maybes.
   neverUsedPort <- Left <$> getUniqueString "unusedArgument"
   pure $ makeApplyGraph ApplyNodeFlavor False applyIconName funVal [GraphAndRef mempty neverUsedPort, expVal] 2
@@ -546,7 +546,7 @@ asBindGraphZipper asName nameNPort = makeAsBindGraph (Right nameNPort) [asName]
 
 generalEvalLambda :: EvalContext -> [Pat] -> (EvalContext -> State IDState GraphAndRef) -> State IDState (SyntaxGraph, NameAndPort)
 generalEvalLambda context patterns rhsEvalFun = do
-  lambdaName <- getUniqueName "lam"
+  lambdaName <- getUniqueName
   patternValsWithAsNames <- mapM evalPattern patterns
   let
     patternVals = fmap fst patternValsWithAsNames
@@ -703,7 +703,7 @@ showTopLevelBinds gr = do
     binds = sgBinds gr
     addBind (SgBind _ (Left _)) = pure mempty
     addBind (SgBind patName (Right port)) = do
-      uniquePatName <- getUniqueName patName
+      uniquePatName <- getUniqueName
       let
         icons = [SgNamedNode uniquePatName (BindNameNode patName)]
         edges = [makeSimpleEdge (port, justName uniquePatName)]
