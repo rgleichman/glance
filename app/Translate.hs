@@ -31,6 +31,7 @@ import Types(NameAndPort(..), IDState,
   Edge, SyntaxNode(..), IngSyntaxGraph, NodeName, Port(..), SgNamedNode(..),
   LikeApplyFlavor(..))
 import Util(makeSimpleEdge, nameAndPort, justName)
+import Icons(resultPort)
 
 -- OVERVIEW --
 -- The core functions and data types used in this module are in TranslateCore.
@@ -141,7 +142,8 @@ makeNestedPatternGraph applyIconName funStr argVals = nestedApplyResult
     argList = fmap argListMapper mappedArgs
 
     combinedGraph = combineExpressions True unnestedArgsAndPort
-    icons = [SgNamedNode applyIconName (NestedPatternApplyNode funStr argList)]
+    pAppNode = NestedPatternApplyNode funStr argList
+    icons = [SgNamedNode applyIconName pAppNode]
 
     asNameBinds = catMaybes $ fmap asNameBind argVals
     allBinds = nestedBinds <> asNameBinds
@@ -149,14 +151,16 @@ makeNestedPatternGraph applyIconName funStr argVals = nestedApplyResult
     newEMap = ((\(SgNamedNode n _) -> (n, applyIconName))  <$> nestedArgs) <> nestedEMaps
 
     newGraph = SyntaxGraph icons [] nestedSinks allBinds newEMap
-    nestedApplyResult = (newGraph <> combinedGraph, nameAndPort applyIconName (Port 1))
+    nestedApplyResult = (newGraph <> combinedGraph, nameAndPort applyIconName (resultPort pAppNode))
 
-makePatternGraph' :: NodeName -> String -> [GraphAndRef] -> Int -> (SyntaxGraph, NameAndPort)
-makePatternGraph' applyIconName funStr argVals numArgs = (newGraph <> combinedGraph, nameAndPort applyIconName (Port 1))
+makePatternGraph' :: NodeName -> String -> [GraphAndRef] -> (SyntaxGraph, NameAndPort)
+makePatternGraph' applyIconName funStr argVals = (newGraph <> combinedGraph, nameAndPort applyIconName (resultPort pAppNode))
   where
     argumentPorts = map (nameAndPort applyIconName . Port) [2,3..]
     combinedGraph = combineExpressions True $ zip argVals argumentPorts
-    icons = [SgNamedNode applyIconName (PatternApplyNode funStr numArgs)]
+    numArgs = length argVals
+    pAppNode = PatternApplyNode funStr numArgs
+    icons = [SgNamedNode applyIconName pAppNode]
     newGraph = syntaxGraphFromNodes icons
 
 evalPApp :: QName -> [Pat] -> State IDState (SyntaxGraph, NameAndPort)
@@ -372,11 +376,12 @@ evalIf c e1 e2 e3 = do
   e3Val <- evalExp c e3
   guardName <- getUniqueName
   let
-    icons = [SgNamedNode guardName (GuardNode 2)]
+    guardNode = GuardNode 2
+    icons = [SgNamedNode guardName guardNode]
     combinedGraph =
       combineExpressions False $ zip [e1Val, e2Val, e3Val] (map (nameAndPort guardName . Port) [3, 2, 4])
     newGraph = syntaxGraphFromNodes icons <> combinedGraph
-  pure (newGraph, nameAndPort guardName (Port 1))
+  pure (newGraph, nameAndPort guardName (resultPort guardNode))
 
 -- BEGIN evalGeneralLet
 
@@ -435,9 +440,10 @@ evalGuardedRhss c rhss = do
     expsWithPorts = zip exps $ map (nameAndPort guardName . Port) [2,4..]
     boolsWithPorts = zip bools $ map (nameAndPort guardName . Port) [3,5..]
     combindedGraph = combineExpressions False $ expsWithPorts <> boolsWithPorts
-    icons = [SgNamedNode guardName $ GuardNode (length rhss)]
+    guardNode = GuardNode (length rhss)
+    icons = [SgNamedNode guardName guardNode]
     newGraph = syntaxGraphFromNodes icons <> combindedGraph
-  pure (newGraph, nameAndPort guardName (Port 1))
+  pure (newGraph, nameAndPort guardName (resultPort guardNode))
 
 -- | First argument is the right hand side.
 -- The second arugement is a list of strings that are bound in the environment.
@@ -483,7 +489,8 @@ evalCase c e alts = do
     (patRhsConnected, altGraphs, patRefs, rhsRefs, asNames) = unzip5 evaledAlts
     combindedAltGraph = mconcat altGraphs
     numAlts = length alts
-    icons = [SgNamedNode caseIconName (CaseNode numAlts)]
+    caseNode = (CaseNode numAlts)
+    icons = [SgNamedNode caseIconName caseNode]
     caseGraph = syntaxGraphFromNodes icons
     expEdge = (expRef, nameAndPort caseIconName (Port 0))
     patEdges = zip patRefs $ map (nameAndPort caseIconName . Port) [2,4..]
@@ -506,7 +513,7 @@ evalCase c e alts = do
     bindGraph = makeAsBindGraph expRef asNames
 
     finalGraph = deleteBindings $ makeEdges $ mconcat [bindGraph, patternEdgesGraph, caseResultGraphs, expGraph, caseEdgeGraph, caseGraph, combindedAltGraph]
-  pure (finalGraph, nameAndPort caseIconName (Port 1))
+  pure (finalGraph, nameAndPort caseIconName (resultPort caseNode))
 
 -- END evalCase
 
@@ -571,7 +578,8 @@ generalEvalLambda context patterns rhsEvalFun = do
 
   GraphAndRef rhsRawGraph rhsRef <- rhsEvalFun rhsContext
   let
-    icons = [SgNamedNode lambdaName $ FunctionDefNode (length patterns)]
+    lambdaNode = FunctionDefNode (length patterns)
+    icons = [SgNamedNode lambdaName lambdaNode]
     returnPort = nameAndPort lambdaName (Port 0)
     (newEdges, newSinks) = case rhsRef of
       Left s -> (patternEdges, [SgSink s returnPort])
@@ -580,7 +588,7 @@ generalEvalLambda context patterns rhsEvalFun = do
 
     asBindGraph = mconcat $ zipWith asBindGraphZipper (fmap snd patternValsWithAsNames) lambdaPorts
   
-  pure (deleteBindings . makeEdges $ (asBindGraph <> rhsRawGraph <> patternGraph <> finalGraph), nameAndPort lambdaName (Port 1))
+  pure (deleteBindings . makeEdges $ (asBindGraph <> rhsRawGraph <> patternGraph <> finalGraph), nameAndPort lambdaName (resultPort lambdaNode))
   where
     -- TODO Like evalPatBind, this edge should have an indicator that it is the input to a pattern.
     -- makePatternEdges creates the edges between the patterns and the parameter ports.

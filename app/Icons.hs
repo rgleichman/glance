@@ -5,6 +5,7 @@ module Icons
     TransformableDia,
     getPortAngles,
     iconToDiagram,
+    resultPort,
     textBox,
     multilineComment,
     defaultLineWidth,
@@ -20,7 +21,8 @@ import Data.Maybe(catMaybes, listToMaybe, isJust, fromJust)
 import Data.Either(partitionEithers)
 import qualified Control.Arrow as Arrow
 
-import Types(Icon(..), SpecialQDiagram, SpecialBackend, SpecialNum, NodeName, Port(..), LikeApplyFlavor(..))
+import Types(Icon(..), SpecialQDiagram, SpecialBackend, SpecialNum, NodeName, Port(..), LikeApplyFlavor(..),
+            SyntaxNode)
 import DrawingColors(colorScheme, ColorStyle(..))
 
 -- TYPES --
@@ -146,6 +148,14 @@ getPortAngles icon port maybeNodeName = case icon of
   NestedGuardIcon args -> nestedGuardPortAngles args port maybeNodeName
 
 -- END getPortAngles --
+
+-- BEGIN Port numbers
+
+-- TODO It's a bit strange that the parameter is a SyntaxNode, not an Icon.
+resultPort :: SyntaxNode -> Port
+resultPort = const (Port 1)
+
+-- END Port numbers
 
 -- END Exported icon functions --
 
