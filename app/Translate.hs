@@ -105,40 +105,50 @@ evalLit (Exts.PrimString x) = makeLiteral x
 -- BEGIN evalPattern
 
 -- BEGIN evalPApp
--- TODO Refactor decideIfNested and makePatternGraph
-decideIfNested ::
-  (GraphAndRef, t)
-  -> (Maybe (GraphAndRef, t), Maybe SgNamedNode, [SgSink], [SgBind],
-      [(NodeName, NodeName)])
-decideIfNested (GraphAndRef (SyntaxGraph [nameAndIcon] [] sinks bindings eMap) _ , _) = (Nothing, Just nameAndIcon, sinks, bindings, eMap)
-decideIfNested valAndPort = (Just valAndPort, Nothing, [], [], [])
-
 asNameBind :: (GraphAndRef, Maybe String) -> Maybe SgBind
 asNameBind (GraphAndRef _ ref, mAsName) = case mAsName of
   Nothing -> Nothing
   Just asName -> Just $ SgBind asName ref
 
--- TODO Consider removing the Int numArgs parameter.
-makePatternGraph :: NodeName -> String -> [(GraphAndRef, Maybe String)] -> Int -> (SyntaxGraph, NameAndPort)
-makePatternGraph applyIconName funStr argVals _ = nestedApplyResult
+patternArgumentMapper :: (GraphAndRef, t) -> Either (GraphAndRef, t) (SgNamedNode, SyntaxGraph)
+patternArgumentMapper argAndPort = case graph of
+  (SyntaxGraph [namedNode] [] _ _ _) -> Right (namedNode, graph)
+  _ -> Left argAndPort
+  where graph = graphAndRefToGraph $ fst argAndPort
+
+graphToTuple :: SyntaxGraph -> ([SgNamedNode], [Edge], [SgSink], [SgBind], [(NodeName, NodeName)])
+graphToTuple (SyntaxGraph a b c d e) = (a, b, c, d, e)
+
+graphsToComponents :: [SyntaxGraph] -> ([SgNamedNode], [Edge], [SgSink], [SgBind], [(NodeName, NodeName)])
+graphsToComponents graphs = (concat a, concat b, concat c, concat d, concat e) where
+  (a, b, c, d, e) = unzip5 $ fmap graphToTuple graphs
+
+makeNestedPatternGraph :: NodeName -> String -> [(GraphAndRef, Maybe String)] -> (SyntaxGraph, NameAndPort)
+makeNestedPatternGraph applyIconName funStr argVals = nestedApplyResult
   where
-    argumentPorts = map (nameAndPort applyIconName . Port) [2,3..]
-    argValsWithoutAsNames = fmap fst argVals
-    (unnestedArgsAndPort, nestedArgs, nestedSinks, nestedBindings, nestedEMaps) =
-      unzip5 $ fmap decideIfNested (zip argValsWithoutAsNames argumentPorts)
+    -- TODO Don't use hardcoded port numbers
+    argsAndPorts = zip (fmap fst argVals) $ map (nameAndPort applyIconName . Port) [2,3..]
+    mappedArgs = fmap patternArgumentMapper argsAndPorts
+
+    (unnestedArgsAndPort, nestedNamedNodesAndGraphs) = partitionEithers mappedArgs
+
+    (nestedArgs, _, nestedSinks, nestedBinds, nestedEMaps) = graphsToComponents $ fmap snd nestedNamedNodesAndGraphs
+
+    argListMapper arg = case arg of
+      Left _ -> Nothing
+      Right (namedNode, _) -> Just namedNode
+
+    argList = fmap argListMapper mappedArgs
+
+    combinedGraph = combineExpressions True unnestedArgsAndPort
+    icons = [SgNamedNode applyIconName (NestedPatternApplyNode funStr argList)]
 
     asNameBinds = catMaybes $ fmap asNameBind argVals
+    allBinds = nestedBinds <> asNameBinds
 
-    allSinks = mconcat nestedSinks
-    allBinds = mconcat nestedBindings <> asNameBinds
+    newEMap = ((\(SgNamedNode n _) -> (n, applyIconName))  <$> nestedArgs) <> nestedEMaps
 
-    originalPortExpPairs = catMaybes unnestedArgsAndPort
-    portExpressionPairs = originalPortExpPairs
-    combinedGraph = combineExpressions True portExpressionPairs
-    icons = [SgNamedNode applyIconName (NestedPatternApplyNode funStr nestedArgs)]
-    newEMap = ((\(SgNamedNode n _) -> (n, applyIconName))  <$> catMaybes nestedArgs) <> mconcat nestedEMaps
-    
-    newGraph = SyntaxGraph icons [] allSinks allBinds newEMap
+    newGraph = SyntaxGraph icons [] nestedSinks allBinds newEMap
     nestedApplyResult = (newGraph <> combinedGraph, nameAndPort applyIconName (Port 1))
 
 makePatternGraph' :: NodeName -> String -> [GraphAndRef] -> Int -> (SyntaxGraph, NameAndPort)
@@ -155,7 +165,7 @@ evalPApp name patterns = case patterns of
   _ ->  do
     patName <- getUniqueName
     evaledPatterns <- mapM evalPattern patterns
-    pure $ makePatternGraph patName constructorName evaledPatterns (length evaledPatterns)
+    pure $ makeNestedPatternGraph patName constructorName evaledPatterns
   where
     constructorName = qNameToString name
 -- END evalPApp
