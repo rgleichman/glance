@@ -36,10 +36,10 @@ import Data.List(find)
 import Data.Semigroup(Semigroup, (<>))
 
 import Types(Icon, SyntaxNode(..), Edge(..), EdgeOption(..),
-  NameAndPort(..), IDState, SgNamedNode(..), NodeName(..), Port(..),
+  NameAndPort(..), IDState, SgNamedNode(..), NodeName(..), Port,
   LikeApplyFlavor(..), CaseOrGuardTag(..), IDState(..))
 import Util(noEnds, nameAndPort, makeSimpleEdge, justName, maybeBoolToBool, mapNodeInNamedNode, nodeNameToInt)
-import Icons(Icon(..))
+import Icons(Icon(..), inputPort, resultPort, argumentPorts)
 
 -- OVERVIEW --
 -- This module has the core functions and data types used by Translate.
@@ -154,12 +154,13 @@ combineExpressions inPattern portExpPairs = mconcat $ fmap makeGraph portExpPair
 -- qualifyNameAndPort s (NameAndPort n p) = NameAndPort (s DIA..> n) p
 
 makeApplyGraph :: LikeApplyFlavor -> Bool -> NodeName -> GraphAndRef -> [GraphAndRef] -> Int -> (SyntaxGraph, NameAndPort)
-makeApplyGraph applyFlavor inPattern applyIconName funVal argVals numArgs = (newGraph <> combinedGraph, nameAndPort applyIconName (Port 1))
+makeApplyGraph applyFlavor inPattern applyIconName funVal argVals numArgs = (newGraph <> combinedGraph, nameAndPort applyIconName (resultPort applyNode))
   where
-    argumentPorts = map (nameAndPort applyIconName . Port) [2,3..]
-    functionPort = nameAndPort applyIconName (Port 0)
-    combinedGraph = combineExpressions inPattern $ zip (funVal:argVals) (functionPort:argumentPorts)
-    icons = [SgNamedNode applyIconName (LikeApplyNode applyFlavor numArgs)]
+    applyNode = LikeApplyNode applyFlavor numArgs
+    argumentNamePorts = map (nameAndPort applyIconName) (argumentPorts applyNode)
+    functionPort = nameAndPort applyIconName (inputPort applyNode)
+    combinedGraph = combineExpressions inPattern $ zip (funVal:argVals) (functionPort:argumentNamePorts)
+    icons = [SgNamedNode applyIconName applyNode]
     newGraph = syntaxGraphFromNodes icons
 
 namesInPatternHelper :: GraphAndRef -> [String]
@@ -236,36 +237,32 @@ nodeToIcon (CaseNode n) = CaseIcon n
 nodeToIcon CaseResultNode = CaseResultIcon
 nodeToIcon (NestedCaseOrGuardNode tag x edges) = nestedCaseOrGuardNodeToIcon tag x edges
 
-makeArg :: [(SgNamedNode, Edge)] -> Int -> Maybe (NodeName, Icon)
-makeArg args port = case find (findArg (Port port)) args of
+makeArg :: [(SgNamedNode, Edge)] -> Port -> Maybe (NodeName, Icon)
+makeArg args port = case find (findArg port) args of
   Nothing -> Nothing
   Just (SgNamedNode argName argSyntaxNode, _) -> Just (argName, nodeToIcon argSyntaxNode)
 
 nestedApplySyntaxNodeToIcon :: LikeApplyFlavor -> Int -> [(SgNamedNode, Edge)] -> Icon
 nestedApplySyntaxNodeToIcon flavor numArgs args = NestedApply flavor argList where
   -- argList should be of length numArgs + 1, since argList includes the function expression
-  -- port 0 is the function, ports 2..(numArgs+1) are the arguments
-  -- TODO Don't use hardcoded port numbers
-  argList = fmap (makeArg args) (0:[2..numArgs + 1])
+  dummyNode = LikeApplyNode flavor numArgs
+  argPorts = take numArgs (argumentPorts dummyNode)
+  argList = fmap (makeArg args) (inputPort dummyNode : argPorts)
 
 nestedCaseOrGuardNodeToIcon :: CaseOrGuardTag -> Int -> [(SgNamedNode, Edge)] -> Icon
 nestedCaseOrGuardNodeToIcon tag numArgs args = case tag of
   CaseTag -> NestedCaseIcon argList
   GuardTag -> NestedGuardIcon argList
   where
-    argList = fmap (makeArg args) (0:[2..( 1 + (2 * numArgs))])
+    dummyNode = CaseNode numArgs
+    argPorts = take (2 * numArgs) $ argumentPorts dummyNode
+    argList = fmap (makeArg args) (inputPort dummyNode : argPorts)
 
 nestedPatternNodeToIcon :: String -> [Maybe SgNamedNode] -> Icon
 nestedPatternNodeToIcon str children = NestedPApp $
   Just (NodeName (-1), TextBoxIcon str)
   :
   (fmap (mapNodeInNamedNode nodeToIcon) <$> children)
-
-nestedPatternNodeToIcon' :: String -> Int -> [(SgNamedNode, Edge)] -> Icon
-nestedPatternNodeToIcon' str numArgs args = NestedPApp argList where
-  -- TODO Don't use NodeName (-1)
-  -- TODO Don't use hardcoded port numbers
-  argList = Just (NodeName (-1), TextBoxIcon str) : fmap (makeArg args) [2..numArgs + 1]
 
 findArg :: Port -> (SgNamedNode, Edge) -> Bool
 findArg currentPort (SgNamedNode argName _, Edge _ _ (NameAndPort fromName fromPort, NameAndPort toName toPort))
