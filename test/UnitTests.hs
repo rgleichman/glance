@@ -10,7 +10,7 @@ import qualified Data.Graph.Inductive.PatriciaTree as FGR
 import Data.List(foldl', sort, sortOn)
 
 import Translate(translateStringToSyntaxGraph)
-import TranslateCore(syntaxGraphToFglGraph, SyntaxGraph(..), Reference, SgBind(..))
+import TranslateCore(syntaxGraphToFglGraph, SyntaxGraph(..), SgBind(..))
 import Types(SgNamedNode(..), Edge(..), SyntaxNode(..),
              IngSyntaxGraph, NodeName(..), LikeApplyFlavor(..), NameAndPort(..))
 import qualified GraphAlgorithms

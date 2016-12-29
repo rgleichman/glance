@@ -24,7 +24,6 @@ module Types (
 import Diagrams.Prelude(QDiagram, V2, Any, Renderable, Path, IsName)
 import Diagrams.TwoD.Text(Text)
 
-import Control.Monad.State(State, state)
 import Data.Typeable(Typeable)
 
 -- TYPES --

@@ -28,7 +28,6 @@ module TranslateCore(
   initialIdState
 ) where
 
-import Control.Arrow(second)
 import Control.Monad.State(State, state)
 import Data.Either(partitionEithers)
 import qualified Data.Graph.Inductive.PatriciaTree as FGR

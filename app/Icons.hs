@@ -5,7 +5,13 @@ module Icons
     TransformableDia,
     getPortAngles,
     iconToDiagram,
+    inputPort,
     resultPort,
+    argumentPorts,
+    caseRhsPorts,
+    casePatternPorts,
+    guardRhsPorts,
+    guardBoolPorts,
     textBox,
     multilineComment,
     defaultLineWidth,
@@ -22,7 +28,7 @@ import Data.Either(partitionEithers)
 import qualified Control.Arrow as Arrow
 
 import Types(Icon(..), SpecialQDiagram, SpecialBackend, SpecialNum, NodeName, Port(..), LikeApplyFlavor(..),
-            SyntaxNode)
+            SyntaxNode(..))
 import DrawingColors(colorScheme, ColorStyle(..))
 
 -- TYPES --
@@ -152,9 +158,40 @@ getPortAngles icon port maybeNodeName = case icon of
 -- BEGIN Port numbers
 
 -- TODO It's a bit strange that the parameter is a SyntaxNode, not an Icon.
+inputPort :: SyntaxNode -> Port
+inputPort = const (Port 0)
+
 resultPort :: SyntaxNode -> Port
 resultPort = const (Port 1)
 
+caseRhsPorts :: [Port]
+caseRhsPorts = fmap Port [2,4..]
+
+casePatternPorts :: [Port]
+casePatternPorts = fmap Port [3,5..]
+
+guardRhsPorts :: [Port]
+guardRhsPorts = caseRhsPorts
+
+guardBoolPorts :: [Port]
+guardBoolPorts = casePatternPorts
+
+argumentPorts :: SyntaxNode -> [Port]
+argumentPorts n = case n of
+  LikeApplyNode  _ _-> defaultPorts
+  NestedApplyNode _ _ _ -> defaultPorts
+  PatternApplyNode  _ _-> defaultPorts
+  NestedPatternApplyNode _ _-> defaultPorts
+  FunctionDefNode _ -> defaultPorts
+  NestedCaseOrGuardNode _ _ _-> defaultPorts
+  GuardNode _ -> defaultPorts
+  CaseNode _ -> defaultPorts
+  NameNode _ -> []
+  BindNameNode _ -> []
+  LiteralNode _ -> []
+  CaseResultNode -> []
+  where
+    defaultPorts = fmap Port [2,3..]
 -- END Port numbers
 
 -- END Exported icon functions --

@@ -28,10 +28,11 @@ import TranslateCore(Reference, SyntaxGraph(..), EvalContext, GraphAndRef(..), S
   syntaxGraphToFglGraph, getUniqueString, bindsToSyntaxGraph, graphAndRefToGraph,
   initialIdState)
 import Types(NameAndPort(..), IDState,
-  Edge, SyntaxNode(..), IngSyntaxGraph, NodeName, Port(..), SgNamedNode(..),
+  Edge, SyntaxNode(..), IngSyntaxGraph, NodeName, SgNamedNode(..),
   LikeApplyFlavor(..))
 import Util(makeSimpleEdge, nameAndPort, justName)
-import Icons(resultPort)
+import Icons(inputPort, resultPort, argumentPorts, caseRhsPorts,
+             casePatternPorts, guardRhsPorts, guardBoolPorts)
 
 -- OVERVIEW --
 -- The core functions and data types used in this module are in TranslateCore.
@@ -127,8 +128,8 @@ graphsToComponents graphs = (concat a, concat b, concat c, concat d, concat e) w
 makeNestedPatternGraph :: NodeName -> String -> [(GraphAndRef, Maybe String)] -> (SyntaxGraph, NameAndPort)
 makeNestedPatternGraph applyIconName funStr argVals = nestedApplyResult
   where
-    -- TODO Don't use hardcoded port numbers
-    argsAndPorts = zip (fmap fst argVals) $ map (nameAndPort applyIconName . Port) [2,3..]
+    pAppNode = NestedPatternApplyNode funStr argList
+    argsAndPorts = zip (fmap fst argVals) $ map (nameAndPort applyIconName) $ argumentPorts pAppNode
     mappedArgs = fmap patternArgumentMapper argsAndPorts
 
     (unnestedArgsAndPort, nestedNamedNodesAndGraphs) = partitionEithers mappedArgs
@@ -142,7 +143,7 @@ makeNestedPatternGraph applyIconName funStr argVals = nestedApplyResult
     argList = fmap argListMapper mappedArgs
 
     combinedGraph = combineExpressions True unnestedArgsAndPort
-    pAppNode = NestedPatternApplyNode funStr argList
+
     icons = [SgNamedNode applyIconName pAppNode]
 
     asNameBinds = catMaybes $ fmap asNameBind argVals
@@ -156,10 +157,10 @@ makeNestedPatternGraph applyIconName funStr argVals = nestedApplyResult
 makePatternGraph' :: NodeName -> String -> [GraphAndRef] -> (SyntaxGraph, NameAndPort)
 makePatternGraph' applyIconName funStr argVals = (newGraph <> combinedGraph, nameAndPort applyIconName (resultPort pAppNode))
   where
-    argumentPorts = map (nameAndPort applyIconName . Port) [2,3..]
-    combinedGraph = combineExpressions True $ zip argVals argumentPorts
-    numArgs = length argVals
     pAppNode = PatternApplyNode funStr numArgs
+    argumentNamePorts = map (nameAndPort applyIconName) $ argumentPorts pAppNode
+    combinedGraph = combineExpressions True $ zip argVals argumentNamePorts
+    numArgs = length argVals
     icons = [SgNamedNode applyIconName pAppNode]
     newGraph = syntaxGraphFromNodes icons
 
@@ -378,8 +379,10 @@ evalIf c e1 e2 e3 = do
   let
     guardNode = GuardNode 2
     icons = [SgNamedNode guardName guardNode]
+    boolPort = take 1 guardBoolPorts
+    rhsPorts = take 2 guardRhsPorts
     combinedGraph =
-      combineExpressions False $ zip [e1Val, e2Val, e3Val] (map (nameAndPort guardName . Port) [3, 2, 4])
+      combineExpressions False $ zip [e1Val, e2Val, e3Val] (map (nameAndPort guardName) (boolPort <> rhsPorts))
     newGraph = syntaxGraphFromNodes icons <> combinedGraph
   pure (newGraph, nameAndPort guardName (resultPort guardNode))
 
@@ -437,10 +440,10 @@ evalGuardedRhss c rhss = do
   evaledRhss <- mapM (evalGuaredRhs c) rhss
   let
     (bools, exps) = unzip evaledRhss
-    expsWithPorts = zip exps $ map (nameAndPort guardName . Port) [2,4..]
-    boolsWithPorts = zip bools $ map (nameAndPort guardName . Port) [3,5..]
-    combindedGraph = combineExpressions False $ expsWithPorts <> boolsWithPorts
     guardNode = GuardNode (length rhss)
+    expsWithPorts = zip exps $ map (nameAndPort guardName) guardRhsPorts
+    boolsWithPorts = zip bools $ map (nameAndPort guardName) guardBoolPorts
+    combindedGraph = combineExpressions False $ expsWithPorts <> boolsWithPorts
     icons = [SgNamedNode guardName guardNode]
     newGraph = syntaxGraphFromNodes icons <> combindedGraph
   pure (newGraph, nameAndPort guardName (resultPort guardNode))
@@ -489,12 +492,12 @@ evalCase c e alts = do
     (patRhsConnected, altGraphs, patRefs, rhsRefs, asNames) = unzip5 evaledAlts
     combindedAltGraph = mconcat altGraphs
     numAlts = length alts
-    caseNode = (CaseNode numAlts)
+    caseNode = CaseNode numAlts
     icons = [SgNamedNode caseIconName caseNode]
     caseGraph = syntaxGraphFromNodes icons
-    expEdge = (expRef, nameAndPort caseIconName (Port 0))
-    patEdges = zip patRefs $ map (nameAndPort caseIconName . Port) [2,4..]
-    rhsEdges = zip patRhsConnected $ zip rhsRefs $ map (nameAndPort caseIconName . Port) [3,5..]
+    expEdge = (expRef, nameAndPort caseIconName (inputPort caseNode))
+    patEdges = zip patRefs $ map (nameAndPort caseIconName) casePatternPorts
+    rhsEdges = zip patRhsConnected $ zip rhsRefs $ map (nameAndPort caseIconName) caseRhsPorts
     (connectedRhss, unConnectedRhss) = partition fst rhsEdges
   resultIconNames <- replicateM numAlts getUniqueName
   let
@@ -570,7 +573,8 @@ generalEvalLambda context patterns rhsEvalFun = do
     patternVals = fmap fst patternValsWithAsNames
     patternStrings = concatMap namesInPattern patternValsWithAsNames
     rhsContext = patternStrings <> context
-    lambdaPorts = map (nameAndPort lambdaName . Port) [2,3..]
+    lambdaNode = FunctionDefNode (length patterns)
+    lambdaPorts = map (nameAndPort lambdaName) $ argumentPorts lambdaNode
     patternGraph = mconcat $ fmap graphAndRefToGraph patternVals
 
     (patternEdges, newBinds) =
@@ -578,9 +582,8 @@ generalEvalLambda context patterns rhsEvalFun = do
 
   GraphAndRef rhsRawGraph rhsRef <- rhsEvalFun rhsContext
   let
-    lambdaNode = FunctionDefNode (length patterns)
     icons = [SgNamedNode lambdaName lambdaNode]
-    returnPort = nameAndPort lambdaName (Port 0)
+    returnPort = nameAndPort lambdaName (inputPort lambdaNode)
     (newEdges, newSinks) = case rhsRef of
       Left s -> (patternEdges, [SgSink s returnPort])
       Right rhsPort ->  (makeSimpleEdge (rhsPort, returnPort) : patternEdges, mempty)
@@ -746,13 +749,12 @@ syntaxGraphToCollapsedGraph = collapseNodes . syntaxGraphToFglGraph
 translateDeclToCollapsedGraph :: Decl -> IngSyntaxGraph FGR.Gr
 translateDeclToCollapsedGraph = syntaxGraphToCollapsedGraph . translateDeclToSyntaxGraph
 
--- Profiling: about 1.5% of total time.
+-- Profiling: At one point, this was about 1.5% of total time.
 translateStringToCollapsedGraphAndDecl :: String -> (IngSyntaxGraph FGR.Gr, Decl)
 translateStringToCollapsedGraphAndDecl s = (drawing, decl) where
   decl = fromParseResult (parseDecl s) -- :: ParseResult Module
   drawing = translateDeclToCollapsedGraph decl
 
--- TODO Put the type declarations in a box below the image.
 translateModuleToCollapsedGraphs :: Module -> [IngSyntaxGraph FGR.Gr]
 translateModuleToCollapsedGraphs (Module _ _ _ _ _ _ decls) = fmap translateDeclToCollapsedGraph decls
 

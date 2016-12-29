@@ -13,7 +13,6 @@ import qualified Data.GraphViz as GV
 import qualified Data.GraphViz.Attributes.Complete as GVA
 import qualified Data.Map as Map
 
-import Control.Arrow(second)
 import Data.Function(on)
 import qualified Data.Graph.Inductive as ING
 import Data.Graph.Inductive.PatriciaTree (Gr)
@@ -29,7 +28,7 @@ import Data.Typeable(Typeable)
 import Icons(colorScheme, iconToDiagram, defaultLineWidth, ColorStyle(..), getPortAngles)
 import TranslateCore(nodeToIcon)
 import Types(Edge(..), Icon, EdgeOption(..), Drawing(..), EdgeEnd(..),
-  NameAndPort(..), SpecialQDiagram, SpecialBackend, SyntaxNode, SpecialNum, NodeName(..), Port(..),
+  NameAndPort(..), SpecialQDiagram, SpecialBackend, SpecialNum, NodeName(..), Port(..),
   SgNamedNode)
 import Util(fromMaybeError, mapNodeInNamedNode)
 
