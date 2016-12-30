@@ -15,6 +15,7 @@ module TranslateCore(
   combineExpressions,
   --qualifyNameAndPort,
   makeApplyGraph,
+  makeGuardGraph,
   namesInPattern,
   lookupReference,
   deleteBindings,
@@ -39,7 +40,7 @@ import Types(Icon, SyntaxNode(..), Edge(..), EdgeOption(..),
   NameAndPort(..), IDState, SgNamedNode(..), NodeName(..), Port,
   LikeApplyFlavor(..), CaseOrGuardTag(..), IDState(..))
 import Util(noEnds, nameAndPort, makeSimpleEdge, justName, maybeBoolToBool, mapNodeInNamedNode, nodeNameToInt)
-import Icons(Icon(..), inputPort, resultPort, argumentPorts)
+import Icons(Icon(..), inputPort, resultPort, argumentPorts, guardRhsPorts, guardBoolPorts)
 
 -- OVERVIEW --
 -- This module has the core functions and data types used by Translate.
@@ -117,8 +118,6 @@ getId = state incrementer where
       then xPlusOne
       else error "getId: the ID state has overflowed."
 
-
-
 getUniqueName :: State IDState NodeName
 getUniqueName = fmap NodeName getId
 
@@ -135,11 +134,11 @@ edgesForRefPortList inPattern portExpPairs = mconcat $ fmap makeGraph portExpPai
     Left str -> if inPattern
       then bindsToSyntaxGraph [SgBind str (Right port)]
       else sinksToSyntaxGraph [SgSink str port]
-    Right resultPort -> edgesToSyntaxGraph [Edge edgeOpts noEnds connection] where
+    Right resPort -> edgesToSyntaxGraph [Edge edgeOpts noEnds connection] where
       connection = if inPattern
         -- If in a pattern, then the port on the case icon is the data source.
-        then (port, resultPort)
-        else (resultPort, port)
+        then (port, resPort)
+        else (resPort, port)
 
 combineExpressions :: Bool -> [(GraphAndRef, NameAndPort)] -> SyntaxGraph
 combineExpressions inPattern portExpPairs = mconcat $ fmap makeGraph portExpPairs where
@@ -148,7 +147,7 @@ combineExpressions inPattern portExpPairs = mconcat $ fmap makeGraph portExpPair
     Left str -> if inPattern
       then bindsToSyntaxGraph [SgBind str (Right port)]
       else sinksToSyntaxGraph [SgSink str port]
-    Right resultPort -> edgesToSyntaxGraph [Edge edgeOpts noEnds (resultPort, port)]
+    Right resPort -> edgesToSyntaxGraph [Edge edgeOpts noEnds (resPort, port)]
 
 -- qualifyNameAndPort :: String -> NameAndPort -> NameAndPort
 -- qualifyNameAndPort s (NameAndPort n p) = NameAndPort (s DIA..> n) p
@@ -162,6 +161,16 @@ makeApplyGraph applyFlavor inPattern applyIconName funVal argVals numArgs = (new
     combinedGraph = combineExpressions inPattern $ zip (funVal:argVals) (functionPort:argumentNamePorts)
     icons = [SgNamedNode applyIconName applyNode]
     newGraph = syntaxGraphFromNodes icons
+
+makeGuardGraph ::
+  Int -> NodeName -> [GraphAndRef] -> [GraphAndRef] -> (SyntaxGraph, NameAndPort)
+makeGuardGraph numPairs guardName bools exps = (newGraph, nameAndPort guardName (resultPort guardNode)) where
+  guardNode = GuardNode numPairs
+  expsWithPorts = zip exps $ map (nameAndPort guardName) guardRhsPorts
+  boolsWithPorts = zip bools $ map (nameAndPort guardName) guardBoolPorts
+  combindedGraph = combineExpressions False $ expsWithPorts <> boolsWithPorts
+  icons = [SgNamedNode guardName guardNode]
+  newGraph = syntaxGraphFromNodes icons <> combindedGraph
 
 namesInPatternHelper :: GraphAndRef -> [String]
 namesInPatternHelper (GraphAndRef graph ref) = case ref of

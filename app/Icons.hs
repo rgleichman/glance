@@ -157,8 +157,13 @@ getPortAngles icon port maybeNodeName = case icon of
 
 -- BEGIN Port numbers
 
+inputPortConst :: Port
 inputPortConst = Port 0
+
+resultPortConst :: Port
 resultPortConst = Port 1
+
+argPortsConst :: [Port]
 argPortsConst = fmap Port [2,3..]
 
 -- TODO It's a bit strange that the parameter is a SyntaxNode, not an Icon.

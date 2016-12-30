@@ -22,7 +22,7 @@ import Language.Haskell.Exts(Decl(..), parseDecl, Name(..), Pat(..), Rhs(..),
 import GraphAlgorithms(collapseNodes)
 import TranslateCore(Reference, SyntaxGraph(..), EvalContext, GraphAndRef(..), SgSink(..), SgBind(..),
   syntaxGraphFromNodes, syntaxGraphFromNodesEdges, getUniqueName, combineExpressions,
-  edgesForRefPortList, makeApplyGraph,
+  edgesForRefPortList, makeApplyGraph, makeGuardGraph,
   namesInPattern, lookupReference, deleteBindings, makeEdges,
   makeBox, nTupleString, nListString,
   syntaxGraphToFglGraph, getUniqueString, bindsToSyntaxGraph, graphAndRefToGraph,
@@ -32,7 +32,7 @@ import Types(NameAndPort(..), IDState,
   LikeApplyFlavor(..))
 import Util(makeSimpleEdge, nameAndPort, justName)
 import Icons(inputPort, resultPort, argumentPorts, caseRhsPorts,
-             casePatternPorts, guardRhsPorts, guardBoolPorts)
+             casePatternPorts)
 
 -- OVERVIEW --
 -- The core functions and data types used in this module are in TranslateCore.
@@ -268,8 +268,8 @@ removeParen e = case e of
   Paren x -> removeParen x
   _ -> e
 
-evalApp :: EvalContext -> LikeApplyFlavor -> (Exp, [Exp]) -> State IDState (SyntaxGraph, NameAndPort)
-evalApp c flavor (funExp, argExps) = do
+evalFunExpAndArgs :: EvalContext -> LikeApplyFlavor -> (Exp, [Exp]) -> State IDState (SyntaxGraph, NameAndPort)
+evalFunExpAndArgs c flavor (funExp, argExps) = do
   funVal <- evalExp c funExp
   argVals <- mapM (evalExp c) argExps
   applyIconName <- getUniqueName
@@ -279,8 +279,8 @@ evalApp c flavor (funExp, argExps) = do
 
 -- BEGIN evalInfixApp
 
-evalPureCompose :: EvalContext -> [Exp] -> State IDState (SyntaxGraph, NameAndPort)
-evalPureCompose c functions = do
+evalFunctionComposition :: EvalContext -> [Exp] -> State IDState (SyntaxGraph, NameAndPort)
+evalFunctionComposition c functions = do
   let reversedFunctios = reverse functions
   evaluatedFunctions <- mapM (evalExp c) reversedFunctios
   neverUsedPort <- Left <$> getUniqueString "unusedArgument"
@@ -288,16 +288,21 @@ evalPureCompose c functions = do
   pure $ makeApplyGraph ComposeNodeFlavor False applyIconName
     (GraphAndRef mempty neverUsedPort) evaluatedFunctions (length evaluatedFunctions)
 
-simplifyPureCompose :: Exp -> [Exp]
-simplifyPureCompose e = case removeParen e of
-  (InfixApp exp1  (QVarOp (UnQual (Symbol "."))) exp2) -> exp1 : simplifyPureCompose exp2
+-- | Turn (a . b . c) into [a, b, c]
+compositionToList :: Exp -> [Exp]
+compositionToList e = case removeParen e of
+  (InfixApp exp1  (QVarOp (UnQual (Symbol "."))) exp2) -> exp1 : compositionToList exp2
   x -> [x]
 
+-- | In the general case, infix is converted to prefix.
+-- Special cases:
+-- a $ b is converted to (a b)
+-- (a . b . c) uses the compose apply icon with no argument
 evalInfixApp :: EvalContext -> Exp -> QOp -> Exp -> State IDState GraphAndRef
 evalInfixApp c e1 op e2 = case op of
   QVarOp (UnQual (Symbol sym)) -> case sym of
     "$" -> evalExp c (App e1 e2)
-    "." -> grNamePortToGrRef <$> evalPureCompose c (e1 : simplifyPureCompose e2)
+    "." -> grNamePortToGrRef <$> evalFunctionComposition c (e1 : compositionToList e2)
     _ -> defaultCase
   _ -> defaultCase
   where
@@ -307,8 +312,21 @@ evalInfixApp c e1 op e2 = case op of
 
 -- BEGIN evaluateAppExpression
 
-scoreExpressions :: Exp -> Exp -> (Int, Int)
-scoreExpressions exp1 exp2 = (appScore, compScore) where
+simplifyExp :: Exp -> Exp
+simplifyExp e = case removeParen e of
+  InfixApp exp1  (QVarOp (UnQual (Symbol "$"))) exp2 -> App exp1 exp2
+  -- Don't convert compose to apply
+  InfixApp _  (QVarOp (UnQual (Symbol "."))) _ -> e
+  App (Var (UnQual (Symbol "<$>"))) arg -> App (makeVarExp "fmap") arg
+  InfixApp exp1 op exp2 -> App (App (qOpToExp op) exp1) exp2
+  LeftSection exp1 op -> App (qOpToExp op) exp1
+  x -> x
+
+-- | Given two expressions f and x, where f is applied to x,
+-- return the nesting depth if (f x) is rendered with
+-- the (normal apply icon, compose apply icon)
+applyComposeScoreHelper :: Exp -> Exp -> (Int, Int)
+applyComposeScoreHelper exp1 exp2 = (appScore, compScore) where
   (e1App, e1Comp) = applyComposeScore exp1
   (e2App, e2Comp) = applyComposeScore exp2
 
@@ -322,36 +340,30 @@ scoreExpressions exp1 exp2 = (appScore, compScore) where
   
   compScore = max leftComp rightComp
 
-simplifyExp :: Exp -> Exp
-simplifyExp e = case removeParen e of
-  InfixApp exp1  (QVarOp (UnQual (Symbol "$"))) exp2 -> App exp1 exp2
-  -- Don't convert compose to apply
-  InfixApp _  (QVarOp (UnQual (Symbol "."))) _ -> e
-  App (Var (UnQual (Symbol "<$>"))) arg -> App (makeVarExp "fmap") arg
-  InfixApp exp1 op exp2 -> App (App (qOpToExp op) exp1) exp2
-  LeftSection exp1 op -> App (qOpToExp op) exp1
-  x -> x
-
 -- TODO Consider putting this logic in a separate "simplifyExpression" function.
 -- | Returns the amount of nesting if the App is converted to (applyNode, composeNode)
 applyComposeScore :: Exp -> (Int, Int)
 applyComposeScore e = case simplifyExp e of
-  App exp1 exp2 -> scoreExpressions exp1 exp2
+  App exp1 exp2 -> applyComposeScoreHelper exp1 exp2
   _ -> (0, 0)
 
 -- Todo add test for this function
-simplifyApp :: Exp -> (Exp, [Exp])
-simplifyApp e = case simplifyExp e of
+-- | Given an App expression, return
+-- (function, list of arguments)
+appExpToFuncArgs :: Exp -> (Exp, [Exp])
+appExpToFuncArgs e = case simplifyExp e of
   App exp1 exp2 -> (funExp, args <> [exp2])
     where
-      (funExp, args) = simplifyApp exp1
+      (funExp, args) = appExpToFuncArgs exp1
   x -> (x, [])
 
-simplifyComposeApply :: Exp -> (Exp, [Exp])
-simplifyComposeApply e = case simplifyExp e of
+-- | Given and App expression, return
+-- (argument, list composed functions)
+appExpToArgFuncs :: Exp -> (Exp, [Exp])
+appExpToArgFuncs e = case simplifyExp e of
   App exp1 exp2 -> (argExp, funcs <> [exp1])
     where
-      (argExp, funcs) = simplifyComposeApply exp2
+      (argExp, funcs) = appExpToArgFuncs exp2
   simpleExp -> (simpleExp, [])
 
 removeCompose :: Exp -> Exp -> Exp
@@ -360,10 +372,10 @@ removeCompose f x = case removeParen f of
   _ -> App f x
 
 -- TODO Refactor this and all sub-expressions
-evaluateAppExpression :: EvalContext -> Exp -> Exp -> State IDState (SyntaxGraph, NameAndPort)
-evaluateAppExpression c f e = if appScore <= compScore
-  then evalApp c ApplyNodeFlavor (simplifyApp noComposeExp)
-  else evalApp c ComposeNodeFlavor (simplifyComposeApply noComposeExp)
+evalApp :: EvalContext -> Exp -> Exp -> State IDState (SyntaxGraph, NameAndPort)
+evalApp c f e = if appScore <= compScore
+  then evalFunExpAndArgs c ApplyNodeFlavor (appExpToFuncArgs noComposeExp)
+  else evalFunExpAndArgs c ComposeNodeFlavor (appExpToArgFuncs noComposeExp)
   where
     noComposeExp = removeCompose f e
     (appScore, compScore) = applyComposeScore noComposeExp
@@ -371,20 +383,14 @@ evaluateAppExpression c f e = if appScore <= compScore
 -- END evaluateAppExpression
 
 evalIf :: EvalContext -> Exp -> Exp -> Exp -> State IDState (SyntaxGraph, NameAndPort)
-evalIf c e1 e2 e3 = do
-  e1Val <- evalExp c e1
-  e2Val <- evalExp c e2
-  e3Val <- evalExp c e3
-  guardName <- getUniqueName
-  let
-    guardNode = GuardNode 2
-    icons = [SgNamedNode guardName guardNode]
-    boolPort = take 1 guardBoolPorts
-    rhsPorts = take 2 guardRhsPorts
-    combinedGraph =
-      combineExpressions False $ zip [e1Val, e2Val, e3Val] (map (nameAndPort guardName) (boolPort <> rhsPorts))
-    newGraph = syntaxGraphFromNodes icons <> combinedGraph
-  pure (newGraph, nameAndPort guardName (resultPort guardNode))
+evalIf c e1 e2 e3 = makeGuardGraph 2
+  <$>
+  getUniqueName
+  <*>
+  -- Use (pure <$>) to put the evaluated expression in a single item list
+  (pure <$> evalExp c e1)
+  <*>
+  mapM (evalExp c) [e2, e3]
 
 -- BEGIN evalGeneralLet
 
@@ -428,25 +434,23 @@ evalStmt c (Qualifier e) = evalExp c e
 evalStmts :: EvalContext -> [Stmt] -> State IDState GraphAndRef
 evalStmts c [stmt] = evalStmt c stmt
 
-evalGuaredRhs :: EvalContext -> GuardedRhs -> State IDState (GraphAndRef, GraphAndRef)
-evalGuaredRhs c (GuardedRhs _ stmts e) = do
+evalGuardedRhs :: EvalContext -> GuardedRhs -> State IDState (GraphAndRef, GraphAndRef)
+evalGuardedRhs c (GuardedRhs _ stmts e) = do
   expVal <- evalExp c e
   stmtsVal <- evalStmts c stmts
   pure (stmtsVal, expVal)
 
 evalGuardedRhss :: EvalContext -> [GuardedRhs] -> State IDState (SyntaxGraph, NameAndPort)
-evalGuardedRhss c rhss = do
-  guardName <- getUniqueName
-  evaledRhss <- mapM (evalGuaredRhs c) rhss
-  let
-    (bools, exps) = unzip evaledRhss
-    guardNode = GuardNode (length rhss)
-    expsWithPorts = zip exps $ map (nameAndPort guardName) guardRhsPorts
-    boolsWithPorts = zip bools $ map (nameAndPort guardName) guardBoolPorts
-    combindedGraph = combineExpressions False $ expsWithPorts <> boolsWithPorts
-    icons = [SgNamedNode guardName guardNode]
-    newGraph = syntaxGraphFromNodes icons <> combindedGraph
-  pure (newGraph, nameAndPort guardName (resultPort guardNode))
+evalGuardedRhss c rhss = let
+  evaledRhss = unzip <$> mapM (evalGuardedRhs c) rhss
+  in
+  makeGuardGraph (length rhss)
+  <$>
+  getUniqueName
+  <*>
+  fmap fst evaledRhss
+  <*>
+  fmap snd evaledRhss
 
 -- | First argument is the right hand side.
 -- The second arugement is a list of strings that are bound in the environment.
@@ -529,7 +533,7 @@ evalTuple c exps = do
 
 evalListExp :: EvalContext -> [Exp] -> State IDState (SyntaxGraph, NameAndPort)
 evalListExp _ [] = makeBox "[]"
-evalListExp c exps = evalApp c ApplyNodeFlavor (makeVarExp . nListString . length $ exps, exps)
+evalListExp c exps = evalFunExpAndArgs c ApplyNodeFlavor (makeVarExp . nListString . length $ exps, exps)
 
 evalLeftSection :: EvalContext -> Exp -> QOp -> State IDState GraphAndRef
 evalLeftSection c e op = evalExp c $ App (qOpToExp op) e
@@ -545,7 +549,7 @@ evalRightSection c op e = do
 
 -- evalEnums is only used by evalExp
 evalEnums :: EvalContext -> String -> [Exp] -> State IDState GraphAndRef
-evalEnums c s exps = grNamePortToGrRef <$> evalApp c ApplyNodeFlavor (makeVarExp s, exps)
+evalEnums c s exps = grNamePortToGrRef <$> evalFunExpAndArgs c ApplyNodeFlavor (makeVarExp s, exps)
 
 desugarDo :: [Stmt] -> Exp
 desugarDo [Qualifier e] = e
@@ -611,7 +615,7 @@ evalExp c x = case x of
   Con n -> evalQName n c
   Lit l -> grNamePortToGrRef <$> evalLit l
   InfixApp e1 op e2 -> evalInfixApp c e1 op e2
-  App f arg -> grNamePortToGrRef <$> evaluateAppExpression c f arg
+  App f arg -> grNamePortToGrRef <$> evalApp c f arg
   NegApp e -> evalExp c (App (makeVarExp "negate") e)
   Lambda _ patterns e -> grNamePortToGrRef <$> evalLambda c patterns e
   Let bs e -> evalLet c bs e
