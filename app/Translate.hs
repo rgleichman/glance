@@ -61,6 +61,15 @@ makeAsBindGraph ref asNames = bindsToSyntaxGraph $ catMaybes $ fmap makeBind asN
 grNamePortToGrRef :: (SyntaxGraph, NameAndPort) -> GraphAndRef
 grNamePortToGrRef (graph, np) = GraphAndRef graph (Right np)
 
+bindOrAltHelper ::
+  EvalContext -> Pat -> Rhs -> Maybe Binds -> State IDState ((GraphAndRef, Maybe String), GraphAndRef)
+bindOrAltHelper c pat rhs maybeWhereBinds = do
+  patGraphAndRef <- evalPattern pat
+  let
+    rhsContext = namesInPattern patGraphAndRef <> c
+  rhsGraphAndRef <- rhsWithBinds maybeWhereBinds rhs rhsContext
+  pure (patGraphAndRef, rhsGraphAndRef)
+
 -- END Helper Functions --
 
 -- BEGIN Names helper functions --
@@ -383,14 +392,14 @@ evalApp c f e = if appScore <= compScore
 -- END evaluateAppExpression
 
 evalIf :: EvalContext -> Exp -> Exp -> Exp -> State IDState (SyntaxGraph, NameAndPort)
-evalIf c e1 e2 e3 = makeGuardGraph 2
+evalIf c boolExp trueExp falseExp = makeGuardGraph 2
   <$>
   getUniqueName
   <*>
   -- Use (pure <$>) to put the evaluated expression in a single item list
-  (pure <$> evalExp c e1)
+  (pure <$> evalExp c boolExp)
   <*>
-  mapM (evalExp c) [e2, e3]
+  mapM (evalExp c) [trueExp, falseExp]
 
 -- BEGIN evalGeneralLet
 
@@ -402,7 +411,6 @@ getBoundVarName (FunBind (Match _ name _ _ _ _:_)) = [nameToString name]
 getBoundVarName (TypeSig _ _ _) = []
 getBoundVarName decl = error $ "getBoundVarName: No pattern in case for " ++ show decl
 
---TODO: Should this call makeEdges?
 evalBinds :: EvalContext -> Binds -> State IDState (SyntaxGraph, EvalContext)
 evalBinds c (BDecls decls) = do
   let
@@ -435,10 +443,7 @@ evalStmts :: EvalContext -> [Stmt] -> State IDState GraphAndRef
 evalStmts c [stmt] = evalStmt c stmt
 
 evalGuardedRhs :: EvalContext -> GuardedRhs -> State IDState (GraphAndRef, GraphAndRef)
-evalGuardedRhs c (GuardedRhs _ stmts e) = do
-  expVal <- evalExp c e
-  stmtsVal <- evalStmts c stmts
-  pure (stmtsVal, expVal)
+evalGuardedRhs c (GuardedRhs _ stmts e) = (,) <$> evalStmts c stmts <*> evalExp c e
 
 evalGuardedRhss :: EvalContext -> [GuardedRhs] -> State IDState (SyntaxGraph, NameAndPort)
 evalGuardedRhss c rhss = let
@@ -467,13 +472,11 @@ rhsWithBinds maybeWhereBinds rhs rhsContext = case maybeWhereBinds of
 
 -- BEGIN evalCase
 
--- TODO: Refactor this with evalPatBind
+-- TODO patRhsAreConnected is sometimes incorrectly true if the pat is just a name
 evalPatAndRhs :: EvalContext -> Pat -> Rhs -> Maybe Binds -> State IDState (Bool, SyntaxGraph, Reference, Reference, Maybe String)
 evalPatAndRhs c pat rhs maybeWhereBinds = do
-  patternNames <- namesInPattern <$> evalPattern pat
-  let rhsContext = patternNames <> c
-  GraphAndRef rhsGraph rhsRef <- rhsWithBinds maybeWhereBinds rhs rhsContext
-  (GraphAndRef patGraph patRef, mPatAsName) <- evalPattern pat
+  ((GraphAndRef patGraph patRef, mPatAsName), GraphAndRef rhsGraph rhsRef) <-
+    bindOrAltHelper c pat rhs maybeWhereBinds
   let
     grWithEdges = makeEdges (rhsGraph <> patGraph)
     lookedUpRhsRef = lookupReference (sgBinds grWithEdges) rhsRef
@@ -688,18 +691,15 @@ evalMatches c (firstMatch:restOfMatches) = matchesToCase firstMatch restOfMatche
 
 evalPatBind :: EvalContext -> Decl -> State IDState SyntaxGraph
 evalPatBind c (PatBind _ pat rhs maybeWhereBinds) = do
-  patternNames <- namesInPattern <$> evalPattern pat
-  let rhsContext = patternNames <> c
-  GraphAndRef rhsGraph rhsRef <- rhsWithBinds maybeWhereBinds rhs rhsContext
-  (GraphAndRef patGraph patRef, patAsName) <- evalPattern pat
+  ((GraphAndRef patGraph patRef, mPatAsName), GraphAndRef rhsGraph rhsRef) <-
+    bindOrAltHelper c pat rhs maybeWhereBinds
   let
     (newEdges, newSinks, bindings) = case patRef of
       (Left s) -> (mempty, mempty, [SgBind s rhsRef])
       (Right patPort) -> case rhsRef of
-        -- TODO This edge/sink should have a special arrow head to indicate an input to a pattern.
         (Left rhsStr) -> (mempty, [SgSink rhsStr patPort], mempty)
         (Right rhsPort) -> ([makeSimpleEdge (rhsPort, patPort)], mempty, mempty)
-    asBindGraph = makeAsBindGraph rhsRef [patAsName]
+    asBindGraph = makeAsBindGraph rhsRef [mPatAsName]
     gr = asBindGraph <> SyntaxGraph mempty newEdges newSinks bindings mempty
   pure . makeEdges $ (gr <> rhsGraph <> patGraph)
 
