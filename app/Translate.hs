@@ -1,4 +1,4 @@
-{-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeFamilies #-}
+{-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeFamilies, TupleSections #-}
 module Translate(
   translateStringToSyntaxGraph,
   translateStringToCollapsedGraphAndDecl,
@@ -12,10 +12,10 @@ import Control.Monad.State(State, evalState)
 import Data.Either(partitionEithers)
 import qualified Data.Graph.Inductive.PatriciaTree as FGR
 import Data.List(unzip5, partition, intercalate)
-import Data.Maybe(catMaybes)
+import Data.Maybe(catMaybes, isJust)
 import qualified Language.Haskell.Exts as Exts
 
-import Language.Haskell.Exts(Decl(..), parseDecl, Name(..), Pat(..), Rhs(..),
+import Language.Haskell.Exts(Decl(..), parseDeclWithMode, Name(..), Pat(..), Rhs(..),
   Exp(..), QName(..), fromParseResult, Match(..), QOp(..), GuardedRhs(..),
   Stmt(..), Binds(..), Alt(..), Module(..), SpecialCon(..), prettyPrint)
 
@@ -24,7 +24,7 @@ import TranslateCore(Reference, SyntaxGraph(..), EvalContext, GraphAndRef(..), S
   syntaxGraphFromNodes, syntaxGraphFromNodesEdges, getUniqueName, combineExpressions,
   edgesForRefPortList, makeApplyGraph, makeGuardGraph,
   namesInPattern, lookupReference, deleteBindings, makeEdges,
-  makeBox, nTupleString, nListString,
+  makeBox, nTupleString, nTupleSectionString, nListString,
   syntaxGraphToFglGraph, getUniqueString, bindsToSyntaxGraph, graphAndRefToGraph,
   initialIdState)
 import Types(NameAndPort(..), IDState,
@@ -412,12 +412,12 @@ getBoundVarName (TypeSig _ _ _) = []
 getBoundVarName decl = error $ "getBoundVarName: No pattern in case for " ++ show decl
 
 evalBinds :: EvalContext -> Binds -> State IDState (SyntaxGraph, EvalContext)
-evalBinds c (BDecls decls) = do
+evalBinds c (BDecls decls) =
   let
     boundNames = concatMap getBoundVarName decls
     augmentedContext = boundNames <> c
-  evaledDecl <- mconcat <$> mapM (evalDecl augmentedContext) decls
-  pure (evaledDecl, augmentedContext)
+  in
+    ((,augmentedContext) . mconcat) <$>  mapM (evalDecl augmentedContext) decls
 
 evalGeneralLet :: (EvalContext -> State IDState GraphAndRef) -> EvalContext -> Binds -> State IDState GraphAndRef
 evalGeneralLet expOrRhsEvaler c bs = do
@@ -490,15 +490,18 @@ evalPatAndRhs c pat rhs maybeWhereBinds = do
 evalAlt :: EvalContext -> Exts.Alt -> State IDState (Bool, SyntaxGraph, Reference, Reference, Maybe String)
 evalAlt c (Exts.Alt _ pat rhs maybeBinds) = evalPatAndRhs c pat rhs maybeBinds
 
+-- TODO Split out the non-stateful part so that it can be done with an applicative
 evalCase :: EvalContext -> Exp -> [Alt] -> State IDState (SyntaxGraph, NameAndPort)
 evalCase c e alts = do
   evaledAlts <- mapM (evalAlt c) alts
   GraphAndRef expGraph expRef <- evalExp c e
   caseIconName <- getUniqueName
   let
+    numAlts = length alts  
+  resultIconNames <- replicateM numAlts getUniqueName
+  let
     (patRhsConnected, altGraphs, patRefs, rhsRefs, asNames) = unzip5 evaledAlts
     combindedAltGraph = mconcat altGraphs
-    numAlts = length alts
     caseNode = CaseNode numAlts
     icons = [SgNamedNode caseIconName caseNode]
     caseGraph = syntaxGraphFromNodes icons
@@ -506,8 +509,7 @@ evalCase c e alts = do
     patEdges = zip patRefs $ map (nameAndPort caseIconName) casePatternPorts
     rhsEdges = zip patRhsConnected $ zip rhsRefs $ map (nameAndPort caseIconName) caseRhsPorts
     (connectedRhss, unConnectedRhss) = partition fst rhsEdges
-  resultIconNames <- replicateM numAlts getUniqueName
-  let
+
     makeCaseResult :: NodeName -> Reference -> SyntaxGraph
     makeCaseResult resultIconName rhsRef = case rhsRef of
       Left _ -> mempty
@@ -515,6 +517,7 @@ evalCase c e alts = do
         where
           rhsNewIcons = [SgNamedNode resultIconName CaseResultNode]
           rhsNewEdges = [makeSimpleEdge (rhsPort, justName resultIconName)]
+
     caseResultGraphs = mconcat $ zipWith makeCaseResult resultIconNames (fmap (fst . snd) connectedRhss)
     filteredRhsEdges = fmap snd unConnectedRhss
     patternEdgesGraph = edgesForRefPortList True patEdges
@@ -533,6 +536,21 @@ evalTuple c exps = do
   funVal <- makeBox $ nTupleString (length exps)
   applyIconName <- getUniqueName
   pure $ makeApplyGraph ApplyNodeFlavor False applyIconName (grNamePortToGrRef funVal) argVals (length exps)
+
+evalTupleSection :: EvalContext -> [Maybe Exp] -> State IDState (SyntaxGraph, NameAndPort)
+evalTupleSection c mExps =
+  let
+    exps = catMaybes mExps
+    expIsJustList = fmap isJust mExps
+  in
+    -- TODO move the int parameter of makeApplyGraph to the beginning
+    makeApplyGraph ApplyNodeFlavor False
+    <$>
+    getUniqueName
+    <*>
+    (grNamePortToGrRef <$> makeBox (nTupleSectionString expIsJustList))
+    <*>
+    mapM (evalExp c) exps <*> pure (length exps)
 
 evalListExp :: EvalContext -> [Exp] -> State IDState (SyntaxGraph, NameAndPort)
 evalListExp _ [] = makeBox "[]"
@@ -627,6 +645,7 @@ evalExp c x = case x of
   Do stmts -> evalExp c (desugarDo stmts)
   -- TODO special tuple symbol
   Tuple _ exps -> grNamePortToGrRef <$> evalTuple c exps
+  TupleSection _ mExps -> grNamePortToGrRef <$> evalTupleSection c mExps
   List exps -> grNamePortToGrRef <$> evalListExp c exps
   Paren e -> evalExp c e
   LeftSection e op -> evalLeftSection c e op
@@ -743,9 +762,21 @@ translateDeclToSyntaxGraph d = graph where
   evaluatedDecl = evalDecl mempty d >>= showTopLevelBinds
   graph = evalState evaluatedDecl initialIdState
 
+customParseMode :: Exts.ParseMode
+customParseMode = Exts.defaultParseMode
+  {Exts.extensions =
+   [Exts.EnableExtension Exts.MultiParamTypeClasses,
+    Exts.EnableExtension Exts.FlexibleContexts,
+    Exts.EnableExtension Exts.TupleSections
+   ]
+  }
+
+customParseDecl :: String -> Decl
+customParseDecl = fromParseResult . parseDeclWithMode customParseMode
+
 -- | Convert a single function declaration into a SyntaxGraph
 translateStringToSyntaxGraph :: String -> SyntaxGraph
-translateStringToSyntaxGraph = translateDeclToSyntaxGraph . fromParseResult . parseDecl
+translateStringToSyntaxGraph = translateDeclToSyntaxGraph . customParseDecl
 
 syntaxGraphToCollapsedGraph :: SyntaxGraph -> IngSyntaxGraph FGR.Gr
 syntaxGraphToCollapsedGraph = collapseNodes . syntaxGraphToFglGraph
@@ -756,7 +787,7 @@ translateDeclToCollapsedGraph = syntaxGraphToCollapsedGraph . translateDeclToSyn
 -- Profiling: At one point, this was about 1.5% of total time.
 translateStringToCollapsedGraphAndDecl :: String -> (IngSyntaxGraph FGR.Gr, Decl)
 translateStringToCollapsedGraphAndDecl s = (drawing, decl) where
-  decl = fromParseResult (parseDecl s) -- :: ParseResult Module
+  decl = customParseDecl s -- :: ParseResult Module
   drawing = translateDeclToCollapsedGraph decl
 
 translateModuleToCollapsedGraphs :: Module -> [IngSyntaxGraph FGR.Gr]

@@ -23,6 +23,7 @@ module TranslateCore(
   --makeEdgesCore,
   makeBox,
   nTupleString,
+  nTupleSectionString,
   nListString,
   syntaxGraphToFglGraph,
   nodeToIcon,
@@ -224,6 +225,18 @@ makeBox str = do
 
 nTupleString :: Int -> String
 nTupleString n = '(' : replicate (n -1) ',' ++ ")"
+
+-- TODO Unit tests for this
+nTupleSectionString :: [Bool] -> String
+nTupleSectionString bools = '(' : (commas ++ ")") where
+  commas = case concatMap trueToUnderscore bools of
+    [] -> []
+    (_:xs) -> xs
+
+  trueToUnderscore x = if x
+    then ",_"
+    else ","
+
 
 nListString :: Int -> String
 -- TODO: Use something better than [_]

@@ -94,7 +94,15 @@ tupleTests :: [String]
 tupleTests = [
   "y = ()",
   "(x, y) = (1,2)",
-  "(x, y, z) = (1,2,3)"
+  "(x, y, z) = (1,2,3)",
+  "y = (,x) 2",
+  "y = (x,) 2",
+  "y = (,,x) 2",
+  "y = (,x,) 2",
+  "y = (x,,) 2",
+  "y = (x,z,) 2",
+  "y = (x,,z) 2",
+  "y = (,x,z) 2"
   ]
 
 listTests :: [String]
