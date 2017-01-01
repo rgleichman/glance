@@ -153,8 +153,8 @@ combineExpressions inPattern portExpPairs = mconcat $ fmap makeGraph portExpPair
 -- qualifyNameAndPort :: String -> NameAndPort -> NameAndPort
 -- qualifyNameAndPort s (NameAndPort n p) = NameAndPort (s DIA..> n) p
 
-makeApplyGraph :: LikeApplyFlavor -> Bool -> NodeName -> GraphAndRef -> [GraphAndRef] -> Int -> (SyntaxGraph, NameAndPort)
-makeApplyGraph applyFlavor inPattern applyIconName funVal argVals numArgs = (newGraph <> combinedGraph, nameAndPort applyIconName (resultPort applyNode))
+makeApplyGraph :: Int -> LikeApplyFlavor -> Bool -> NodeName -> GraphAndRef -> [GraphAndRef] -> (SyntaxGraph, NameAndPort)
+makeApplyGraph numArgs applyFlavor inPattern applyIconName funVal argVals = (newGraph <> combinedGraph, nameAndPort applyIconName (resultPort applyNode))
   where
     applyNode = LikeApplyNode applyFlavor numArgs
     argumentNamePorts = map (nameAndPort applyIconName) (argumentPorts applyNode)

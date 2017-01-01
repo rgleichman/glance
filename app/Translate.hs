@@ -282,7 +282,7 @@ evalFunExpAndArgs c flavor (funExp, argExps) = do
   funVal <- evalExp c funExp
   argVals <- mapM (evalExp c) argExps
   applyIconName <- getUniqueName
-  pure $ makeApplyGraph flavor False applyIconName funVal argVals (length argExps)
+  pure $ makeApplyGraph (length argExps) flavor False applyIconName funVal argVals
 
 -- END apply and compose helper functions
 
@@ -294,8 +294,8 @@ evalFunctionComposition c functions = do
   evaluatedFunctions <- mapM (evalExp c) reversedFunctios
   neverUsedPort <- Left <$> getUniqueString "unusedArgument"
   applyIconName <- getUniqueName
-  pure $ makeApplyGraph ComposeNodeFlavor False applyIconName
-    (GraphAndRef mempty neverUsedPort) evaluatedFunctions (length evaluatedFunctions)
+  pure $ makeApplyGraph (length evaluatedFunctions) ComposeNodeFlavor False applyIconName
+    (GraphAndRef mempty neverUsedPort) evaluatedFunctions
 
 -- | Turn (a . b . c) into [a, b, c]
 compositionToList :: Exp -> [Exp]
@@ -535,7 +535,7 @@ evalTuple c exps = do
   argVals <- mapM (evalExp c) exps
   funVal <- makeBox $ nTupleString (length exps)
   applyIconName <- getUniqueName
-  pure $ makeApplyGraph ApplyNodeFlavor False applyIconName (grNamePortToGrRef funVal) argVals (length exps)
+  pure $ makeApplyGraph (length exps) ApplyNodeFlavor False applyIconName (grNamePortToGrRef funVal) argVals
 
 evalTupleSection :: EvalContext -> [Maybe Exp] -> State IDState (SyntaxGraph, NameAndPort)
 evalTupleSection c mExps =
@@ -544,13 +544,13 @@ evalTupleSection c mExps =
     expIsJustList = fmap isJust mExps
   in
     -- TODO move the int parameter of makeApplyGraph to the beginning
-    makeApplyGraph ApplyNodeFlavor False
+    makeApplyGraph (length exps) ApplyNodeFlavor False
     <$>
     getUniqueName
     <*>
     (grNamePortToGrRef <$> makeBox (nTupleSectionString expIsJustList))
     <*>
-    mapM (evalExp c) exps <*> pure (length exps)
+    mapM (evalExp c) exps
 
 evalListExp :: EvalContext -> [Exp] -> State IDState (SyntaxGraph, NameAndPort)
 evalListExp _ [] = makeBox "[]"
@@ -566,7 +566,7 @@ evalRightSection c op e = do
   applyIconName <- getUniqueName
   -- TODO: A better option would be for makeApplyGraph to take the list of expressions as Maybes.
   neverUsedPort <- Left <$> getUniqueString "unusedArgument"
-  pure $ makeApplyGraph ApplyNodeFlavor False applyIconName funVal [GraphAndRef mempty neverUsedPort, expVal] 2
+  pure $ makeApplyGraph 2 ApplyNodeFlavor False applyIconName funVal [GraphAndRef mempty neverUsedPort, expVal]
 
 -- evalEnums is only used by evalExp
 evalEnums :: EvalContext -> String -> [Exp] -> State IDState GraphAndRef
