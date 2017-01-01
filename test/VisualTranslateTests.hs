@@ -207,6 +207,7 @@ letTests = [
 
 operatorTests :: [String]
 operatorTests = [
+  -- right section
   "y = map (++ 1) 3"
   ]
 

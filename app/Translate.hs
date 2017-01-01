@@ -545,11 +545,17 @@ evalCase c e alts =
 -- END evalCase
 
 evalTuple :: EvalContext -> [Exp] -> State IDState (SyntaxGraph, NameAndPort)
-evalTuple c exps = do
-  argVals <- mapM (evalExp c) exps
-  funVal <- makeBox $ nTupleString (length exps)
-  applyIconName <- getUniqueName
-  pure $ makeApplyGraph (length exps) ApplyNodeFlavor False applyIconName (grNamePortToGrRef funVal) argVals
+evalTuple c exps =
+  let
+    numExps = length exps
+  in
+    makeApplyGraph numExps ApplyNodeFlavor False
+    <$>
+    getUniqueName
+    <*>
+    (grNamePortToGrRef <$> makeBox (nTupleString numExps))
+    <*>
+    mapM (evalExp c) exps
 
 evalTupleSection :: EvalContext -> [Maybe Exp] -> State IDState (SyntaxGraph, NameAndPort)
 evalTupleSection c mExps =
@@ -573,13 +579,19 @@ evalLeftSection :: EvalContext -> Exp -> QOp -> State IDState GraphAndRef
 evalLeftSection c e op = evalExp c $ App (qOpToExp op) e
 
 evalRightSection :: EvalContext -> QOp -> Exp -> State IDState (SyntaxGraph, NameAndPort)
-evalRightSection c op e = do
-  expVal <- evalExp c e
-  funVal <- evalExp c (qOpToExp op)
-  applyIconName <- getUniqueName
-  -- TODO: A better option would be for makeApplyGraph to take the list of expressions as Maybes.
-  neverUsedPort <- Left <$> getUniqueString "unusedArgument"
-  pure $ makeApplyGraph 2 ApplyNodeFlavor False applyIconName funVal [GraphAndRef mempty neverUsedPort, expVal]
+evalRightSection c op e =
+  makeApplyGraph 2 ApplyNodeFlavor False
+  <$>
+  getUniqueName
+  <*>
+  evalExp c (qOpToExp op)
+  <*>
+  ((\x y -> [x, y]) <$>
+    -- TODO: A better option would be for makeApplyGraph to take the list of expressions as Maybes.
+    fmap (GraphAndRef mempty . Left) (getUniqueString "unusedArgument")
+    <*>
+    evalExp c e
+  )
 
 -- evalEnums is only used by evalExp
 evalEnums :: EvalContext -> String -> [Exp] -> State IDState GraphAndRef
