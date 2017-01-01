@@ -122,6 +122,7 @@ getId = state incrementer where
 getUniqueName :: State IDState NodeName
 getUniqueName = fmap NodeName getId
 
+-- TODO Should getUniqueString prepend an illegal character?
 getUniqueString :: String -> State IDState String
 getUniqueString base = fmap ((base ++). show) getId
 
@@ -149,9 +150,6 @@ combineExpressions inPattern portExpPairs = mconcat $ fmap makeGraph portExpPair
       then bindsToSyntaxGraph [SgBind str (Right port)]
       else sinksToSyntaxGraph [SgSink str port]
     Right resPort -> edgesToSyntaxGraph [Edge edgeOpts noEnds (resPort, port)]
-
--- qualifyNameAndPort :: String -> NameAndPort -> NameAndPort
--- qualifyNameAndPort s (NameAndPort n p) = NameAndPort (s DIA..> n) p
 
 makeApplyGraph :: Int -> LikeApplyFlavor -> Bool -> NodeName -> GraphAndRef -> [GraphAndRef] -> (SyntaxGraph, NameAndPort)
 makeApplyGraph numArgs applyFlavor inPattern applyIconName funVal argVals = (newGraph <> combinedGraph, nameAndPort applyIconName (resultPort applyNode))

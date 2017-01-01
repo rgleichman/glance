@@ -490,43 +490,57 @@ evalPatAndRhs c pat rhs maybeWhereBinds = do
 evalAlt :: EvalContext -> Exts.Alt -> State IDState (Bool, SyntaxGraph, Reference, Reference, Maybe String)
 evalAlt c (Exts.Alt _ pat rhs maybeBinds) = evalPatAndRhs c pat rhs maybeBinds
 
--- TODO Split out the non-stateful part so that it can be done with an applicative
+evalCaseHelper ::
+  Int
+  -> NodeName
+  -> [NodeName]
+  -> GraphAndRef
+  -> [(Bool, SyntaxGraph, Reference, Reference, Maybe String)]
+  -> (SyntaxGraph, NameAndPort)
+evalCaseHelper numAlts caseIconName resultIconNames (GraphAndRef expGraph expRef) evaledAlts = result where
+  (patRhsConnected, altGraphs, patRefs, rhsRefs, asNames) = unzip5 evaledAlts
+  combindedAltGraph = mconcat altGraphs
+  caseNode = CaseNode numAlts
+  icons = [SgNamedNode caseIconName caseNode]
+  caseGraph = syntaxGraphFromNodes icons
+  expEdge = (expRef, nameAndPort caseIconName (inputPort caseNode))
+  patEdges = zip patRefs $ map (nameAndPort caseIconName) casePatternPorts
+  rhsEdges = zip patRhsConnected $ zip rhsRefs $ map (nameAndPort caseIconName) caseRhsPorts
+  (connectedRhss, unConnectedRhss) = partition fst rhsEdges
+
+  makeCaseResult :: NodeName -> Reference -> SyntaxGraph
+  makeCaseResult resultIconName rhsRef = case rhsRef of
+    Left _ -> mempty
+    Right rhsPort -> syntaxGraphFromNodesEdges rhsNewIcons rhsNewEdges
+      where
+        rhsNewIcons = [SgNamedNode resultIconName CaseResultNode]
+        rhsNewEdges = [makeSimpleEdge (rhsPort, justName resultIconName)]
+
+  caseResultGraphs = mconcat $ zipWith makeCaseResult resultIconNames (fmap (fst . snd) connectedRhss)
+  filteredRhsEdges = fmap snd unConnectedRhss
+  patternEdgesGraph = edgesForRefPortList True patEdges
+  caseEdgeGraph = edgesForRefPortList False (expEdge : filteredRhsEdges)
+
+  bindGraph = makeAsBindGraph expRef asNames
+
+  finalGraph = deleteBindings $ makeEdges $ mconcat [bindGraph, patternEdgesGraph, caseResultGraphs, expGraph, caseEdgeGraph, caseGraph, combindedAltGraph]
+  result = (finalGraph, nameAndPort caseIconName (resultPort caseNode))
+
+
 evalCase :: EvalContext -> Exp -> [Alt] -> State IDState (SyntaxGraph, NameAndPort)
-evalCase c e alts = do
-  evaledAlts <- mapM (evalAlt c) alts
-  GraphAndRef expGraph expRef <- evalExp c e
-  caseIconName <- getUniqueName
+evalCase c e alts =
   let
-    numAlts = length alts  
-  resultIconNames <- replicateM numAlts getUniqueName
-  let
-    (patRhsConnected, altGraphs, patRefs, rhsRefs, asNames) = unzip5 evaledAlts
-    combindedAltGraph = mconcat altGraphs
-    caseNode = CaseNode numAlts
-    icons = [SgNamedNode caseIconName caseNode]
-    caseGraph = syntaxGraphFromNodes icons
-    expEdge = (expRef, nameAndPort caseIconName (inputPort caseNode))
-    patEdges = zip patRefs $ map (nameAndPort caseIconName) casePatternPorts
-    rhsEdges = zip patRhsConnected $ zip rhsRefs $ map (nameAndPort caseIconName) caseRhsPorts
-    (connectedRhss, unConnectedRhss) = partition fst rhsEdges
-
-    makeCaseResult :: NodeName -> Reference -> SyntaxGraph
-    makeCaseResult resultIconName rhsRef = case rhsRef of
-      Left _ -> mempty
-      Right rhsPort -> syntaxGraphFromNodesEdges rhsNewIcons rhsNewEdges
-        where
-          rhsNewIcons = [SgNamedNode resultIconName CaseResultNode]
-          rhsNewEdges = [makeSimpleEdge (rhsPort, justName resultIconName)]
-
-    caseResultGraphs = mconcat $ zipWith makeCaseResult resultIconNames (fmap (fst . snd) connectedRhss)
-    filteredRhsEdges = fmap snd unConnectedRhss
-    patternEdgesGraph = edgesForRefPortList True patEdges
-    caseEdgeGraph = edgesForRefPortList False (expEdge : filteredRhsEdges)
-
-    bindGraph = makeAsBindGraph expRef asNames
-
-    finalGraph = deleteBindings $ makeEdges $ mconcat [bindGraph, patternEdgesGraph, caseResultGraphs, expGraph, caseEdgeGraph, caseGraph, combindedAltGraph]
-  pure (finalGraph, nameAndPort caseIconName (resultPort caseNode))
+    numAlts = length alts
+  in
+    evalCaseHelper (length alts)
+    <$>
+    getUniqueName
+    <*>
+    replicateM numAlts getUniqueName
+    <*>
+    evalExp c e
+    <*>
+    mapM (evalAlt c) alts
 
 -- END evalCase
 
@@ -543,7 +557,6 @@ evalTupleSection c mExps =
     exps = catMaybes mExps
     expIsJustList = fmap isJust mExps
   in
-    -- TODO move the int parameter of makeApplyGraph to the beginning
     makeApplyGraph (length exps) ApplyNodeFlavor False
     <$>
     getUniqueName
