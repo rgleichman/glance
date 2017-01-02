@@ -12,7 +12,7 @@ import Control.Monad.State(State, evalState)
 import Data.Either(partitionEithers)
 import qualified Data.Graph.Inductive.PatriciaTree as FGR
 import Data.List(unzip5, partition, intercalate)
-import Data.Maybe(catMaybes, isJust)
+import Data.Maybe(catMaybes, isJust, fromMaybe)
 import qualified Language.Haskell.Exts as Exts
 
 import Language.Haskell.Exts(Decl(..), parseDeclWithMode, Name(..), Pat(..), Rhs(..),
@@ -615,6 +615,14 @@ evalRecConstr c qName _ = evalQName qName c
 asBindGraphZipper :: Maybe String -> NameAndPort -> SyntaxGraph
 asBindGraphZipper asName nameNPort = makeAsBindGraph (Right nameNPort) [asName]
 
+paramName :: (GraphAndRef, Maybe String) -> String
+paramName (GraphAndRef _ ref, mStr) = fromMaybe
+  (case ref of
+    Left str -> str
+    Right _ -> ""
+  )
+  mStr
+
 generalEvalLambda :: EvalContext -> [Pat] -> (EvalContext -> State IDState GraphAndRef) -> State IDState (SyntaxGraph, NameAndPort)
 generalEvalLambda context patterns rhsEvalFun = do
   lambdaName <- getUniqueName
@@ -623,7 +631,8 @@ generalEvalLambda context patterns rhsEvalFun = do
     patternVals = fmap fst patternValsWithAsNames
     patternStrings = concatMap namesInPattern patternValsWithAsNames
     rhsContext = patternStrings <> context
-    lambdaNode = FunctionDefNode (length patterns)
+    paramNames = fmap paramName patternValsWithAsNames
+    lambdaNode = FunctionDefNode paramNames
     lambdaPorts = map (nameAndPort lambdaName) $ argumentPorts lambdaNode
     patternGraph = mconcat $ fmap graphAndRefToGraph patternVals
 
@@ -701,7 +710,8 @@ matchToAlt (Match srcLocation _ mtaPats _ rhs binds) = Alt srcLocation altPatter
 matchesToCase :: Match -> [Match] -> State IDState Match
 matchesToCase match [] = pure match
 matchesToCase firstMatch@(Match srcLoc funName pats mType _ _) restOfMatches = do
-  tempStrings <- replicateM (length pats) (getUniqueString "_tempvar")
+  -- There is a special case in Icons.hs/makeLabelledPort to exclude " tempvar"
+  tempStrings <- replicateM (length pats) (getUniqueString " tempvar")
   let
     tempPats = fmap (PVar . Ident) tempStrings
     tempVars = fmap makeVarExp tempStrings

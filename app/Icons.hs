@@ -1,4 +1,5 @@
-{-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeFamilies #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeFamilies, ScopedTypeVariables #-}
 module Icons
     (
     Icon(..),
@@ -61,7 +62,7 @@ iconToDiagram icon = case icon of
   GuardIcon n -> nestedGuardDia $ replicate (1 + (2 * n)) Nothing
   CaseIcon n -> nestedCaseDia $ replicate (1 + (2 * n)) Nothing
   CaseResultIcon -> identDiaFunc caseResult
-  FlatLambdaIcon n -> identDiaFunc $ flatLambda n
+  FlatLambdaIcon x -> flatLambda x
   NestedApply flavor args -> nestedApplyDia flavor args
   NestedPApp args -> nestedPAppDia (repeat $ patternC colorScheme) args
   NestedCaseIcon args -> nestedCaseDia args
@@ -408,9 +409,13 @@ transformCorrectedTextBox str textCol borderCol reflect angle =
     textBoxRotation = if (reducedAngle > (1/4)) && (reducedAngle < (3/4)) then 1 / 2 else 0
     reflectIfTrue shouldReflect dia = if shouldReflect then reflectX dia else dia
 
+defaultColoredTextBox :: SpecialBackend b n =>
+  String -> Bool -> Angle n -> SpecialQDiagram b n
+defaultColoredTextBox str = transformCorrectedTextBox str (textBoxTextC colorScheme) (textBoxC colorScheme)
+
 textBox :: SpecialBackend b n =>
   String -> TransformableDia b n
-textBox t name _ reflect angle = nameDiagram name $ transformCorrectedTextBox t (textBoxTextC colorScheme) (textBoxC colorScheme) reflect angle
+textBox t name _ reflect angle = nameDiagram name $ defaultColoredTextBox t reflect angle
 
 -- END Text boxes and icons
 
@@ -502,20 +507,33 @@ nestedCaseDia = generalNestedGuard (patternC colorScheme) caseC caseResult
 
 -- END Guard and case icons
 
--- Lambda icon --
+-- BEGIN Lambda icon --
+makeLabelledPort :: SpecialBackend b n =>
+  NodeName -> Bool -> Angle n -> String -> Port -> SpecialQDiagram b n
+makeLabelledPort name reflect angle str portNum = case str of
+  -- Don't display " tempvar" from Translate.hs/matchesToCase
+  (' ':_) -> portAndCircle
+  (_:_:_) -> portAndCircle ||| label
+  _ -> portAndCircle
+  where
+    portAndCircle = makeQualifiedPort name portNum <> portCircle
+    label = defaultColoredTextBox str reflect angle
+
 -- | The ports of flatLambdaIcon are:
 -- 0: Result icon
 -- 1: The lambda function value
 -- 2,3.. : The parameters
-flatLambda :: SpecialBackend b n => Int -> SpecialQDiagram b n
-flatLambda n = finalDia where
+flatLambda :: SpecialBackend b n => [String] -> TransformableDia b n
+flatLambda paramNames name _ reflect angle = named name finalDia where
   lambdaCircle = lwG defaultLineWidth $ lc (regionPerimC colorScheme) $ fc (regionPerimC colorScheme) $ circle circleRadius
-  lambdaParts = (makePort inputPortConst <> resultIcon) : (portIcons ++  [makePort resultPortConst <> alignR lambdaCircle])
-  portIcons = take n $ map (\x -> makePort x <> portCircle) argPortsConst
+  lambdaParts = (makeQualifiedPort name inputPortConst <> resultIcon) : (portIcons ++  [makeQualifiedPort name resultPortConst <> alignR lambdaCircle])
+
+  portIcons = zipWith (makeLabelledPort name reflect angle) paramNames argPortsConst
   middle = alignL (hsep 0.5 lambdaParts)
   topAndBottomLineWidth = width middle - circleRadius
   topAndBottomLine = alignL $ lwG defaultLineWidth $ lc (regionPerimC colorScheme) $ hrule topAndBottomLineWidth
   finalDia = topAndBottomLine <> alignB (topAndBottomLine <> alignT middle)
 
+-- END Lambda icon --
 -- END Main icons
 -- END Icons

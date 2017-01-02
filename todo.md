@@ -1,7 +1,7 @@
 # Todo
 
 ## Todo Now
-* Consider adding binding variable names to the lambda icon and match icon. Don't display the name if it is only one character.
+* Add binding variable names to the match icon. Don't display the name if it is only one character.
 
 ## Todo Later
 * Add wiki pages discussing: Why a visual language?, Glance design goals, History of Glance, FAQ's, How to contribute, Code guide [code style, ...], Related projects, examples demonstrating the utility of Glance etc..

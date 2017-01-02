@@ -32,7 +32,7 @@ import Data.Typeable(Typeable)
 -- The LambdaRegionIcon's data is the number of lambda ports, and the name of it's
 -- subdrawing.
 data Icon = TextBoxIcon String | GuardIcon Int
-  | FlatLambdaIcon Int | ApplyAIcon Int | ComposeIcon Int
+  | FlatLambdaIcon [String] | ApplyAIcon Int | ComposeIcon Int
   | PAppIcon Int String | CaseIcon Int | CaseResultIcon
   | BindTextBoxIcon String
   -- TODO: NestedApply should have the type NestedApply (Maybe (Name, Icon)) [Maybe (Name, Icon)]
@@ -56,7 +56,7 @@ data SyntaxNode =
   | NameNode String -- Identifiers or symbols
   | BindNameNode String
   | LiteralNode String -- Literal values like the string "Hello World"
-  | FunctionDefNode Int-- Function definition (ie. lambda expression)
+  | FunctionDefNode [String] -- Function definition (ie. lambda expression)
   | GuardNode Int
   | CaseNode Int
   | CaseResultNode -- TODO remove caseResultNode
