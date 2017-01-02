@@ -1,17 +1,16 @@
 # Todo
 
 ## Todo Now
-* Add binding variable names to the match icon. Don't display the name if it is only one character.
+* Fix whitspace being stripped in comments.
+
+* Add wiki pages discussing: Why a visual language?, Glance design goals, History of Glance, FAQ's, How to contribute, Code guide [code style, ...], Related projects, examples demonstrating the utility of Glance etc..
 
 ## Todo Later
-* Add wiki pages discussing: Why a visual language?, Glance design goals, History of Glance, FAQ's, How to contribute, Code guide [code style, ...], Related projects, examples demonstrating the utility of Glance etc..
 
 ### Testing todos
 * Fix the arrowheads being too big for SyntaxGraph drawings.
 
 ### Visual todos
-* Fix whitspace being stripped in comments.
-
 * Draw bounding boxes for lambdas (use dashed lines)
 
 * Use different line styles (e.g. dashed, solid, wavy) in addition to colors
