@@ -38,10 +38,10 @@ renameNode nameMap counter (SgNamedNode nodeName syntaxNode) = (newNamedNode, na
   newNamedNode = SgNamedNode newNodeName newSyntaxNode
 
 maybeRenameNodeFolder ::
-  ([Maybe SgNamedNode], NameMap, Int) -> Maybe SgNamedNode -> ([Maybe SgNamedNode], NameMap, Int)
+  ([(Maybe SgNamedNode, String)], NameMap, Int) -> Maybe SgNamedNode -> ([(Maybe SgNamedNode, String)], NameMap, Int)
 maybeRenameNodeFolder (renamedNodes, nameMap, counter) mNode = case mNode of
-  Nothing -> (Nothing:renamedNodes, nameMap, counter)
-  Just node -> (Just newNamedNode:renamedNodes, newNameMap, newCounter) where
+  Nothing -> ((Nothing, ""):renamedNodes, nameMap, counter)
+  Just node -> ((Just newNamedNode, ""):renamedNodes, newNameMap, newCounter) where
     (newNamedNode, newNameMap, newCounter) = renameNode nameMap counter node
 
 renameSyntaxNode :: NameMap -> SyntaxNode -> Int  -> (SyntaxNode, NameMap, Int)
@@ -49,7 +49,7 @@ renameSyntaxNode nameMap node counter = case node of
   -- TODO Keep the Nothing subNodes
   NestedPatternApplyNode s subNodes -> (NestedPatternApplyNode s (reverse renamedSubNodes), newNameMap, counter2)
     where
-      (renamedSubNodes, newNameMap, counter2) = foldl' maybeRenameNodeFolder ([], nameMap, counter) subNodes
+      (renamedSubNodes, newNameMap, counter2) = foldl' maybeRenameNodeFolder ([], nameMap, counter) (fmap fst subNodes)
   _ -> (node, nameMap, counter)
 
 renameNodeFolder :: ([SgNamedNode], NameMap, Int) -> SgNamedNode -> ([SgNamedNode], NameMap, Int)

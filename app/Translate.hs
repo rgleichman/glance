@@ -13,6 +13,7 @@ import Data.Either(partitionEithers)
 import qualified Data.Graph.Inductive.PatriciaTree as FGR
 import Data.List(unzip5, partition, intercalate)
 import Data.Maybe(catMaybes, isJust, fromMaybe)
+
 import qualified Language.Haskell.Exts as Exts
 
 import Language.Haskell.Exts(Decl(..), parseDeclWithMode, Name(..), Pat(..), Rhs(..),
@@ -70,6 +71,14 @@ bindOrAltHelper c pat rhs maybeWhereBinds = do
   rhsGraphAndRef <- rhsWithBinds maybeWhereBinds rhs rhsContext
   pure (patGraphAndRef, rhsGraphAndRef)
 
+patternName :: (GraphAndRef, Maybe String) -> String
+patternName (GraphAndRef _ ref, mStr) = fromMaybe
+  (case ref of
+    Left str -> str
+    Right _ -> ""
+  )
+  mStr
+
 -- END Helper Functions --
 
 -- BEGIN Names helper functions --
@@ -121,11 +130,16 @@ asNameBind (GraphAndRef _ ref, mAsName) = case mAsName of
   Nothing -> Nothing
   Just asName -> Just $ SgBind asName ref
 
-patternArgumentMapper :: (GraphAndRef, t) -> Either (GraphAndRef, t) (SgNamedNode, SyntaxGraph)
-patternArgumentMapper argAndPort = case graph of
-  (SyntaxGraph [namedNode] [] _ _ _) -> Right (namedNode, graph)
-  _ -> Left argAndPort
-  where graph = graphAndRefToGraph $ fst argAndPort
+patternArgumentMapper :: ((GraphAndRef, Maybe String), t) -> (String, Either (GraphAndRef, t) (SgNamedNode, SyntaxGraph))
+patternArgumentMapper (asGraphAndRef@(graphAndRef, _), port) = (patName, eitherVal)
+  where
+    graph = graphAndRefToGraph graphAndRef
+    patName = patternName asGraphAndRef
+
+    eitherVal = case graph of
+      (SyntaxGraph [namedNode] [] _ _ _) -> Right (namedNode, graph)
+      _ -> Left (graphAndRef, port)
+
 
 graphToTuple :: SyntaxGraph -> ([SgNamedNode], [Edge], [SgSink], [SgBind], [(NodeName, NodeName)])
 graphToTuple (SyntaxGraph a b c d e) = (a, b, c, d, e)
@@ -137,22 +151,24 @@ graphsToComponents graphs = (concat a, concat b, concat c, concat d, concat e) w
 makeNestedPatternGraph :: NodeName -> String -> [(GraphAndRef, Maybe String)] -> (SyntaxGraph, NameAndPort)
 makeNestedPatternGraph applyIconName funStr argVals = nestedApplyResult
   where
-    pAppNode = NestedPatternApplyNode funStr argList
-    argsAndPorts = zip (fmap fst argVals) $ map (nameAndPort applyIconName) $ argumentPorts pAppNode
+    dummyNode = NestedPatternApplyNode "" []
+
+    argsAndPorts = zip argVals $ map (nameAndPort applyIconName) $ argumentPorts dummyNode
     mappedArgs = fmap patternArgumentMapper argsAndPorts
 
-    (unnestedArgsAndPort, nestedNamedNodesAndGraphs) = partitionEithers mappedArgs
+    (unnestedArgsAndPort, nestedNamedNodesAndGraphs) = partitionEithers (fmap snd mappedArgs)
 
     (nestedArgs, _, nestedSinks, nestedBinds, nestedEMaps) = graphsToComponents $ fmap snd nestedNamedNodesAndGraphs
 
-    argListMapper arg = case arg of
-      Left _ -> Nothing
-      Right (namedNode, _) -> Just namedNode
+    argListMapper (str, arg) = case arg of
+      Left _ -> (Nothing, str)
+      Right (namedNode, _) -> (Just namedNode, str)
 
     argList = fmap argListMapper mappedArgs
 
     combinedGraph = combineExpressions True unnestedArgsAndPort
 
+    pAppNode = NestedPatternApplyNode funStr argList
     icons = [SgNamedNode applyIconName pAppNode]
 
     asNameBinds = catMaybes $ fmap asNameBind argVals
@@ -615,14 +631,6 @@ evalRecConstr c qName _ = evalQName qName c
 asBindGraphZipper :: Maybe String -> NameAndPort -> SyntaxGraph
 asBindGraphZipper asName nameNPort = makeAsBindGraph (Right nameNPort) [asName]
 
-paramName :: (GraphAndRef, Maybe String) -> String
-paramName (GraphAndRef _ ref, mStr) = fromMaybe
-  (case ref of
-    Left str -> str
-    Right _ -> ""
-  )
-  mStr
-
 generalEvalLambda :: EvalContext -> [Pat] -> (EvalContext -> State IDState GraphAndRef) -> State IDState (SyntaxGraph, NameAndPort)
 generalEvalLambda context patterns rhsEvalFun = do
   lambdaName <- getUniqueName
@@ -631,7 +639,7 @@ generalEvalLambda context patterns rhsEvalFun = do
     patternVals = fmap fst patternValsWithAsNames
     patternStrings = concatMap namesInPattern patternValsWithAsNames
     rhsContext = patternStrings <> context
-    paramNames = fmap paramName patternValsWithAsNames
+    paramNames = fmap patternName patternValsWithAsNames
     lambdaNode = FunctionDefNode paramNames
     lambdaPorts = map (nameAndPort lambdaName) $ argumentPorts lambdaNode
     patternGraph = mconcat $ fmap graphAndRefToGraph patternVals

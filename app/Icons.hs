@@ -23,10 +23,10 @@ module Icons
 
 import Diagrams.Prelude hiding ((&), (#), Name)
 
+import qualified Control.Arrow as Arrow
+import Data.Either(partitionEithers)
 import Data.List(find)
 import Data.Maybe(catMaybes, listToMaybe, isJust, fromJust)
-import Data.Either(partitionEithers)
-import qualified Control.Arrow as Arrow
 
 import Types(Icon(..), SpecialQDiagram, SpecialBackend, SpecialNum, NodeName, Port(..), LikeApplyFlavor(..),
             SyntaxNode(..))
@@ -94,7 +94,7 @@ guardPortAngles (Port port) = case port of
 findNestedIcon :: NodeName -> Icon -> Maybe Icon
 findNestedIcon name icon = case icon of
   NestedApply _ args -> snd <$> findIcon name args
-  NestedPApp args -> snd <$> findIcon name args
+  NestedPApp args -> snd <$> findIcon name (fmap fst args)
   _ -> Nothing
 
 findIcon :: NodeName -> [Maybe (NodeName, Icon)] -> Maybe (Int, Icon)
@@ -150,7 +150,7 @@ getPortAngles icon port maybeNodeName = case icon of
   CaseResultIcon -> []
   FlatLambdaIcon _ -> applyPortAngles port
   NestedApply _ args -> generalNestedPortAngles applyPortAngles args port maybeNodeName
-  NestedPApp args -> generalNestedPortAngles pAppPortAngles args port maybeNodeName
+  NestedPApp args -> generalNestedPortAngles pAppPortAngles (fmap fst args) port maybeNodeName
   NestedCaseIcon args -> nestedGuardPortAngles args port maybeNodeName
   NestedGuardIcon args -> nestedGuardPortAngles args port maybeNodeName
 
@@ -228,6 +228,17 @@ makePort x = named x mempty
 makeQualifiedPort :: SpecialNum n => NodeName -> Port -> SpecialQDiagram b n
 makeQualifiedPort n x = n .>> makePort x
 
+makeLabelledPort :: SpecialBackend b n =>
+  NodeName -> Bool -> Angle n -> String -> Port -> SpecialQDiagram b n
+makeLabelledPort name reflect angle str portNum = case str of
+  -- Don't display " tempvar" from Translate.hs/matchesToCase
+  (' ':_) -> portAndCircle
+  (_:_:_) -> portAndCircle ||| label
+  _ -> portAndCircle
+  where
+    portAndCircle = makeQualifiedPort name portNum <> portCircle
+    label = transformableBindTextBox str reflect angle
+
 -- END Diagram helper functions
 
 
@@ -279,7 +290,7 @@ generalTextAppDia textCol borderCol numArgs str name _ reflect angle = nameDiagr
 
 -- TODO Refactor with generalNestedDia
 nestedPAppDia :: SpecialBackend b n =>
-  [Colour Double] -> [Maybe (NodeName, Icon)] -> TransformableDia b n
+  [Colour Double] -> [(Maybe (NodeName, Icon), String)] -> TransformableDia b n
 nestedPAppDia borderCols funcNodeNameAndArgs name nestingLevel reflect angle = named name $ case funcNodeNameAndArgs of
   [] -> mempty
   (maybeFunText:args) -> centerXY $ centerY finalDia ||| transformedText ||| resultCircleAndPort
@@ -287,8 +298,8 @@ nestedPAppDia borderCols funcNodeNameAndArgs name nestingLevel reflect angle = n
       borderCol = borderCols !! nestingLevel
 
       transformedText = case maybeFunText of
-        Just _ -> makeInnerIcon True inputPortConst maybeFunText
-        Nothing -> mempty
+        (Just _, _) -> makeInnerIcon True inputPortConst maybeFunText
+        (Nothing, _) -> mempty
       separation = circleRadius * 1.5
       verticalSeparation = circleRadius
       resultCircleAndPort = makeQualifiedPort name resultPortConst <> alignR (lc borderCol $ lwG defaultLineWidth $ fc borderCol $ circle circleRadius)
@@ -303,9 +314,9 @@ nestedPAppDia borderCols funcNodeNameAndArgs name nestingLevel reflect angle = n
       argBox = alignT $ lwG defaultLineWidth $ lc borderCol $ roundedRect topAndBottomLineWidth (height allPorts + verticalSeparation) (circleRadius * 0.5)
       finalDia = argBox <> allPorts
 
-      makeInnerIcon _ portNum Nothing = makeQualifiedPort name portNum <> portCircle
-      makeInnerIcon True _ (Just (_, TextBoxIcon t)) = transformCorrectedTextBox t (textBoxTextC colorScheme) borderCol reflect angle
-      makeInnerIcon func _ (Just (iconNodeName, icon)) = iconToDiagram icon iconNodeName innerLevel reflect angle where
+      makeInnerIcon _ portNum (Nothing, str) = centerX $ makeLabelledPort name reflect angle str portNum
+      makeInnerIcon True _ ((Just (_, TextBoxIcon t)), _) = transformCorrectedTextBox t (textBoxTextC colorScheme) borderCol reflect angle
+      makeInnerIcon func _ ((Just (iconNodeName, icon)), _) = iconToDiagram icon iconNodeName innerLevel reflect angle where
         innerLevel = if func then nestingLevel else nestingLevel + 1
   
 
@@ -395,10 +406,6 @@ coloredTextBox textColor boxColor t =
   fontSize (local textBoxFontSize) (bold $ font "freemono" $ fc textColor $ text t)
   <>  lwG (0.6 * defaultLineWidth) (lcA boxColor $ fcA (withOpacity (backgroundC colorScheme) 0.5) $ rectForText (length t))
 
-bindTextBox :: SpecialBackend b n =>
-  String -> SpecialQDiagram b n
-bindTextBox = coloredTextBox (bindTextBoxTextC colorScheme) $ opaque (bindTextBoxC colorScheme)
-
 transformCorrectedTextBox :: SpecialBackend b n =>
   String -> Colour Double -> Colour Double -> Bool -> Angle n -> SpecialQDiagram b n
 transformCorrectedTextBox str textCol borderCol reflect angle =
@@ -409,13 +416,17 @@ transformCorrectedTextBox str textCol borderCol reflect angle =
     textBoxRotation = if (reducedAngle > (1/4)) && (reducedAngle < (3/4)) then 1 / 2 else 0
     reflectIfTrue shouldReflect dia = if shouldReflect then reflectX dia else dia
 
-defaultColoredTextBox :: SpecialBackend b n =>
+transformableBindTextBox :: SpecialBackend b n =>
   String -> Bool -> Angle n -> SpecialQDiagram b n
-defaultColoredTextBox str = transformCorrectedTextBox str (textBoxTextC colorScheme) (textBoxC colorScheme)
+transformableBindTextBox str = transformCorrectedTextBox str (bindTextBoxTextC colorScheme) (bindTextBoxC colorScheme)
+
+bindTextBox :: SpecialBackend b n =>
+  String -> SpecialQDiagram b n
+bindTextBox = coloredTextBox (bindTextBoxTextC colorScheme) $ opaque (bindTextBoxC colorScheme)
 
 textBox :: SpecialBackend b n =>
   String -> TransformableDia b n
-textBox t name _ reflect angle = nameDiagram name $ defaultColoredTextBox t reflect angle
+textBox t name _ reflect angle = nameDiagram name $ transformCorrectedTextBox t (textBoxTextC colorScheme) (textBoxC colorScheme) reflect angle
 
 -- END Text boxes and icons
 
@@ -507,25 +518,13 @@ nestedCaseDia = generalNestedGuard (patternC colorScheme) caseC caseResult
 
 -- END Guard and case icons
 
--- BEGIN Lambda icon --
-makeLabelledPort :: SpecialBackend b n =>
-  NodeName -> Bool -> Angle n -> String -> Port -> SpecialQDiagram b n
-makeLabelledPort name reflect angle str portNum = case str of
-  -- Don't display " tempvar" from Translate.hs/matchesToCase
-  (' ':_) -> portAndCircle
-  (_:_:_) -> portAndCircle ||| label
-  _ -> portAndCircle
-  where
-    portAndCircle = makeQualifiedPort name portNum <> portCircle
-    label = defaultColoredTextBox str reflect angle
-
 -- | The ports of flatLambdaIcon are:
 -- 0: Result icon
 -- 1: The lambda function value
 -- 2,3.. : The parameters
 flatLambda :: SpecialBackend b n => [String] -> TransformableDia b n
 flatLambda paramNames name _ reflect angle = named name finalDia where
-  lambdaCircle = lwG defaultLineWidth $ lc (regionPerimC colorScheme) $ fc (regionPerimC colorScheme) $ circle circleRadius
+  lambdaCircle = lwG defaultLineWidth $ lc (regionPerimC colorScheme) $ fc (regionPerimC colorScheme) $ circle (1.5 * circleRadius)
   lambdaParts = (makeQualifiedPort name inputPortConst <> resultIcon) : (portIcons ++  [makeQualifiedPort name resultPortConst <> alignR lambdaCircle])
 
   portIcons = zipWith (makeLabelledPort name reflect angle) paramNames argPortsConst
@@ -534,6 +533,5 @@ flatLambda paramNames name _ reflect angle = named name finalDia where
   topAndBottomLine = alignL $ lwG defaultLineWidth $ lc (regionPerimC colorScheme) $ hrule topAndBottomLineWidth
   finalDia = topAndBottomLine <> alignB (topAndBottomLine <> alignT middle)
 
--- END Lambda icon --
 -- END Main icons
 -- END Icons

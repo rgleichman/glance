@@ -37,7 +37,7 @@ data Icon = TextBoxIcon String | GuardIcon Int
   | BindTextBoxIcon String
   -- TODO: NestedApply should have the type NestedApply (Maybe (Name, Icon)) [Maybe (Name, Icon)]
   | NestedApply LikeApplyFlavor [Maybe (NodeName, Icon)]
-  | NestedPApp [Maybe (NodeName, Icon)]
+  | NestedPApp [(Maybe (NodeName, Icon), String)]
   | NestedCaseIcon [Maybe (NodeName, Icon)]
   | NestedGuardIcon [Maybe (NodeName, Icon)]
   deriving (Show, Eq, Ord)
@@ -52,7 +52,7 @@ data SyntaxNode =
   | NestedApplyNode LikeApplyFlavor Int [(SgNamedNode, Edge)]
   | PatternApplyNode String Int -- Destructors as used in patterns
   -- | NestedPatternApplyNode String Int [(SgNamedNode, Edge)]
-  | NestedPatternApplyNode String [Maybe SgNamedNode]
+  | NestedPatternApplyNode String [(Maybe SgNamedNode, String)]
   | NameNode String -- Identifiers or symbols
   | BindNameNode String
   | LiteralNode String -- Literal values like the string "Hello World"

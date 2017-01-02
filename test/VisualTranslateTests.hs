@@ -166,7 +166,10 @@ patternTests = [
 
   "y = let {(x, y) = (1,2)} in x + y",
   "y = let {(x, y) = (1,2); (z, w) = x; (m, g) = y} in foo x y z w m g",
-  "(x:y) = 2"
+  "(x:y) = 2",
+
+  -- test labelled ports
+  "Foo x1 x2 = 4"
   ]
 
 lambdaTests :: [String]

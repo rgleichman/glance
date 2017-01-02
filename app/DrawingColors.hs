@@ -44,7 +44,7 @@ colorOnBlackScheme = ColorStyle {
   patternC = lightMagenta,
   patternTextC = cyan,
   bindTextBoxC = reddishOrange,
-  bindTextBoxTextC = lime,
+  bindTextBoxTextC = lightGreen,
   edgeListC = [white, lime, reddishOrange, lightPurple, yellow, lightBlue],
   nestingC = cycle [red, reddishOrange, yellow]
 }
@@ -56,6 +56,7 @@ colorOnBlackScheme = ColorStyle {
     --lightBlue = sRGB24 126 127 255
     lightBlue = sRGB24 35 156 255
     lightPurple = sRGB24 208 137 255
+    lightGreen = sRGB24 180 255 145
     
 
 whiteOnBlackScheme :: (Floating a, Ord a) => ColorStyle a
