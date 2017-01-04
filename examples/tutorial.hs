@@ -42,7 +42,7 @@ y = (*) ((+) 8 7) 2
 {-That was probably not too surprising. How about this?-}
 f x = 3 * x
 
-{- Let's try to figure it out. First look at the f. It's green and in an orange
+{-Let's try to figure it out. First look at the f. It's green and in an orange
 box which indicates that it is bound to the result. Now look at the
 function application. It looks like 3 is being multiplied by something, but what?
 There is a line connecting the second argument of * to the dot in the green icon,
@@ -191,9 +191,9 @@ Since constructors are functions, the match icon has a topology similar to
 the apply icon.
 
 Now that you are familiar with matches, here's a simple case expression.
---y = case maybeInt of
---  Nothing -> 0
---  Just x -> x + 1
+y = case maybeInt of
+  Nothing -> 0
+  Just x -> x + 1
 -}
 y = case maybeInt of
   Nothing -> 0
@@ -215,8 +215,8 @@ the yellow result circle on the case icon, this would create many cycles in the
 graph, making the layout much messier.
 
 Guards and if expressions look like this:
---y | x == 0 = 1
----  | otherwise = x + 1
+y | x == 0 = 1
+  | otherwise = x + 1
 -}
 y | x == 0 = 1
   | otherwise = x + 1
@@ -231,17 +231,17 @@ topology, but they should look less similar in better icon versions.
 
 "If" expressions are rendered the same as a guard with only one Boolean.
 
---factorial x =
---  if x == 0
---    then 1
---    else factorial (x - 1) * x
+factorial x =
+  if x == 0
+    then 1
+    else factorial (x - 1) * x
 -}
 factorial x =
   if x == 0
     then 1
     else factorial (x - 1) * x
 
-{- Bonus section:
+{-Bonus section:
 
 The depth of an icon's application tree is called the nesting depth.
 For example, The icon representing "factorial (x - 1) * x" above has a nesting
@@ -282,10 +282,10 @@ Glance essentially rewrites the second expression as:
 
 Notice that the nesting depth has been reduced from 3 to 2.
 
---factorial x =
---  if x == 0
---    then 1
---    else x * factorial (x - 1)
+factorial x =
+  if x == 0
+    then 1
+    else x * factorial (x - 1)
 -}
 factorial x =
   if x == 0
