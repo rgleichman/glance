@@ -35,4 +35,4 @@ Below is a getting started guide for Glance rendered by Glance itself ([source h
 
 Also, the [Glance wiki](../../wiki) has a brief introduction to the code architecture.
 
-<img src="https://cdn.rawgit.com/rgleichman/glance/958611dde3827d650c56814f8c491ecf34f954da/examples/tutorial.svg" alt="Introduction to Glance" />
+<img src="https://cdn.rawgit.com/rgleichman/glance/e8290791da1df12f3d77e45851b7a16b704357db/examples/tutorial.svg" alt="Introduction to Glance" />
