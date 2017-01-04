@@ -18,13 +18,18 @@ module Util (
   maybeBoolToBool,
   mapNodeInNamedNode,
   sgNamedNodeToSyntaxNode,
-  nodeNameToInt
+  nodeNameToInt,
+  customRenderSVG
 )where
+
+import Diagrams.Backend.SVG(renderSVG', Options(..))
+import Graphics.Svg.Attributes(bindAttr, AttrTag(..))
 
 import Control.Arrow(first)
 -- import Diagrams.Prelude(IsName, toName, Name)
 import Data.Maybe(fromMaybe)
 import qualified Debug.Trace
+import Data.Text(pack)
 
 import Types(EdgeEnd(..), Edge(..), NameAndPort(..), Connection, NodeName(..), Port,
              SyntaxNode, SgNamedNode(..))
@@ -90,3 +95,9 @@ sgNamedNodeToSyntaxNode (SgNamedNode _ n) = n
 
 nodeNameToInt :: NodeName -> Int
 nodeNameToInt (NodeName x) = x
+
+customRenderSVG outputFilename size = renderSVG' outputFilename svgOptions where
+  -- This xml:space attribute preserves the whitespace in the svg text.
+  attributes = [bindAttr XmlSpace_ (pack "preserve")]
+  -- TODO Look at the source of renderSVG to see what the 3rd argument to SVGOptions should be
+  svgOptions = SVGOptions size Nothing (pack "") attributes True

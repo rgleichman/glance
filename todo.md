@@ -1,7 +1,7 @@
 # Todo
 
 ## Todo Now
-* Fix whitspace being stripped in comments.
+* Use customRenderSVG in app/Main.hs.
 
 * Add wiki pages discussing: Why a visual language?, Glance design goals, History of Glance, FAQ's, How to contribute, Code guide [code style, ...], Related projects, examples demonstrating the utility of Glance etc..
 

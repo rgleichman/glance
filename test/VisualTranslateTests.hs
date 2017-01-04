@@ -231,7 +231,9 @@ otherTests = [
   "y = f (g x1 x2) x3",
   "y = (f x1 x2) (g x1 x2)",
   "y = Foo.bar",
-  "y x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 = f x1 x2 x3 x4 x5 x6 x7 x8 x9 x10"
+  "y x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 = f x1 x2 x3 x4 x5 x6 x7 x8 x9 x10",
+  -- test that whitespace is preserved
+  "y = \" foo  bar   baz    \""
   ]
 
 testDecls :: [String]

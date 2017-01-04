@@ -7,6 +7,7 @@ import Diagrams.Prelude hiding ((#), (&))
 import Test.HUnit
 
 import Icons(colorScheme, ColorStyle(..))
+import Util(customRenderSVG)
 
 import UnitTests(allUnitTests)
 import VisualGraphAlgorithmTests(visualCollapseTests)
@@ -26,7 +27,7 @@ renderDrawings = mapM_ saveDrawing where
   saveDrawing (name, drawingMaker) = do
     dia <- drawingMaker
     -- TODO Replace string concatenation with proper path manipulation functions.
-    renderSVG ("test/test-output/" ++ name ++ ".svg") (mkWidth 700) (bgFrame 1 (backgroundC colorScheme) dia)
+    customRenderSVG ("test/test-output/" ++ name ++ ".svg") (mkWidth 700) (bgFrame 1 (backgroundC colorScheme) dia)
 
 main :: IO ()
 --main = print "Hello world"
