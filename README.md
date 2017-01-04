@@ -9,9 +9,14 @@ First install Graphviz. For instance, in Ubuntu run:
 Then build and execute glance:
 ```
 stack build
-stack exec glance-exe -- -o images/fact.svg -w 500 examples/fact.hs -
+stack exec glance-exe -- examples/fact.hs images/fact.svg 500
 ```
-and display the SVG
+To see the command line options run
+```
+stack exec glance-exe -- --help
+```
+
+Now display the SVG image
 ```
 firefox --new-window images/fact.svg
 ```
@@ -26,7 +31,7 @@ Glance is still in development, so for the time being, layout, routing, and icon
 ## Getting started
 Below is a getting started guide for Glance rendered by Glance itself ([source here](examples/tutorial.hs)). To generate this image run
 
-`stack exec glance-exe -- -o examples/tutorial.svg -w 873 examples/tutorial.hs c`
+`stack exec glance-exe -- examples/tutorial.hs examples/tutorial.svg 873 -c`
 
 Also, the [Glance wiki](../../wiki) has a brief introduction to the code architecture.
 

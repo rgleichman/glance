@@ -1,6 +1,5 @@
 import Prelude hiding (return)
 
-import Diagrams.Backend.SVG (renderSVG)
 import Diagrams.Backend.SVG.CmdLine(B)
 import Diagrams.Prelude hiding ((#), (&))
 

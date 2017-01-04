@@ -22,14 +22,16 @@ module Util (
   customRenderSVG
 )where
 
-import Diagrams.Backend.SVG(renderSVG', Options(..))
+import Diagrams.Backend.SVG(renderSVG', Options(..), SVG)
 import Graphics.Svg.Attributes(bindAttr, AttrTag(..))
+import qualified Diagrams.Prelude as Dia
 
 import Control.Arrow(first)
 -- import Diagrams.Prelude(IsName, toName, Name)
 import Data.Maybe(fromMaybe)
 import qualified Debug.Trace
 import Data.Text(pack)
+import Data.Typeable(Typeable)
 
 import Types(EdgeEnd(..), Edge(..), NameAndPort(..), Connection, NodeName(..), Port,
              SyntaxNode, SgNamedNode(..))
@@ -96,6 +98,12 @@ sgNamedNodeToSyntaxNode (SgNamedNode _ n) = n
 nodeNameToInt :: NodeName -> Int
 nodeNameToInt (NodeName x) = x
 
+
+customRenderSVG :: (Typeable n, Show n, RealFloat n) =>
+  FilePath
+  -> Dia.SizeSpec Dia.V2 n
+  -> Dia.QDiagram SVG Dia.V2 n Dia.Any
+  -> IO ()
 customRenderSVG outputFilename size = renderSVG' outputFilename svgOptions where
   -- This xml:space attribute preserves the whitespace in the svg text.
   attributes = [bindAttr XmlSpace_ (pack "preserve")]

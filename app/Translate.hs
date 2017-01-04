@@ -769,9 +769,13 @@ evalPatBind c (PatBind _ pat rhs maybeWhereBinds) = do
 -- TODO May want to trim whitespace from (prettyPrint typeForNames)
 evalTypeSig :: Decl -> State IDState (SyntaxGraph, NameAndPort)
 evalTypeSig (TypeSig _ names typeForNames) = makeBox
-  (intercalate "," (fmap prettyPrint names)
+  (intercalate "," (fmap prettyPrintWithoutNewlines names)
    ++ " :: "
-   ++ prettyPrint typeForNames)
+   ++ prettyPrintWithoutNewlines typeForNames)
+  where
+    -- TODO Make custom version of prettyPrint for type signitures.
+    -- Use (unwords . words) to convert consecutive whitspace characters to one space
+    prettyPrintWithoutNewlines = unwords . words . prettyPrint
 
 evalDecl :: EvalContext -> Decl -> State IDState SyntaxGraph
 evalDecl c d = case d of

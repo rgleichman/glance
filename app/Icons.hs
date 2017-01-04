@@ -361,10 +361,15 @@ nestedApplyDia flavor = case flavor of
 -- Text constants --
 textBoxFontSize :: (Num a) => a
 textBoxFontSize = 1
+
 monoLetterWidthToHeightFraction :: (Fractional a) => a
 monoLetterWidthToHeightFraction = 0.61
+
 textBoxHeightFactor :: (Fractional a) => a
-textBoxHeightFactor = 1.1
+textBoxHeightFactor = 1.4
+
+textFont :: String
+textFont = "monospace"
 
 -- BEGIN Text helper functions --
 
@@ -379,15 +384,15 @@ textBoxHeightFactor = 1.1
 rectForText :: (InSpace V2 n t, TrailLike t) => Int -> t
 rectForText n = rect rectangleWidth (textBoxFontSize * textBoxHeightFactor)
   where
-    rectangleWidth = fromIntegral n * textBoxFontSize * monoLetterWidthToHeightFraction
-      + (textBoxFontSize * 0.2)
+    rectangleWidth = (fromIntegral n * textBoxFontSize * monoLetterWidthToHeightFraction)
+      + (textBoxFontSize * 0.3)
 
 -- END Text helper functions
 
 commentTextArea :: SpecialBackend b n =>
   Colour Double -> String -> SpecialQDiagram b n
 commentTextArea textColor t =
-  alignL $ fontSize (local textBoxFontSize) (font "freemono" $ fc textColor $ topLeftText t)
+  alignL $ fontSize (local textBoxFontSize) (font textFont $ fc textColor $ topLeftText t)
   <>  alignTL (lw none $ rectForText (length t))
 
 multilineComment :: SpecialBackend b n =>
@@ -403,7 +408,7 @@ coloredTextBox :: SpecialBackend b n =>
   Colour Double
   -> AlphaColour Double -> String -> SpecialQDiagram b n
 coloredTextBox textColor boxColor t =
-  fontSize (local textBoxFontSize) (bold $ font "freemono" $ fc textColor $ text t)
+  fontSize (local textBoxFontSize) (bold $ font textFont $ fc textColor $ text t)
   <>  lwG (0.6 * defaultLineWidth) (lcA boxColor $ fcA (withOpacity (backgroundC colorScheme) 0.5) $ rectForText (length t))
 
 transformCorrectedTextBox :: SpecialBackend b n =>

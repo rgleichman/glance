@@ -4,18 +4,34 @@ import Prelude hiding (return)
 
 -- Note: (#) and (&) are hidden in all Glance source files, since they would require
 -- - an special case when translating when Glance is run on its own source code.
-import Diagrams.Prelude hiding ((#), (&))
-import Diagrams.Backend.SVG.CmdLine
---import Diagrams.Backend.Rasterific.CmdLine
+import qualified Diagrams.Prelude as Dia hiding ((#), (&))
+
 import qualified Language.Haskell.Exts as Exts
+
+-- Options.Applicative does not seem to work qualified
+import Options.Applicative
 
 import Icons(ColorStyle(..), colorScheme, multilineComment)
 import Rendering(renderIngSyntaxGraph)
 import Translate(translateModuleToCollapsedGraphs)
+import Util(customRenderSVG)
 
+data CmdLineOptions = CmdLineOptions {
+  cmdInputFilename :: String,
+  cmdOutputFilename :: String,
+  cmdImageWidth :: Double,
+  cmdIncludeComments :: Bool
+  }
 
-renderFile :: String -> String -> IO (Diagram B)
-renderFile inputFilename includeComments = do
+optionParser :: Parser CmdLineOptions
+optionParser = CmdLineOptions
+  <$> argument str (metavar "INPUT_FILE" <> help "Input .hs filename")
+  <*> argument str (metavar "OUTPUT_FILE" <> help "Output .svg filename")
+  <*> argument auto (metavar "IMAGE_WIDTH" <> help "Output image width")
+  <*> switch (short 'c' <> help "Include comments between top level declarations.")
+
+renderFile :: CmdLineOptions -> IO ()
+renderFile (CmdLineOptions inputFilename outputFilename imageWidth includeComments) = do
   putStrLn $ "Translating file " ++ inputFilename ++ " into a Glance image."
   parseResult <- Exts.parseFileWithComments
     (Exts.defaultParseMode
@@ -32,16 +48,30 @@ renderFile inputFilename includeComments = do
 
   diagrams <- traverse renderIngSyntaxGraph drawings
   let
-    commentsInBoxes = fmap (\(Exts.Comment _ _ c) -> alignL $ multilineComment white (opaque white) c) comments
-    diagramsAndComments = vsep 2 $ zipWith (\x y -> x === strutY 0.4 === y) commentsInBoxes (fmap alignL diagrams)
-    justDiagrams = vsep 1 $ fmap alignL diagrams
-    diagramsAndMaybeComments = if includeComments == "c" then diagramsAndComments else justDiagrams
+    commentsInBoxes = fmap (\(Exts.Comment _ _ c) -> Dia.alignL $ multilineComment Dia.white (Dia.opaque Dia.white) c) comments
+    diagramsAndComments = Dia.vsep 2 $ zipWith (\x y -> x Dia.=== Dia.strutY 0.4 Dia.=== y) commentsInBoxes (fmap Dia.alignL diagrams)
+    justDiagrams = Dia.vsep 1 $ fmap Dia.alignL diagrams
+    diagramsAndMaybeComments = if includeComments then diagramsAndComments else justDiagrams
   --print comments
 
-  pure (bgFrame 1 (backgroundC colorScheme) diagramsAndMaybeComments :: Diagram B)
+    finalDia = Dia.bgFrame 1 (backgroundC colorScheme) diagramsAndMaybeComments
+  customRenderSVG outputFilename (Dia.mkWidth imageWidth) finalDia
+  putStrLn $ "Successfully wrote " ++ outputFilename
 
+translateFileMain :: IO ()
+translateFileMain = customExecParser parserPrefs  opts >>= renderFile where
+
+  parserPrefs = defaultPrefs{
+    prefShowHelpOnError = True
+
+    -- TODO enable this option when optparse-applicative has been upgraded
+    --prefShowHelpOnEmpty = True
+    }
+  
+  opts = info (helper <*> optionParser)
+    (fullDesc
+    <> progDesc "Translate a Haskell source file (.hs) into an SVG image."
+    <> header "Glance - a visual representation of Haskell")
 
 main :: IO ()
-main = do
-  mainWith renderFile
-  putStrLn "Successfully translated file."
+main = translateFileMain
