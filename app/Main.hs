@@ -63,9 +63,6 @@ translateFileMain = customExecParser parserPrefs  opts >>= renderFile where
 
   parserPrefs = defaultPrefs{
     prefShowHelpOnError = True
-
-    -- TODO enable this option when optparse-applicative has been upgraded
-    --prefShowHelpOnEmpty = True
     }
   
   opts = info (helper <*> optionParser)
