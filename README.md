@@ -33,7 +33,7 @@ You should now see in your browser window a visual representation of the factori
 Glance is still in development, so for the time being, graph layout, line routing, and icon design all have much room for improvement. Here are some specific issues:
 * Text may be misaligned with some SVG viewers.
 * Images become very spread out when rendering medium to large functions.
-* Only a subset of Haskell is rendered
+* Only a subset of Haskell is rendered.
 
 ## Getting started
 Below is a getting started guide for Glance rendered by Glance itself ([source here](examples/tutorial.hs)). To generate this image run
