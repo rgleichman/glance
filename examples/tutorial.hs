@@ -5,6 +5,12 @@ How could it be extended? I feel that we are just at the very beginning of
 visual programming languages, and that there is a huge universe of  visual
 programming language designs waiting to be discovered.
 
+This tutorial assumes that the reader has some familiarity with the basics
+of Haskell.
+
+
+Function Application:
+
 Let's start with y = f x.
 The function f is applied to the argument x, and the result is bound to y.
 -}
@@ -39,7 +45,13 @@ y = (*) ((+) 8 7) 2
 -}
 y = (*) ((+) 8 7) 2
 
-{-That was probably not too surprising. How about this?-}
+{-
+
+The Mystery Icon:
+
+That was probably not too surprising. How about this? What does the green icon
+represent?
+-}
 f x = 3 * x
 
 {-Let's try to figure it out. First look at the f. It's green and in an orange
@@ -59,7 +71,7 @@ y = (\x -> 3 * x) 7
 
 {-Now for the answer. As you might have suspected. The green icon defines a
 function. The dot inside the icon is the formal parameter. The blue square
-represents the value returned by function (i.e. what's on the right size
+represents the value returned by function (i.e. what's on the right side
 of the -> in a lambda expression). The green circle represents the function
 that has been defined.
 
@@ -129,7 +141,11 @@ f x y =  max (2 * y) (1 + x)
 -}
 f x y =  max (2 * y) (1 + x)
 
-{-Something different about Glance is that Glance does not have any rigid code regions.
+{-
+
+No Code Regions:
+
+Something different about Glance is that Glance does not have any rigid code regions.
 In other visual programming languages, the icons inside the body of a function
 would be restricted to a rectangle. In Glance, all icons are on the same level.
 Theoretically, Glance's flat layout should allow more compact drawings since space
@@ -153,8 +169,11 @@ f1 x y = (\z -> x + z) y
 f1 x y = (\z -> x + z) y
 
 {-
+
+Graph and Tree Topology:
+
 Let's go back to the function apply icon. If you are used to other graphical
-programming languages, you may be thinking that drawing below
+programming languages, you may be thinking that the drawing below
 does not look very graphical. Here graphical is referring to a graph topology,
 and no it does not look graphical. The core idea is that nested function
 application has a tree topology, not a graph topology. The result of each
@@ -181,13 +200,16 @@ y = (((2 + 4 * 4) - (7+ 2 + baz)*8)/21)
 -}
 y = (((2 + 4 * 4) - (7+ 2 + baz)*8)/21)
 
-{-Continuing on, here is a simple pattern match.
+{-
+Patterns:
+
+Continuing on, here is a simple pattern match.
 (Just x) = Just 3
 -}
 (Just x) = Just 3
 
 {-
-Since constructors are functions, the match icon has a topology similar to
+Since data constructors are functions, the match icon has a topology similar to
 the apply icon.
 
 Now that you are familiar with matches, here's a simple case expression.
@@ -200,19 +222,17 @@ y = case maybeInt of
   Just x -> x + 1
 
 {-The case icon is the magenta icon with three yellow circles next to it.
-The matches (the textual part left of the arrow) connect to the triangles,
-and the result for each match (the textual part to the right of the arrow) is
-indicated with the yellow circle.
+The patterns connect to the triangles, and the result for each match is indicated
+with the yellow circle.
 
 The result for the first match (Nothing -> 0)
 connects to the circle on the case icon since the right hand side (0) does not
 use any value from the pattern (Nothing). For the second match, since the result
 (x + 1) is connected to its pattern (Just x), Glance can connect
-the result to a new yellow circle.
+the result of (x + 1) to a new yellow circle.
 
-If the result always had to be connected to
-the yellow result circle on the case icon, this would create many cycles in the
-graph, making the layout much messier.
+
+Guards:
 
 Guards and if expressions look like this:
 y | x == 0 = 1
@@ -241,11 +261,13 @@ factorial x =
     then 1
     else factorial (x - 1) * x
 
-{-Bonus section:
+{-
+Compose (bonus section):
 
 The depth of an icon's application tree is called the nesting depth.
 For example, The icon representing "factorial (x - 1) * x" above has a nesting
-depth of 3.
+depth of 3, since it is an apply icon (depth=1), inside an apply icon (depth=2),
+inside an apply icon (depth=3).
 
 To reduce nesting depth, Glance has an icon that represents an argument applied
 to a composition of functions.
