@@ -1,6 +1,8 @@
 # Todo
 
 ## Todo Now
+* Add "Learn more" section with link to advantages page to README
+
 * Add wiki pages discussing: Why a visual language?, Glance design goals, History of Glance, FAQ's, How to contribute, Code guide [code style, ...], Related projects, examples demonstrating the utility of Glance etc..
 
 ## Todo Later

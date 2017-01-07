@@ -43,3 +43,10 @@ Below is a getting started guide for Glance rendered by Glance itself ([source h
 Also, the [Glance wiki](../../wiki) has a brief introduction to the code architecture.
 
 <img src="https://cdn.rawgit.com/rgleichman/glance/798466004c3dfe10fd1b3b25df23e66d61ec1e87/examples/tutorial.svg" alt="Introduction to Glance" />
+
+## Thanks
+A large thanks to the creators of [diagrams](http://projects.haskell.org/diagrams/), the main Haskell library used in this project.
+
+Thank you to the [Santa Monica Haskell Users Group](https://www.meetup.com/santa-monica-haskell/) for their support and feedback.
+
+Also thanks to the [/r/haskell](https://www.reddit.com/r/haskell/) subreddit for [reviewing a very early design of the language](https://www.reddit.com/r/haskell/comments/35swgl/review_my_introduction_to_glance_a_new_visual/).
