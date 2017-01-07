@@ -11,6 +11,8 @@
 * Fix the arrowheads being too big for SyntaxGraph drawings.
 
 ### Visual todos
+* Use pattern colors for pattern literal text boxes.
+
 * Draw bounding boxes for lambdas (use dashed lines)
 
 * Use different line styles (e.g. dashed, solid, wavy) in addition to colors
