@@ -10,8 +10,9 @@ The next steps for the project are to improve graph layout, and then to start wo
 
 ## Try it
 First install Graphviz. For instance, in Ubuntu run:
-
-```sudo apt install graphviz```
+```
+sudo apt install graphviz
+```
 
 Then build and execute glance:
 ```
@@ -35,14 +36,16 @@ Glance is still in development, so for the time being, graph layout, line routin
 * [Images become very spread out when rendering medium to large functions](https://github.com/rgleichman/glance/issues/1).
 * Only a subset of Haskell is rendered.
 
+## To learn more
+To learn more about the project after reading this README, please check out the [Glance wiki](../../wiki).
+
 ## Getting started
 Below is a getting started guide for Glance rendered by Glance itself ([source here](examples/tutorial.hs)). To generate this image run
 
 `stack exec glance-exe -- examples/tutorial.hs examples/tutorial.svg 873 -c`
 
-Also, the [Glance wiki](../../wiki) has a brief introduction to the code architecture.
-
 <img src="https://cdn.rawgit.com/rgleichman/glance/798466004c3dfe10fd1b3b25df23e66d61ec1e87/examples/tutorial.svg" alt="Introduction to Glance" />
+You should now be able to understand Glance's visual syntax. If you would like to see how visual code might be an improvement over textual code, or if you just want to see more examples, please take a look at the Glance wiki page [Advantages of Glance](../../wiki/Advantages-of-Glance)
 
 ## Thanks
 A large thanks to the creators of [diagrams](http://projects.haskell.org/diagrams/), the main Haskell library used in this project.
