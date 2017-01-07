@@ -6,7 +6,7 @@ The current Glance program is an experiment created to answer the question:
 
 For small to medium functions, in my opinion Glance produces images good enough to indicate that the answer is yes. For large functions, the results right now are inconclusive due to issues with graph layout. Specifically, large programs unnecessarily become very spread out. If you have any ideas about how to improve Glance, please [create an issue](https://github.com/rgleichman/glance/issues/new).
 
-The next steps for the project are to improve graph layout, and then to start work on a visual editor.
+The next steps for the project are to improve graph layout, and then to start work on a visual editor. **If you would like to help** and have any knowledge about graph layout, please make a comment on [this issue](https://github.com/rgleichman/glance/issues/1).
 
 ## Try it
 First install Graphviz. For instance, in Ubuntu run:
@@ -32,7 +32,7 @@ You should now see in your browser window a visual representation of the factori
 ## Issues
 Glance is still in development, so for the time being, graph layout, line routing, and icon design all have much room for improvement. Here are some specific issues:
 * Text may be misaligned with some SVG viewers.
-* Images become very spread out when rendering medium to large functions.
+* [Images become very spread out when rendering medium to large functions](https://github.com/rgleichman/glance/issues/1).
 * Only a subset of Haskell is rendered.
 
 ## Getting started
