@@ -6,7 +6,7 @@ The current Glance program is an experiment created to answer the question:
 
 For small to medium functions, in my opinion Glance produces images good enough to indicate that the answer is yes. For large functions, the results right now are inconclusive due to issues with graph layout. Specifically, large programs unnecessarily become very spread out. If you have any ideas about how to improve Glance, please [create an issue](https://github.com/rgleichman/glance/issues/new).
 
-The next steps for the project are to improve graph layout, and then to start work on a visual editor. **If you would like to help** and have any knowledge about graph layout, please make a comment on [this issue](https://github.com/rgleichman/glance/issues/1).
+The next steps for the project are to improve graph layout, and then to start work on a visual editor. **If you would like to help** and have any knowledge about graph layout, please make a comment on [this issue](https://github.com/rgleichman/glance/issues/1). All contributions to any part of Glance are very much encouraged.
 
 ## Try it
 First install Graphviz. For instance, in Ubuntu run:
