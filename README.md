@@ -1,3 +1,4 @@
+[Link to project wiki](https://github.com/rgleichman/glance/wiki) (for mobile viewers)
 # Glance
 Glance is a visual syntax for the programming language Haskell. The goal of this project is to increase programmer happiness and productivity by allowing programmers to create and understand programs in new and different ways. Currently, the Glance executable produces a visual representation of your code in the form of an SVG image when given a textual Haskell source file. In the future, I hope to create a visual editor for Haskell. Please scroll down to see some example images.
 
