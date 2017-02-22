@@ -1,4 +1,4 @@
-{-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeFamilies, ConstraintKinds #-}
+{-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, ConstraintKinds #-}
 
 module Types (
   Icon(..),

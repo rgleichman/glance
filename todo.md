@@ -1,7 +1,7 @@
 # Todo
 
 ## Todo Now
-* Add wiki pages discussing: Why a visual language?, Glance design goals, History of Glance, FAQ's, How to contribute, Code guide [code style, ...], etc..
+* Add wiki pages discussing: Why a visual language?, History of Glance, How to contribute, Code guide [code style, ...], etc..
 
 ## Todo Later
 
