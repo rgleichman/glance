@@ -42,15 +42,15 @@ import Icons(inputPort, resultPort, argumentPorts, caseRhsPorts,
 
 -- BEGIN Helper Functions --
 
-makeVarExp :: String -> Exp
-makeVarExp = Var . UnQual . Ident
+makeVarExp :: l -> String -> Exp l
+makeVarExp l  = Var l . UnQual l . Ident l
 
-makeQVarOp :: String -> QOp
-makeQVarOp = QVarOp . UnQual . Ident
+makeQVarOp :: l -> String -> QOp l
+makeQVarOp l = QVarOp l . UnQual l . Ident l
 
-qOpToExp :: QOp -> Exp
-qOpToExp (QVarOp n) = Var n
-qOpToExp (QConOp n) = Con n
+qOpToExp :: QOp l -> Exp l
+qOpToExp (QVarOp l n) = Var l n
+qOpToExp (QConOp l n) = Con l n
 
 -- | Make a syntax graph that has the bindings for a list of "as pattern" (@) names.
 makeAsBindGraph :: Reference -> [Maybe String] -> SyntaxGraph
@@ -63,7 +63,7 @@ grNamePortToGrRef :: (SyntaxGraph, NameAndPort) -> GraphAndRef
 grNamePortToGrRef (graph, np) = GraphAndRef graph (Right np)
 
 bindOrAltHelper ::
-  EvalContext -> Pat -> Rhs -> Maybe Binds -> State IDState ((GraphAndRef, Maybe String), GraphAndRef)
+  Show l => EvalContext -> Pat l -> Rhs l -> Maybe (Binds l) -> State IDState ((GraphAndRef, Maybe String), GraphAndRef)
 bindOrAltHelper c pat rhs maybeWhereBinds = do
   patGraphAndRef <- evalPattern pat
   let
@@ -83,20 +83,20 @@ patternName (GraphAndRef _ ref, mStr) = fromMaybe
 
 -- BEGIN Names helper functions --
 
-nameToString :: Exts.Name -> String
-nameToString (Ident s) = s
-nameToString (Symbol s) = s
+nameToString :: Exts.Name l -> String
+nameToString (Ident _ s) = s
+nameToString (Symbol _ s) = s
 
-qNameToString :: QName -> String
-qNameToString (Qual (Exts.ModuleName modName) name) = modName ++ "." ++ nameToString name
-qNameToString (UnQual name) = nameToString name
-qNameToString (Special UnitCon) = "()"
-qNameToString (Special ListCon) = "[]"
-qNameToString (Special FunCon) = "(->)"
-qNameToString (Special (TupleCon _ n)) = nTupleString n
-qNameToString (Special Cons) = "(:)"
+qNameToString :: QName l -> String
+qNameToString (Qual _ (Exts.ModuleName _ modName) name) = modName ++ "." ++ nameToString name
+qNameToString (UnQual _ name) = nameToString name
+qNameToString (Special _ (UnitCon _)) = "()"
+qNameToString (Special _ (ListCon _)) = "[]"
+qNameToString (Special _ (FunCon _)) = "(->)"
+qNameToString (Special _ (TupleCon _ _ n)) = nTupleString n
+qNameToString (Special _ (Cons _)) = "(:)"
 -- unboxed singleton tuple constructor
-qNameToString (Special UnboxedSingleCon) = "(# #)"
+qNameToString (Special _ (UnboxedSingleCon _)) = "(# #)"
 
 -- END Names helper functions
 
@@ -106,19 +106,19 @@ qNameToString (Special UnboxedSingleCon) = "(# #)"
 makeLiteral :: (Show x) => x -> State IDState (SyntaxGraph, NameAndPort)
 makeLiteral = makeBox . show
 
-evalLit :: Exts.Literal -> State IDState (SyntaxGraph, NameAndPort)
-evalLit (Exts.Int x) = makeLiteral x
-evalLit (Exts.Char x) = makeLiteral x
-evalLit (Exts.String x) = makeLiteral x
+evalLit :: Exts.Literal l -> State IDState (SyntaxGraph, NameAndPort)
+evalLit (Exts.Int _ x _) = makeLiteral x
+evalLit (Exts.Char _ x _) = makeLiteral x
+evalLit (Exts.String _ x _) = makeLiteral x
 -- TODO: Print the Rational as a floating point.
-evalLit (Exts.Frac x) = makeLiteral x
+evalLit (Exts.Frac _ x _) = makeLiteral x
 -- TODO: Test the unboxed literals
-evalLit (Exts.PrimInt x) = makeLiteral x
-evalLit (Exts.PrimWord x) = makeLiteral x
-evalLit (Exts.PrimFloat x) = makeLiteral x
-evalLit (Exts.PrimDouble x) = makeLiteral x
-evalLit (Exts.PrimChar x) = makeLiteral x
-evalLit (Exts.PrimString x) = makeLiteral x
+evalLit (Exts.PrimInt _ x _) = makeLiteral x
+evalLit (Exts.PrimWord _ x _) = makeLiteral x
+evalLit (Exts.PrimFloat _ x _) = makeLiteral x
+evalLit (Exts.PrimDouble _ x _) = makeLiteral x
+evalLit (Exts.PrimChar _ x _) = makeLiteral x
+evalLit (Exts.PrimString _ x _) = makeLiteral x
 
 -- END evalLit
 
@@ -189,7 +189,7 @@ makePatternGraph' applyIconName funStr argVals = (newGraph <> combinedGraph, nam
     icons = [SgNamedNode applyIconName pAppNode]
     newGraph = syntaxGraphFromNodes icons
 
-evalPApp :: QName -> [Pat] -> State IDState (SyntaxGraph, NameAndPort)
+evalPApp :: Show l => QName l -> [Pat l] -> State IDState (SyntaxGraph, NameAndPort)
 evalPApp name patterns = case patterns of
   [] -> makeBox constructorName
   _ ->  do
@@ -201,27 +201,27 @@ evalPApp name patterns = case patterns of
 -- END evalPApp
 
 -- BEGIN evalPLit
-showLiteral :: Exts.Literal -> String
-showLiteral (Exts.Int x) = show x
-showLiteral (Exts.Char x) = show x
-showLiteral (Exts.String x) = show x
+showLiteral :: Exts.Literal l -> String
+showLiteral (Exts.Int _ x _) = show x
+showLiteral (Exts.Char _ x _) = show x
+showLiteral (Exts.String _ x _) = show x
 -- TODO: Print the Rational as a floating point.
-showLiteral (Exts.Frac x) = show x
+showLiteral (Exts.Frac _ x _) = show x
 -- TODO: Test the unboxed literals
-showLiteral (Exts.PrimInt x) = show x
-showLiteral (Exts.PrimWord x) = show x
-showLiteral (Exts.PrimFloat x) = show x
-showLiteral (Exts.PrimDouble x) = show x
-showLiteral (Exts.PrimChar x) = show x
-showLiteral (Exts.PrimString x) = show x
+showLiteral (Exts.PrimInt _ x _) = show x
+showLiteral (Exts.PrimWord _ x _) = show x
+showLiteral (Exts.PrimFloat _ x _) = show x
+showLiteral (Exts.PrimDouble _ x _) = show x
+showLiteral (Exts.PrimChar _ x _) = show x
+showLiteral (Exts.PrimString _ x _) = show x
 
-evalPLit :: Exts.Sign -> Exts.Literal -> State IDState (SyntaxGraph, NameAndPort)
+evalPLit :: Exts.Sign l -> Exts.Literal l -> State IDState (SyntaxGraph, NameAndPort)
 evalPLit sign l = case sign of
-  Exts.Signless -> evalLit l
-  Exts.Negative -> makeBox ('-' : showLiteral l)
+  Exts.Signless _ -> evalLit l
+  Exts.Negative _ -> makeBox ('-' : showLiteral l)
 -- END evalPLit
 
-evalPAsPat :: Name -> Pat -> State IDState (GraphAndRef, Maybe String)
+evalPAsPat :: Show l => Name l -> Pat l -> State IDState (GraphAndRef, Maybe String)
 evalPAsPat n p = do
   (GraphAndRef evaledPatGraph evaledPatRef, mInnerName) <- evalPattern p
   let
@@ -232,20 +232,20 @@ evalPAsPat n p = do
 makePatternResult :: Functor f => f (SyntaxGraph, NameAndPort) -> f (GraphAndRef, Maybe String)
 makePatternResult = fmap (\(graph, namePort) -> (GraphAndRef graph (Right namePort), Nothing))
 
-evalPattern :: Pat -> State IDState (GraphAndRef, Maybe String)
+evalPattern :: Show l => Pat l -> State IDState (GraphAndRef, Maybe String)
 evalPattern p = case p of
-  PVar n -> pure (GraphAndRef mempty (Left $ nameToString n), Nothing)
-  PLit s l -> makePatternResult $ evalPLit s l
-  PInfixApp p1 qName p2 -> evalPattern (PApp qName [p1, p2])
-  PApp name patterns -> makePatternResult $ evalPApp name patterns
+  PVar _ n -> pure (GraphAndRef mempty (Left $ nameToString n), Nothing)
+  PLit _ s l -> makePatternResult $ evalPLit s l
+  PInfixApp l p1 qName p2 -> evalPattern (PApp l qName [p1, p2])
+  PApp _ name patterns -> makePatternResult $ evalPApp name patterns
   -- TODO special tuple handling.
-  PTuple _ patterns ->
-    makePatternResult $ evalPApp (Exts.UnQual . Ident . nTupleString . length $ patterns) patterns
-  PList patterns ->
-    makePatternResult $ evalPApp (Exts.UnQual . Ident . nListString . length $ patterns) patterns
-  PParen pat -> evalPattern pat
-  PAsPat n subPat -> evalPAsPat n subPat
-  PWildCard -> makePatternResult $ makeBox "_"
+  PTuple l _ patterns ->
+    makePatternResult $ evalPApp (Exts.UnQual l . Ident l . nTupleString . length $ patterns) patterns
+  PList l patterns ->
+    makePatternResult $ evalPApp (Exts.UnQual l . Ident l . nListString . length $ patterns) patterns
+  PParen _ pat -> evalPattern pat
+  PAsPat _ n subPat -> evalPAsPat n subPat
+  PWildCard _ -> makePatternResult $ makeBox "_"
   _ -> error $ "evalPattern: No pattern in case for " ++ show p
   -- TODO: Other cases
 
@@ -260,10 +260,10 @@ strToGraphRef c str = fmap mapper (makeBox str) where
     then GraphAndRef mempty (Left str)
     else grNamePortToGrRef gr
 
-evalQName :: QName -> EvalContext -> State IDState GraphAndRef
+evalQName :: QName l -> EvalContext -> State IDState GraphAndRef
 evalQName qName c = case qName of
-  UnQual _ -> graphRef
-  Qual _ _ -> graphRef
+  UnQual _ _ -> graphRef
+  Qual _ _ _ -> graphRef
   _ -> grNamePortToGrRef <$> makeBox qNameString
   where
     qNameString = qNameToString qName
@@ -272,11 +272,11 @@ evalQName qName c = case qName of
 -- END evalQName
 
 
--- evalQOp :: QOp -> EvalContext -> State IDState GraphAndRef
+-- evalQOp :: QOp l -> EvalContext -> State IDState GraphAndRef
 -- evalQOp (QVarOp n) = evalQName n
 -- evalQOp (QConOp n) = evalQName n
 
--- qOpToString :: QOp -> String
+-- qOpToString :: QOp l -> String
 -- qOpToString (QVarOp n) = qNameToString n
 -- qOpToString (QConOp n) = qNameToString n
 
@@ -288,12 +288,12 @@ evalQName qName c = case qName of
 
 -- BEGIN apply and compose helper functions
 
-removeParen :: Exp -> Exp
+removeParen :: Exp l -> Exp l
 removeParen e = case e of
-  Paren x -> removeParen x
+  Paren _ x -> removeParen x
   _ -> e
 
-evalFunExpAndArgs :: EvalContext -> LikeApplyFlavor -> (Exp, [Exp]) -> State IDState (SyntaxGraph, NameAndPort)
+evalFunExpAndArgs :: Show l => EvalContext -> LikeApplyFlavor -> (Exp l, [Exp l]) -> State IDState (SyntaxGraph, NameAndPort)
 evalFunExpAndArgs c flavor (funExp, argExps) = do
   funVal <- evalExp c funExp
   argVals <- mapM (evalExp c) argExps
@@ -304,7 +304,7 @@ evalFunExpAndArgs c flavor (funExp, argExps) = do
 
 -- BEGIN evalInfixApp
 
-evalFunctionComposition :: EvalContext -> [Exp] -> State IDState (SyntaxGraph, NameAndPort)
+evalFunctionComposition :: Show l => EvalContext -> [Exp l] -> State IDState (SyntaxGraph, NameAndPort)
 evalFunctionComposition c functions = do
   let reversedFunctios = reverse functions
   evaluatedFunctions <- mapM (evalExp c) reversedFunctios
@@ -314,43 +314,43 @@ evalFunctionComposition c functions = do
     (GraphAndRef mempty neverUsedPort) evaluatedFunctions
 
 -- | Turn (a . b . c) into [a, b, c]
-compositionToList :: Exp -> [Exp]
+compositionToList :: Exp l -> [Exp l]
 compositionToList e = case removeParen e of
-  (InfixApp exp1  (QVarOp (UnQual (Symbol "."))) exp2) -> exp1 : compositionToList exp2
+  (InfixApp _ exp1  (QVarOp _ (UnQual _ (Symbol _ "."))) exp2) -> exp1 : compositionToList exp2
   x -> [x]
 
 -- | In the general case, infix is converted to prefix.
 -- Special cases:
 -- a $ b is converted to (a b)
 -- (a . b . c) uses the compose apply icon with no argument
-evalInfixApp :: EvalContext -> Exp -> QOp -> Exp -> State IDState GraphAndRef
-evalInfixApp c e1 op e2 = case op of
-  QVarOp (UnQual (Symbol sym)) -> case sym of
-    "$" -> evalExp c (App e1 e2)
+evalInfixApp :: Show l => l -> EvalContext -> Exp l -> QOp l -> Exp l -> State IDState GraphAndRef
+evalInfixApp l c e1 op e2 = case op of
+  QVarOp _ (UnQual _ (Symbol _ sym)) -> case sym of
+    "$" -> evalExp c (App l e1 e2)
     "." -> grNamePortToGrRef <$> evalFunctionComposition c (e1 : compositionToList e2)
     _ -> defaultCase
   _ -> defaultCase
   where
-    defaultCase = evalExp c $ App (App (qOpToExp op) e1) e2
+    defaultCase = evalExp c $ App l (App l (qOpToExp op) e1) e2
 
 -- END evalInfixApp
 
 -- BEGIN evaluateAppExpression
 
-simplifyExp :: Exp -> Exp
+simplifyExp :: Exp l -> Exp l
 simplifyExp e = case removeParen e of
-  InfixApp exp1  (QVarOp (UnQual (Symbol "$"))) exp2 -> App exp1 exp2
+  InfixApp l exp1  (QVarOp _ (UnQual _ (Symbol _ "$"))) exp2 -> App l exp1 exp2
   -- Don't convert compose to apply
-  InfixApp _  (QVarOp (UnQual (Symbol "."))) _ -> e
-  App (Var (UnQual (Symbol "<$>"))) arg -> App (makeVarExp "fmap") arg
-  InfixApp exp1 op exp2 -> App (App (qOpToExp op) exp1) exp2
-  LeftSection exp1 op -> App (qOpToExp op) exp1
+  InfixApp _ _ (QVarOp _ (UnQual _ (Symbol _ "."))) _ -> e
+  App l (Var _ (UnQual _ (Symbol _ "<$>"))) arg -> App l (makeVarExp l "fmap") arg
+  InfixApp l exp1 op exp2 -> App l (App l (qOpToExp op) exp1) exp2
+  LeftSection l exp1 op -> App l (qOpToExp op) exp1
   x -> x
 
 -- | Given two expressions f and x, where f is applied to x,
 -- return the nesting depth if (f x) is rendered with
 -- the (normal apply icon, compose apply icon)
-applyComposeScoreHelper :: Exp -> Exp -> (Int, Int)
+applyComposeScoreHelper :: Exp l -> Exp l -> (Int, Int)
 applyComposeScoreHelper exp1 exp2 = (appScore, compScore) where
   (e1App, e1Comp) = applyComposeScore exp1
   (e2App, e2Comp) = applyComposeScore exp2
@@ -367,47 +367,47 @@ applyComposeScoreHelper exp1 exp2 = (appScore, compScore) where
 
 -- TODO Consider putting this logic in a separate "simplifyExpression" function.
 -- | Returns the amount of nesting if the App is converted to (applyNode, composeNode)
-applyComposeScore :: Exp -> (Int, Int)
+applyComposeScore :: Exp l -> (Int, Int)
 applyComposeScore e = case simplifyExp e of
-  App exp1 exp2 -> applyComposeScoreHelper exp1 exp2
+  App _ exp1 exp2 -> applyComposeScoreHelper exp1 exp2
   _ -> (0, 0)
 
 -- Todo add test for this function
 -- | Given an App expression, return
 -- (function, list of arguments)
-appExpToFuncArgs :: Exp -> (Exp, [Exp])
+appExpToFuncArgs :: Exp l -> (Exp l, [Exp l])
 appExpToFuncArgs e = case simplifyExp e of
-  App exp1 exp2 -> (funExp, args <> [exp2])
+  App _ exp1 exp2 -> (funExp, args <> [exp2])
     where
       (funExp, args) = appExpToFuncArgs exp1
   x -> (x, [])
 
 -- | Given and App expression, return
 -- (argument, list composed functions)
-appExpToArgFuncs :: Exp -> (Exp, [Exp])
+appExpToArgFuncs :: Exp l -> (Exp l, [Exp l])
 appExpToArgFuncs e = case simplifyExp e of
-  App exp1 exp2 -> (argExp, funcs <> [exp1])
+  App _ exp1 exp2 -> (argExp, funcs <> [exp1])
     where
       (argExp, funcs) = appExpToArgFuncs exp2
   simpleExp -> (simpleExp, [])
 
-removeCompose :: Exp -> Exp -> Exp
-removeCompose f x = case removeParen f of
-  (InfixApp f1  (QVarOp (UnQual (Symbol "."))) f2) -> App f1 $ removeCompose f2 x
-  _ -> App f x
+removeCompose :: l -> Exp l -> Exp l -> Exp l
+removeCompose l f x = case removeParen f of
+  (InfixApp _ f1  (QVarOp _ (UnQual _ (Symbol _ "."))) f2) -> App l f1 $ removeCompose l f2 x
+  _ -> App l f x
 
 -- TODO Refactor this and all sub-expressions
-evalApp :: EvalContext -> Exp -> Exp -> State IDState (SyntaxGraph, NameAndPort)
-evalApp c f e = if appScore <= compScore
+evalApp :: Show l => l -> EvalContext -> Exp l -> Exp l -> State IDState (SyntaxGraph, NameAndPort)
+evalApp l c f e = if appScore <= compScore
   then evalFunExpAndArgs c ApplyNodeFlavor (appExpToFuncArgs noComposeExp)
   else evalFunExpAndArgs c ComposeNodeFlavor (appExpToArgFuncs noComposeExp)
   where
-    noComposeExp = removeCompose f e
+    noComposeExp = removeCompose l f e
     (appScore, compScore) = applyComposeScore noComposeExp
 
 -- END evaluateAppExpression
 
-evalIf :: EvalContext -> Exp -> Exp -> Exp -> State IDState (SyntaxGraph, NameAndPort)
+evalIf :: Show l => EvalContext -> Exp l -> Exp l -> Exp l -> State IDState (SyntaxGraph, NameAndPort)
 evalIf c boolExp trueExp falseExp = makeGuardGraph 2
   <$>
   getUniqueName
@@ -419,23 +419,23 @@ evalIf c boolExp trueExp falseExp = makeGuardGraph 2
 
 -- BEGIN evalGeneralLet
 
-getBoundVarName :: Decl -> [String]
+getBoundVarName :: Show l => Decl l -> [String]
 -- TODO Should evalState be used here?
 getBoundVarName (PatBind _ pat _ _) = namesInPattern $ evalState (evalPattern pat) initialIdState
-getBoundVarName (FunBind (Match _ name _ _ _ _:_)) = [nameToString name]
+getBoundVarName (FunBind _ (Match _ name _ _ _:_)) = [nameToString name]
 -- TODO: Other cases
 getBoundVarName (TypeSig _ _ _) = []
 getBoundVarName decl = error $ "getBoundVarName: No pattern in case for " ++ show decl
 
-evalBinds :: EvalContext -> Binds -> State IDState (SyntaxGraph, EvalContext)
-evalBinds c (BDecls decls) =
+evalBinds :: Show l => EvalContext -> Binds l -> State IDState (SyntaxGraph, EvalContext)
+evalBinds c (BDecls _ decls) =
   let
     boundNames = concatMap getBoundVarName decls
     augmentedContext = boundNames <> c
   in
     ((,augmentedContext) . mconcat) <$>  mapM (evalDecl augmentedContext) decls
 
-evalGeneralLet :: (EvalContext -> State IDState GraphAndRef) -> EvalContext -> Binds -> State IDState GraphAndRef
+evalGeneralLet :: Show l => (EvalContext -> State IDState GraphAndRef) -> EvalContext -> Binds l-> State IDState GraphAndRef
 evalGeneralLet expOrRhsEvaler c bs = do
   (bindGraph, bindContext) <- evalBinds c bs
   expVal <- expOrRhsEvaler bindContext
@@ -447,21 +447,21 @@ evalGeneralLet expOrRhsEvaler c bs = do
 
 -- END evalGeneralLet
 
-evalLet :: EvalContext -> Binds -> Exp -> State IDState GraphAndRef
+evalLet :: Show l => EvalContext -> Binds l -> Exp l-> State IDState GraphAndRef
 evalLet context binds e = evalGeneralLet (`evalExp` e) context binds
 
 -- BEGIN rhsWithBinds
 
-evalStmt :: EvalContext -> Stmt -> State IDState GraphAndRef
-evalStmt c (Qualifier e) = evalExp c e
+evalStmt :: Show l => EvalContext -> Stmt l -> State IDState GraphAndRef
+evalStmt c (Qualifier _ e) = evalExp c e
 
-evalStmts :: EvalContext -> [Stmt] -> State IDState GraphAndRef
+evalStmts :: Show l => EvalContext -> [Stmt l] -> State IDState GraphAndRef
 evalStmts c [stmt] = evalStmt c stmt
 
-evalGuardedRhs :: EvalContext -> GuardedRhs -> State IDState (GraphAndRef, GraphAndRef)
+evalGuardedRhs :: Show l => EvalContext -> GuardedRhs l -> State IDState (GraphAndRef, GraphAndRef)
 evalGuardedRhs c (GuardedRhs _ stmts e) = (,) <$> evalStmts c stmts <*> evalExp c e
 
-evalGuardedRhss :: EvalContext -> [GuardedRhs] -> State IDState (SyntaxGraph, NameAndPort)
+evalGuardedRhss :: Show l => EvalContext -> [GuardedRhs l] -> State IDState (SyntaxGraph, NameAndPort)
 evalGuardedRhss c rhss = let
   evaledRhss = unzip <$> mapM (evalGuardedRhs c) rhss
   in
@@ -475,11 +475,11 @@ evalGuardedRhss c rhss = let
 
 -- | First argument is the right hand side.
 -- The second arugement is a list of strings that are bound in the environment.
-evalRhs :: EvalContext -> Rhs -> State IDState GraphAndRef
-evalRhs c (UnGuardedRhs e) = evalExp c e
-evalRhs c (GuardedRhss rhss) = grNamePortToGrRef <$> evalGuardedRhss c rhss
+evalRhs :: Show l => EvalContext -> Rhs l -> State IDState GraphAndRef
+evalRhs c (UnGuardedRhs _ e) = evalExp c e
+evalRhs c (GuardedRhss _ rhss) = grNamePortToGrRef <$> evalGuardedRhss c rhss
 
-rhsWithBinds :: Maybe Binds -> Rhs -> EvalContext -> State IDState GraphAndRef
+rhsWithBinds :: Show l => Maybe (Binds l) -> Rhs l -> EvalContext -> State IDState GraphAndRef
 rhsWithBinds maybeWhereBinds rhs rhsContext = case maybeWhereBinds of
   Nothing -> evalRhs rhsContext rhs
   Just b -> evalGeneralLet (`evalRhs` rhs) rhsContext b
@@ -489,7 +489,7 @@ rhsWithBinds maybeWhereBinds rhs rhsContext = case maybeWhereBinds of
 -- BEGIN evalCase
 
 -- TODO patRhsAreConnected is sometimes incorrectly true if the pat is just a name
-evalPatAndRhs :: EvalContext -> Pat -> Rhs -> Maybe Binds -> State IDState (Bool, SyntaxGraph, Reference, Reference, Maybe String)
+evalPatAndRhs :: Show l => EvalContext -> Pat l-> Rhs l -> Maybe (Binds l) -> State IDState (Bool, SyntaxGraph, Reference, Reference, Maybe String)
 evalPatAndRhs c pat rhs maybeWhereBinds = do
   ((GraphAndRef patGraph patRef, mPatAsName), GraphAndRef rhsGraph rhsRef) <-
     bindOrAltHelper c pat rhs maybeWhereBinds
@@ -503,7 +503,7 @@ evalPatAndRhs c pat rhs maybeWhereBinds = do
   pure (patRhsAreConnected, deleteBindings grWithEdges, patRef, lookedUpRhsRef, mPatAsName)
 
 -- returns (combined graph, pattern reference, rhs reference)
-evalAlt :: EvalContext -> Exts.Alt -> State IDState (Bool, SyntaxGraph, Reference, Reference, Maybe String)
+evalAlt :: Show l => EvalContext -> Exts.Alt l -> State IDState (Bool, SyntaxGraph, Reference, Reference, Maybe String)
 evalAlt c (Exts.Alt _ pat rhs maybeBinds) = evalPatAndRhs c pat rhs maybeBinds
 
 evalCaseHelper ::
@@ -543,7 +543,7 @@ evalCaseHelper numAlts caseIconName resultIconNames (GraphAndRef expGraph expRef
   result = (finalGraph, nameAndPort caseIconName (resultPort caseNode))
 
 
-evalCase :: EvalContext -> Exp -> [Alt] -> State IDState (SyntaxGraph, NameAndPort)
+evalCase :: Show l => EvalContext -> Exp l -> [Alt l] -> State IDState (SyntaxGraph, NameAndPort)
 evalCase c e alts =
   let
     numAlts = length alts
@@ -560,7 +560,7 @@ evalCase c e alts =
 
 -- END evalCase
 
-evalTuple :: EvalContext -> [Exp] -> State IDState (SyntaxGraph, NameAndPort)
+evalTuple :: Show l => EvalContext -> [Exp l] -> State IDState (SyntaxGraph, NameAndPort)
 evalTuple c exps =
   let
     numExps = length exps
@@ -573,7 +573,7 @@ evalTuple c exps =
     <*>
     mapM (evalExp c) exps
 
-evalTupleSection :: EvalContext -> [Maybe Exp] -> State IDState (SyntaxGraph, NameAndPort)
+evalTupleSection :: Show l => EvalContext -> [Maybe (Exp l)] -> State IDState (SyntaxGraph, NameAndPort)
 evalTupleSection c mExps =
   let
     exps = catMaybes mExps
@@ -587,14 +587,14 @@ evalTupleSection c mExps =
     <*>
     mapM (evalExp c) exps
 
-evalListExp :: EvalContext -> [Exp] -> State IDState (SyntaxGraph, NameAndPort)
-evalListExp _ [] = makeBox "[]"
-evalListExp c exps = evalFunExpAndArgs c ApplyNodeFlavor (makeVarExp . nListString . length $ exps, exps)
+evalListExp :: Show l => l -> EvalContext -> [Exp l] -> State IDState (SyntaxGraph, NameAndPort)
+evalListExp _ _ [] = makeBox "[]"
+evalListExp l c exps = evalFunExpAndArgs c ApplyNodeFlavor (makeVarExp l . nListString . length $ exps, exps)
 
-evalLeftSection :: EvalContext -> Exp -> QOp -> State IDState GraphAndRef
-evalLeftSection c e op = evalExp c $ App (qOpToExp op) e
+evalLeftSection :: Show l => l -> EvalContext -> Exp l -> QOp l -> State IDState GraphAndRef
+evalLeftSection l c e op = evalExp c $ App l (qOpToExp op) e
 
-evalRightSection :: EvalContext -> QOp -> Exp -> State IDState (SyntaxGraph, NameAndPort)
+evalRightSection :: Show l => EvalContext -> QOp l -> Exp l -> State IDState (SyntaxGraph, NameAndPort)
 evalRightSection c op e =
   makeApplyGraph 2 ApplyNodeFlavor False
   <$>
@@ -610,19 +610,19 @@ evalRightSection c op e =
   )
 
 -- evalEnums is only used by evalExp
-evalEnums :: EvalContext -> String -> [Exp] -> State IDState GraphAndRef
-evalEnums c s exps = grNamePortToGrRef <$> evalFunExpAndArgs c ApplyNodeFlavor (makeVarExp s, exps)
+evalEnums :: Show l => l -> EvalContext -> String -> [Exp l] -> State IDState GraphAndRef
+evalEnums l c s exps = grNamePortToGrRef <$> evalFunExpAndArgs c ApplyNodeFlavor (makeVarExp l s, exps)
 
-desugarDo :: [Stmt] -> Exp
-desugarDo [Qualifier e] = e
-desugarDo (Qualifier e : stmts) = InfixApp e thenOp (desugarDo stmts)
-  where thenOp = makeQVarOp ">>"
-desugarDo (Generator srcLoc pat e : stmts) =
-  InfixApp e  (makeQVarOp ">>=") (Lambda srcLoc [pat] (desugarDo stmts))
-desugarDo (LetStmt binds : stmts) = Let binds (desugarDo stmts)
+desugarDo :: [Stmt l] -> Exp l
+desugarDo [Qualifier _ e] = e
+desugarDo (Qualifier l e : stmts) = InfixApp l e thenOp (desugarDo stmts)
+  where thenOp = makeQVarOp l ">>"
+desugarDo (Generator l pat e : stmts) =
+  InfixApp l e (makeQVarOp l ">>=") (Lambda l [pat] (desugarDo stmts))
+desugarDo (LetStmt l binds : stmts) = Let l binds (desugarDo stmts)
 
 -- TODO: Finish evalRecConstr
-evalRecConstr :: EvalContext -> QName -> [Exts.FieldUpdate] -> State IDState GraphAndRef
+evalRecConstr :: EvalContext -> QName l -> [Exts.FieldUpdate l] -> State IDState GraphAndRef
 evalRecConstr c qName _ = evalQName qName c
 
 -- BEGIN generalEvalLambda
@@ -631,7 +631,7 @@ evalRecConstr c qName _ = evalQName qName c
 asBindGraphZipper :: Maybe String -> NameAndPort -> SyntaxGraph
 asBindGraphZipper asName nameNPort = makeAsBindGraph (Right nameNPort) [asName]
 
-generalEvalLambda :: EvalContext -> [Pat] -> (EvalContext -> State IDState GraphAndRef) -> State IDState (SyntaxGraph, NameAndPort)
+generalEvalLambda :: Show l => EvalContext -> [Pat l] -> (EvalContext -> State IDState GraphAndRef) -> State IDState (SyntaxGraph, NameAndPort)
 generalEvalLambda context patterns rhsEvalFun = do
   lambdaName <- getUniqueName
   patternValsWithAsNames <- mapM evalPattern patterns
@@ -669,36 +669,36 @@ generalEvalLambda context patterns rhsEvalFun = do
 
 -- END generalEvalLambda
 
-evalLambda :: EvalContext -> [Pat] -> Exp -> State IDState (SyntaxGraph, NameAndPort)
+evalLambda :: Show l => EvalContext -> [Pat l] -> Exp l -> State IDState (SyntaxGraph, NameAndPort)
 evalLambda c patterns e = generalEvalLambda c patterns (`evalExp` e)
 
-evalExp :: EvalContext  -> Exp -> State IDState GraphAndRef
+evalExp :: Show l => EvalContext  -> Exp l -> State IDState GraphAndRef
 evalExp c x = case x of
-  Var n -> evalQName n c
-  Con n -> evalQName n c
-  Lit l -> grNamePortToGrRef <$> evalLit l
-  InfixApp e1 op e2 -> evalInfixApp c e1 op e2
-  App f arg -> grNamePortToGrRef <$> evalApp c f arg
-  NegApp e -> evalExp c (App (makeVarExp "negate") e)
+  Var _ n -> evalQName n c
+  Con _ n -> evalQName n c
+  Lit _ l -> grNamePortToGrRef <$> evalLit l
+  InfixApp l e1 op e2 -> evalInfixApp l c e1 op e2
+  App l f arg -> grNamePortToGrRef <$> evalApp l c f arg
+  NegApp l e -> evalExp c (App l (makeVarExp l "negate") e)
   Lambda _ patterns e -> grNamePortToGrRef <$> evalLambda c patterns e
-  Let bs e -> evalLet c bs e
-  If e1 e2 e3 -> grNamePortToGrRef <$> evalIf c e1 e2 e3
-  Case e alts -> grNamePortToGrRef <$> evalCase c e alts
-  Do stmts -> evalExp c (desugarDo stmts)
+  Let _ bs e -> evalLet c bs e
+  If _ e1 e2 e3 -> grNamePortToGrRef <$> evalIf c e1 e2 e3
+  Case _ e alts -> grNamePortToGrRef <$> evalCase c e alts
+  Do _ stmts -> evalExp c (desugarDo stmts)
   -- TODO special tuple symbol
-  Tuple _ exps -> grNamePortToGrRef <$> evalTuple c exps
-  TupleSection _ mExps -> grNamePortToGrRef <$> evalTupleSection c mExps
-  List exps -> grNamePortToGrRef <$> evalListExp c exps
-  Paren e -> evalExp c e
-  LeftSection e op -> evalLeftSection c e op
-  RightSection op e -> grNamePortToGrRef <$> evalRightSection c op e
-  RecConstr n updates -> evalRecConstr c n updates
+  Tuple _ _ exps -> grNamePortToGrRef <$> evalTuple c exps
+  TupleSection _ _ mExps -> grNamePortToGrRef <$> evalTupleSection c mExps
+  List l exps -> grNamePortToGrRef <$> evalListExp l c exps
+  Paren _ e -> evalExp c e
+  LeftSection l e op -> evalLeftSection l c e op
+  RightSection _ op e -> grNamePortToGrRef <$> evalRightSection c op e
+  RecConstr _ n updates -> evalRecConstr c n updates
   -- TODO: Do RecUpdate correcly
-  RecUpdate e _ -> evalExp c e
-  EnumFrom e -> evalEnums c "enumFrom" [e]
-  EnumFromTo e1 e2 -> evalEnums c "enumFromTo" [e1, e2]
-  EnumFromThen e1 e2 -> evalEnums c "enumFromThen" [e1, e2]
-  EnumFromThenTo e1 e2 e3 -> evalEnums c "enumFromThenTo" [e1, e2, e3]
+  RecUpdate _ e _ -> evalExp c e
+  EnumFrom l e -> evalEnums l c "enumFrom" [e]
+  EnumFromTo l e1 e2 -> evalEnums l c "enumFromTo" [e1, e2]
+  EnumFromThen l e1 e2 -> evalEnums l c "enumFromThen" [e1, e2]
+  EnumFromThenTo l e1 e2 e3 -> evalEnums l c "enumFromThenTo" [e1, e2, e3]
   -- TODO: Add the type signiture to ExpTypeSig.
   ExpTypeSig _ e _ -> evalExp c e
   -- TODO: Add other cases
@@ -709,33 +709,33 @@ evalExp c x = case x of
 -- BEGIN evalMatches
 
 -- Only used by matchesToCase
-matchToAlt :: Match -> Alt
-matchToAlt (Match srcLocation _ mtaPats _ rhs binds) = Alt srcLocation altPattern rhs binds where
+matchToAlt :: Match l -> Alt l
+matchToAlt (Match l _ mtaPats rhs binds) = Alt l altPattern rhs binds where
   altPattern = case mtaPats of
     [onePat] -> onePat
-    _ -> PTuple Exts.Boxed mtaPats
+    _ -> PTuple l Exts.Boxed mtaPats
 
-matchesToCase :: Match -> [Match] -> State IDState Match
+matchesToCase :: Match l -> [Match l] -> State IDState (Match l)
 matchesToCase match [] = pure match
-matchesToCase firstMatch@(Match srcLoc funName pats mType _ _) restOfMatches = do
+matchesToCase firstMatch@(Match srcLoc funName pats _ _) restOfMatches = do
   -- There is a special case in Icons.hs/makeLabelledPort to exclude " tempvar"
   tempStrings <- replicateM (length pats) (getUniqueString " tempvar")
   let
-    tempPats = fmap (PVar . Ident) tempStrings
-    tempVars = fmap makeVarExp tempStrings
-    tuple = Tuple Exts.Boxed tempVars
+    tempPats = fmap (PVar srcLoc . Ident srcLoc) tempStrings
+    tempVars = fmap (makeVarExp srcLoc) tempStrings
+    tuple = Tuple srcLoc Exts.Boxed tempVars
     caseExp = case tempVars of
-      [oneTempVar] -> Case oneTempVar alts
-      _ -> Case tuple alts
-    rhs = UnGuardedRhs caseExp
-    match = Match srcLoc funName tempPats mType rhs Nothing
+      [oneTempVar] -> Case srcLoc oneTempVar alts
+      _ -> Case srcLoc tuple alts
+    rhs = UnGuardedRhs srcLoc caseExp
+    match = Match srcLoc funName tempPats rhs Nothing
   pure match
   where
     allMatches = firstMatch:restOfMatches
     alts = fmap matchToAlt allMatches
 
-evalMatch :: EvalContext -> Match -> State IDState SyntaxGraph
-evalMatch c (Match _ name patterns _ rhs maybeWhereBinds) = do
+evalMatch :: Show l => EvalContext -> (Match l) -> State IDState SyntaxGraph
+evalMatch c (Match _ name patterns rhs maybeWhereBinds) = do
   let
     matchFunNameString = nameToString name
     newContext = matchFunNameString : c
@@ -745,13 +745,13 @@ evalMatch c (Match _ name patterns _ rhs maybeWhereBinds) = do
     newBinding = bindsToSyntaxGraph [SgBind matchFunNameString (Right lambdaPort)]
   pure $ makeEdges (newBinding <> lambdaGraph)
 
-evalMatches :: EvalContext -> [Match] -> State IDState SyntaxGraph
+evalMatches :: Show l => EvalContext -> [Match l] -> State IDState SyntaxGraph
 evalMatches _ [] = pure mempty
 evalMatches c (firstMatch:restOfMatches) = matchesToCase firstMatch restOfMatches >>= evalMatch c
 
 -- END evalMatches
 
-evalPatBind :: EvalContext -> Decl -> State IDState SyntaxGraph
+evalPatBind :: Show l => EvalContext -> Decl l -> State IDState SyntaxGraph
 evalPatBind c (PatBind _ pat rhs maybeWhereBinds) = do
   ((GraphAndRef patGraph patRef, mPatAsName), GraphAndRef rhsGraph rhsRef) <-
     bindOrAltHelper c pat rhs maybeWhereBinds
@@ -767,7 +767,7 @@ evalPatBind c (PatBind _ pat rhs maybeWhereBinds) = do
 
 -- Pretty printing the entire type sig results in extra whitespace in the middle
 -- TODO May want to trim whitespace from (prettyPrint typeForNames)
-evalTypeSig :: Decl -> State IDState (SyntaxGraph, NameAndPort)
+evalTypeSig :: Decl l -> State IDState (SyntaxGraph, NameAndPort)
 evalTypeSig (TypeSig _ names typeForNames) = makeBox
   (intercalate "," (fmap prettyPrintWithoutNewlines names)
    ++ " :: "
@@ -777,10 +777,10 @@ evalTypeSig (TypeSig _ names typeForNames) = makeBox
     -- Use (unwords . words) to convert consecutive whitspace characters to one space
     prettyPrintWithoutNewlines = unwords . words . prettyPrint
 
-evalDecl :: EvalContext -> Decl -> State IDState SyntaxGraph
+evalDecl :: Show l => EvalContext -> Decl l -> State IDState SyntaxGraph
 evalDecl c d = case d of
     PatBind _ _ _ _ -> evalPatBind c d
-    FunBind matches -> evalMatches c matches
+    FunBind _ matches -> evalMatches c matches
     TypeSig _ _ _ -> fst <$> evalTypeSig d
     --TODO: Add other cases here
     _ -> pure mempty
@@ -804,7 +804,7 @@ showTopLevelBinds gr = do
   newGraph <- mconcat <$> mapM addBind binds
   pure $ newGraph <> gr
 
-translateDeclToSyntaxGraph :: Decl -> SyntaxGraph
+translateDeclToSyntaxGraph :: Show l => Decl l -> SyntaxGraph
 translateDeclToSyntaxGraph d = graph where
   evaluatedDecl = evalDecl mempty d >>= showTopLevelBinds
   graph = evalState evaluatedDecl initialIdState
@@ -818,7 +818,7 @@ customParseMode = Exts.defaultParseMode
    ]
   }
 
-customParseDecl :: String -> Decl
+customParseDecl :: String -> Decl Exts.SrcSpanInfo
 customParseDecl = fromParseResult . parseDeclWithMode customParseMode
 
 -- | Convert a single function declaration into a SyntaxGraph
@@ -828,16 +828,16 @@ translateStringToSyntaxGraph = translateDeclToSyntaxGraph . customParseDecl
 syntaxGraphToCollapsedGraph :: SyntaxGraph -> IngSyntaxGraph FGR.Gr
 syntaxGraphToCollapsedGraph = collapseNodes . syntaxGraphToFglGraph
 
-translateDeclToCollapsedGraph :: Decl -> IngSyntaxGraph FGR.Gr
+translateDeclToCollapsedGraph :: Show l => Decl l -> IngSyntaxGraph FGR.Gr
 translateDeclToCollapsedGraph = syntaxGraphToCollapsedGraph . translateDeclToSyntaxGraph
 
 -- Profiling: At one point, this was about 1.5% of total time.
-translateStringToCollapsedGraphAndDecl :: String -> (IngSyntaxGraph FGR.Gr, Decl)
+translateStringToCollapsedGraphAndDecl :: String -> (IngSyntaxGraph FGR.Gr, Decl Exts.SrcSpanInfo)
 translateStringToCollapsedGraphAndDecl s = (drawing, decl) where
   decl = customParseDecl s -- :: ParseResult Module
   drawing = translateDeclToCollapsedGraph decl
 
-translateModuleToCollapsedGraphs :: Module -> [IngSyntaxGraph FGR.Gr]
-translateModuleToCollapsedGraphs (Module _ _ _ _ _ _ decls) = fmap translateDeclToCollapsedGraph decls
+translateModuleToCollapsedGraphs :: Show l => Module l -> [IngSyntaxGraph FGR.Gr]
+translateModuleToCollapsedGraphs (Module _ _ _ _ decls) = fmap translateDeclToCollapsedGraph decls
 
 -- END Exported functions

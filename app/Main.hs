@@ -25,10 +25,10 @@ data CmdLineOptions = CmdLineOptions {
 
 optionParser :: Parser CmdLineOptions
 optionParser = CmdLineOptions
-  <$> argument str (metavar "INPUT_FILE" <> help "Input .hs filename")
-  <*> argument str (metavar "OUTPUT_FILE" <> help "Output .svg filename")
-  <*> argument auto (metavar "IMAGE_WIDTH" <> help "Output image width")
-  <*> switch (short 'c' <> help "Include comments between top level declarations.")
+  <$> argument str (metavar "INPUT_FILE" Dia.<> help "Input .hs filename")
+  <*> argument str (metavar "OUTPUT_FILE" Dia.<> help "Output .svg filename")
+  <*> argument auto (metavar "IMAGE_WIDTH" Dia.<> help "Output image width")
+  <*> switch (short 'c' Dia.<> help "Include comments between top level declarations.")
 
 renderFile :: CmdLineOptions -> IO ()
 renderFile (CmdLineOptions inputFilename outputFilename imageWidth includeComments) = do
@@ -67,8 +67,8 @@ translateFileMain = customExecParser parserPrefs  opts >>= renderFile where
   
   opts = info (helper <*> optionParser)
     (fullDesc
-    <> progDesc "Translate a Haskell source file (.hs) into an SVG image."
-    <> header "Glance - a visual representation of Haskell")
+    Dia.<> progDesc "Translate a Haskell source file (.hs) into an SVG image."
+    Dia.<> header "Glance - a visual representation of Haskell")
 
 main :: IO ()
 main = translateFileMain
