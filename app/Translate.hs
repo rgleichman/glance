@@ -1,4 +1,4 @@
-{-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeFamilies, TupleSections #-}
+{-# LANGUAGE NoMonomorphismRestriction, TupleSections #-}
 module Translate(
   translateStringToSyntaxGraph,
   translateStringToCollapsedGraphAndDecl,

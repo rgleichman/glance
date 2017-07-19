@@ -241,21 +241,24 @@ bestAngleForIcon :: (SpecialNum n, ING.Graph gr) =>
   -> Bool
   -> (Angle n, n)
 bestAngleForIcon positionMap graph key@(NodeName nodeId, _) reflected =
-  minimumBy (compare `on` snd) $ (\angle -> (angle, scoreAngle iconPosition edges reflected angle)) <$> fmap (@@ turn) [0,(1/24)..1] where
-  iconPosition = positionMap Map.! key
-  edges = getPositionAndAngles <$> fmap getSucEdge (ING.lsuc graph nodeId) <> fmap getPreEdge (ING.lpre graph nodeId)
-
-  getPositionAndAngles (node, nameAndPort) = (positionMap Map.! nodeLabel, portAngles) where
-    nodeLabel = fromMaybeError "getPositionAndAngles: node not found" $ ING.lab graph node
-    portAngles = findPortAngles key nameAndPort  
+  minimumBy (compare `on` snd) $ (\angle -> (angle, scoreAngle iconPosition edges reflected angle)) <$> fmap (@@ turn) possibleAngles
+  where
+    possibleAngles = [0,(1/24)..1]
+    -- possibleAngles = [0, 1/2] -- (uncomment this line and comment out the line above to disable rotation)
+    iconPosition = positionMap Map.! key
+    edges = getPositionAndAngles <$> fmap getSucEdge (ING.lsuc graph nodeId) <> fmap getPreEdge (ING.lpre graph nodeId)
+  
+    getPositionAndAngles (node, nameAndPort) = (positionMap Map.! nodeLabel, portAngles) where
+      nodeLabel = fromMaybeError "getPositionAndAngles: node not found" $ ING.lab graph node
+      portAngles = findPortAngles key nameAndPort  
 
   -- Edge points from id to otherNode
-  getSucEdge (otherNode, edge) = (otherNode, nameAndPort) where
-    (nameAndPort, _) = edgeConnection edge
+    getSucEdge (otherNode, edge) = (otherNode, nameAndPort) where
+      (nameAndPort, _) = edgeConnection edge
 
   -- Edge points from otherNode to id
-  getPreEdge (otherNode, edge) = (otherNode, nameAndPort) where
-    (_, nameAndPort) = edgeConnection edge
+    getPreEdge (otherNode, edge) = (otherNode, nameAndPort) where
+      (_, nameAndPort) = edgeConnection edge
 
 findIconRotation :: (SpecialNum n, ING.Graph gr) =>
   Map.Map (NodeName, Icon) (Point V2 n)
