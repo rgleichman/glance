@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MonoLocalBinds #-}
 module VisualRenderingTests (
   renderTests
   ) where
@@ -7,9 +8,9 @@ import Diagrams.Prelude hiding ((#), (&))
 
 import Rendering (renderDrawing)
 import Types (NodeName(..), Drawing(..), Edge, Icon(..), Port(..), EdgeEnd(..),
-              LikeApplyFlavor(..), SpecialQDiagram, SpecialBackend)
+              LikeApplyFlavor(..), SpecialQDiagram, SpecialBackend, NamedIcon(..))
 import Util(portToPort, iconToPort,
-            iconToIconEnds, iconTailToPort)
+            iconToIconEnds, iconTailToPort, tupleToNamedIcon)
 
 iconToIntPort :: NodeName -> NodeName -> Int -> Edge
 iconToIntPort x y p = iconToPort x y (Port p)
@@ -20,7 +21,7 @@ intPortToPort x1 port1 x2 port2 = portToPort x1 (Port port1) x2 (Port port2)
 drawing0 :: Drawing
 drawing0 = Drawing d0Icons d0Edges where
   [d0A, d0B, d0Res, d0Foo, d0Bar] = fmap NodeName [0..4] --["A", "B", "res", "foo", "bar"]
-  d0Icons =
+  d0Icons = fmap tupleToNamedIcon
     [(d0A, ApplyAIcon 1),
      (d0B, ApplyAIcon 1),
      (d0Res, CaseResultIcon),
@@ -45,7 +46,7 @@ fG0, fOne, fEq0, fMinus1, fEq0Ap, fMinus1Ap, fTimes, fRecurAp, fTimesAp, fArg, f
 
 fact0Drawing :: Drawing
 fact0Drawing = Drawing fact0Icons fact0Edges where
-  fact0Icons =
+  fact0Icons = fmap tupleToNamedIcon
     [
       (fG0, GuardIcon 2),
       (fOne, TextBoxIcon "1"),
@@ -75,8 +76,8 @@ fact0Drawing = Drawing fact0Icons fact0Edges where
     ]
 
 
-fact1Icons :: [(NodeName, Icon)]
-fact1Icons =
+fact1Icons :: [NamedIcon]
+fact1Icons = fmap tupleToNamedIcon
   [
   (fG0, GuardIcon 2),
   (fOne, TextBoxIcon "1"),
@@ -108,8 +109,8 @@ fact1Drawing = Drawing fact1Icons fact1Edges
 
 -- fact2 is like fact1, but uses fTimesAp port 2 to distrubute the argument,
 -- not fArg
-fact2Icons :: [(NodeName, Icon)]
-fact2Icons =
+fact2Icons :: [NamedIcon]
+fact2Icons = fmap tupleToNamedIcon
   [
   (fG0, GuardIcon 2),
   (fOne, TextBoxIcon "1"),
@@ -144,7 +145,7 @@ fact2Drawing = Drawing fact2Icons fact2Edges
 arrowTestDrawing :: Drawing
 arrowTestDrawing = Drawing arrowTestIcons arrowTestEdges where
   [arr1, arr2, arr3, arr4] = fmap NodeName [0..3] --["arr1", "arr2", "arr3", "arr4"]
-  arrowTestIcons = [
+  arrowTestIcons = fmap tupleToNamedIcon [
     (arr1, TextBoxIcon "1"),
     (arr2, TextBoxIcon "2"),
     (arr3, TextBoxIcon "3"),
@@ -160,19 +161,22 @@ arrowTestDrawing = Drawing arrowTestIcons arrowTestEdges where
 nestedTextDrawing :: Drawing
 nestedTextDrawing = Drawing nestedTestIcons nestedTestEdges where
   [n1, t1, t2, inner, t, n2, n3, foo, in1, n4] = fmap NodeName [0..9]
-  nestedTestIcons = [
+  nestedTestIcons = fmap tupleToNamedIcon [
     (n1, NestedApply ApplyNodeFlavor args),
     (t1, TextBoxIcon "T1"),
     (t2, TextBoxIcon "t2")
     ]
     where
-      innerArgs = [
+      innerArgs = fmap (fmap tupleToNamedIcon) [
         Just (inner, TextBoxIcon "inner"),
         Just (t, TextBoxIcon "t"),
         Nothing,
-        Just (n2, NestedApply ApplyNodeFlavor [Just (n4, TextBoxIcon "N4"), Nothing])
+        Just (n2,
+              NestedApply
+              ApplyNodeFlavor
+              (fmap (fmap tupleToNamedIcon) [Just (n4, TextBoxIcon "N4"), Nothing]))
         ]
-      args = [
+      args = fmap (fmap tupleToNamedIcon) [
         Just (n3, TextBoxIcon "n3"),
         Nothing,
         Just (foo, TextBoxIcon "3"),
@@ -187,33 +191,34 @@ nestedTextDrawing = Drawing nestedTestIcons nestedTestEdges where
     iconToIntPort t2 n2 2
     ]
 
+-- TODO refactor these Drawings
 nestedCaseDrawing :: Drawing
 nestedCaseDrawing = Drawing icons [] where
   [n0, n1, n2, n3, n4, n5, n6, n7, n8, n9] = fmap NodeName [0..9]
-  icons = [
+  icons = fmap tupleToNamedIcon [
     (n0, NestedCaseIcon [Nothing, Nothing, Nothing]),
-    (n1, NestedCaseIcon [Nothing, Just (n2, TextBoxIcon "n2"), Nothing]),
-    (n3, NestedCaseIcon [Nothing, Nothing, Just (n4, TextBoxIcon "n4")]),
+    (n1, NestedCaseIcon [Nothing, Just $ NamedIcon n2 (TextBoxIcon "n2"), Nothing]),
+    (n3, NestedCaseIcon [Nothing, Nothing, Just $ NamedIcon n4 (TextBoxIcon "n4")]),
     (n5, NestedCaseIcon [Nothing,
-                         Just (n6, TextBoxIcon "n6"),
-                         Just (n7, TextBoxIcon "n7"),
-                         Just (n8, TextBoxIcon "n8"),
-                         Just (n9, TextBoxIcon "n9")])
+                         Just $ NamedIcon n6 (TextBoxIcon "n6"),
+                         Just $ NamedIcon n7 (TextBoxIcon "n7"),
+                         Just $ NamedIcon n8 (TextBoxIcon "n8"),
+                         Just $ NamedIcon n9 (TextBoxIcon "n9")])
     ]
 
 nestedGuardDrawing :: Drawing
 nestedGuardDrawing = Drawing icons edges where
   [n0, n1, n2, n3, n4, n5, n6, n7, n8, n9, n10] = fmap NodeName [0..10]
-  icons = [
+  icons = fmap tupleToNamedIcon [
     (n10, TextBoxIcon "n10"),
     (n0, NestedGuardIcon [Nothing, Nothing, Nothing]),
-    (n1, NestedGuardIcon [Nothing, Just (n2, TextBoxIcon "n2"), Nothing]),
-    (n3, NestedGuardIcon [Nothing, Nothing, Just (n4, TextBoxIcon "n4")]),
+    (n1, NestedGuardIcon [Nothing, Just $ NamedIcon n2 (TextBoxIcon "n2"), Nothing]),
+    (n3, NestedGuardIcon [Nothing, Nothing, Just $ NamedIcon n4 (TextBoxIcon "n4")]),
     (n5, NestedGuardIcon [Nothing,
-                          Just (n6, TextBoxIcon "n6"),
-                          Just (n7, TextBoxIcon "n7"),
-                          Just (n8, TextBoxIcon "n8"),
-                          Just (n9, TextBoxIcon "n9")])
+                         Just $ NamedIcon n6 (TextBoxIcon "n6"),
+                         Just $ NamedIcon n7 (TextBoxIcon "n7"),
+                         Just $ NamedIcon n8 (TextBoxIcon "n8"),
+                         Just $ NamedIcon n9 (TextBoxIcon "n9")])
     ]
   edges = [
     iconToIntPort n10 n5 0
@@ -221,7 +226,7 @@ nestedGuardDrawing = Drawing icons edges where
 
 flatCaseDrawing :: Drawing
 flatCaseDrawing = Drawing icons edges where
-  icons = [
+  icons = fmap tupleToNamedIcon [
     (NodeName 0, CaseIcon 0),
     (NodeName 1, CaseIcon 1),
     (NodeName 2, CaseIcon 2)
@@ -230,7 +235,7 @@ flatCaseDrawing = Drawing icons edges where
 
 flatGuardDrawing :: Drawing
 flatGuardDrawing = Drawing icons edges where
-  icons = [
+  icons = fmap tupleToNamedIcon [
     (NodeName 1, GuardIcon 1),
     (NodeName 2, GuardIcon 2),
     (NodeName 3, GuardIcon 3)

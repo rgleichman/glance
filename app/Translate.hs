@@ -35,6 +35,8 @@ import Util(makeSimpleEdge, nameAndPort, justName)
 import Icons(inputPort, resultPort, argumentPorts, caseRhsPorts,
              casePatternPorts)
 
+{-# ANN module "HLint: ignore Use record patterns" #-}
+
 -- OVERVIEW --
 -- The core functions and data types used in this module are in TranslateCore.
 -- The TranslateCore also contains most/all of the translation functions that
@@ -734,7 +736,7 @@ matchesToCase firstMatch@(Match srcLoc funName pats _ _) restOfMatches = do
     allMatches = firstMatch:restOfMatches
     alts = fmap matchToAlt allMatches
 
-evalMatch :: Show l => EvalContext -> (Match l) -> State IDState SyntaxGraph
+evalMatch :: Show l => EvalContext -> Match l -> State IDState SyntaxGraph
 evalMatch c (Match _ name patterns rhs maybeWhereBinds) = do
   let
     matchFunNameString = nameToString name

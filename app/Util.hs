@@ -19,7 +19,9 @@ module Util (
   mapNodeInNamedNode,
   sgNamedNodeToSyntaxNode,
   nodeNameToInt,
-  customRenderSVG
+  customRenderSVG,
+  namedIconToTuple,
+  tupleToNamedIcon
 )where
 
 import Diagrams.Backend.SVG(renderSVG', Options(..), SVG)
@@ -34,7 +36,7 @@ import Data.Text(pack)
 import Data.Typeable(Typeable)
 
 import Types(EdgeEnd(..), Edge(..), NameAndPort(..), Connection, NodeName(..), Port,
-             SyntaxNode, SgNamedNode(..))
+             SyntaxNode, SgNamedNode(..), NamedIcon(..), Icon(..))
 
 mapFst :: Functor f => (a -> b) -> f (a, c) -> f (b, c)
 mapFst f = fmap (first f)
@@ -89,8 +91,8 @@ eitherToMaybes (Right y) = (Nothing, Just y)
 maybeBoolToBool :: Maybe Bool -> Bool
 maybeBoolToBool = or
 
-mapNodeInNamedNode :: (SyntaxNode -> a) -> SgNamedNode -> (NodeName, a)
-mapNodeInNamedNode f (SgNamedNode name node) = (name, f node)
+mapNodeInNamedNode :: (SyntaxNode -> Icon) -> SgNamedNode -> NamedIcon
+mapNodeInNamedNode f (SgNamedNode name node) = NamedIcon name (f node)
 
 sgNamedNodeToSyntaxNode :: SgNamedNode -> SyntaxNode
 sgNamedNodeToSyntaxNode (SgNamedNode _ n) = n
@@ -98,6 +100,11 @@ sgNamedNodeToSyntaxNode (SgNamedNode _ n) = n
 nodeNameToInt :: NodeName -> Int
 nodeNameToInt (NodeName x) = x
 
+namedIconToTuple :: NamedIcon -> (NodeName, Icon)
+namedIconToTuple (NamedIcon x y) = (x, y)
+
+tupleToNamedIcon :: (NodeName, Icon) -> NamedIcon
+tupleToNamedIcon (x, y) = NamedIcon x y
 
 customRenderSVG :: (Typeable n, Show n, RealFloat n) =>
   FilePath

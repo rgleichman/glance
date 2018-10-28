@@ -7,7 +7,7 @@ license:             GPL-3
 license-file:        LICENSE
 author:              Robbie Gleichman
 maintainer:          rgleichman@gmail.com
-copyright:           2016 Robbie Gleichman
+copyright:           2018 Robbie Gleichman
 category:            Visual Programming
 build-type:          Simple
 -- extra-source-files:

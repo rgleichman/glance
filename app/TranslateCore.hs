@@ -40,9 +40,11 @@ import Data.Semigroup(Semigroup, (<>))
 
 import Types(Icon, SyntaxNode(..), Edge(..), EdgeOption(..),
   NameAndPort(..), IDState, SgNamedNode(..), NodeName(..), Port,
-  LikeApplyFlavor(..), CaseOrGuardTag(..), IDState(..))
-import Util(noEnds, nameAndPort, makeSimpleEdge, justName, maybeBoolToBool, mapNodeInNamedNode, nodeNameToInt)
+  LikeApplyFlavor(..), CaseOrGuardTag(..), IDState(..), NamedIcon(..))
+import Util(noEnds, nameAndPort, makeSimpleEdge, justName, maybeBoolToBool, mapNodeInNamedNode, nodeNameToInt, tupleToNamedIcon)
 import Icons(Icon(..), inputPort, resultPort, argumentPorts, guardRhsPorts, guardBoolPorts)
+
+{-# ANN module "HLint: ignore Use list comprehension" #-}
 
 -- OVERVIEW --
 -- This module has the core functions and data types used by Translate.
@@ -258,10 +260,10 @@ nodeToIcon (CaseNode n) = CaseIcon n
 nodeToIcon CaseResultNode = CaseResultIcon
 nodeToIcon (NestedCaseOrGuardNode tag x edges) = nestedCaseOrGuardNodeToIcon tag x edges
 
-makeArg :: [(SgNamedNode, Edge)] -> Port -> Maybe (NodeName, Icon)
+makeArg :: [(SgNamedNode, Edge)] -> Port -> Maybe NamedIcon
 makeArg args port = case find (findArg port) args of
   Nothing -> Nothing
-  Just (SgNamedNode argName argSyntaxNode, _) -> Just (argName, nodeToIcon argSyntaxNode)
+  Just (SgNamedNode argName argSyntaxNode, _) -> Just $ NamedIcon argName (nodeToIcon argSyntaxNode)
 
 nestedApplySyntaxNodeToIcon :: LikeApplyFlavor -> Int -> [(SgNamedNode, Edge)] -> Icon
 nestedApplySyntaxNodeToIcon flavor numArgs args = NestedApply flavor argList where
@@ -281,7 +283,7 @@ nestedCaseOrGuardNodeToIcon tag numArgs args = case tag of
 
 nestedPatternNodeToIcon :: String -> [(Maybe SgNamedNode, String)] -> Icon
 nestedPatternNodeToIcon str children = NestedPApp $
-  (Just (NodeName (-1), TextBoxIcon str), "")
+  (Just (NamedIcon (NodeName (-1)) (TextBoxIcon str)), "")
   :
   fmap (Arrow.first $ fmap (mapNodeInNamedNode nodeToIcon)) children
 

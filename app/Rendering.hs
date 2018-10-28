@@ -29,8 +29,8 @@ import Icons(colorScheme, iconToDiagram, defaultLineWidth, ColorStyle(..), getPo
 import TranslateCore(nodeToIcon)
 import Types(Edge(..), Icon, EdgeOption(..), Drawing(..), EdgeEnd(..),
   NameAndPort(..), SpecialQDiagram, SpecialBackend, SpecialNum, NodeName(..), Port(..),
-  SgNamedNode)
-import Util(fromMaybeError, mapNodeInNamedNode)
+  SgNamedNode, NamedIcon(..))
+import Util(fromMaybeError, mapNodeInNamedNode, namedIconToTuple, tupleToNamedIcon)
 
 -- If the inferred types for these functions becomes unweildy,
 -- try using PartialTypeSignitures.
@@ -55,16 +55,20 @@ drawingToGraphvizScaleFactor = 0.15
 
 -- TODO Refactor with syntaxGraphToFglGraph in TranslateCore
 -- TODO Make this work with nested icons now that names are not qualified.
-drawingToIconGraph :: Drawing -> Gr (NodeName, Icon) Edge
+drawingToIconGraph :: Drawing -> Gr NamedIcon Edge
 drawingToIconGraph (Drawing nodes edges) =
   mkGraph nodes labeledEdges where
     labeledEdges = fmap makeLabeledEdge edges
     makeLabeledEdge e@(Edge _ _ (NameAndPort n1 _, NameAndPort n2 _)) =
-      ((n1, lookupInNodes n1), (n2, lookupInNodes n2), e) where
-        lookupInNodes name = fromMaybeError errorString (lookup name nodes) where
-          errorString =
-            "syntaxGraphToFglGraph edge connects to non-existent node. Node NodeName ="
-            ++ show name ++ " Edge=" ++ show e
+      (NamedIcon n1 (lookupInNodes n1), NamedIcon n2 (lookupInNodes n2), e)
+      where
+        lookupInNodes name = fromMaybeError
+                             errorString
+                             (lookup name (fmap namedIconToTuple nodes))
+          where
+            errorString =
+              "syntaxGraphToFglGraph edge connects to non-existent node. Node NodeName ="
+              ++ show name ++ " Edge=" ++ show e
 
 
 -- | Custom arrow tail for the arg1 result circle.
@@ -134,8 +138,8 @@ nameAndPortToName (NameAndPort name mPort) = case mPort of
   Nothing -> toName name
   Just port -> name .> port
 
-findPortAngles :: SpecialNum n => (NodeName, Icon) -> NameAndPort -> [Angle n]
-findPortAngles (nodeName, nodeIcon) (NameAndPort diaName mPort) = case mPort of
+findPortAngles :: SpecialNum n => NamedIcon -> NameAndPort -> [Angle n]
+findPortAngles (NamedIcon nodeName nodeIcon) (NameAndPort diaName mPort) = case mPort of
   Nothing -> []
   Just port -> foundAngles where
     mName = if nodeName == diaName then Nothing else Just diaName
@@ -173,13 +177,13 @@ smallestAngleDiff (nodeFlip, nodeAngle) target angles = case angles of
         (+) <$> angle <*> nodeAngle
 
 
-lookupNodeAngle ::  Show n => [((NodeName, Icon), (Bool, Angle n))] -> (NodeName, Icon) -> (Bool, Angle n)
+lookupNodeAngle ::  Show n => [(NamedIcon, (Bool, Angle n))] -> NamedIcon -> (Bool, Angle n)
 lookupNodeAngle rotationMap key =
   fromMaybeError ("nodeVector: key not in rotaionMap. key = " ++ show key ++ "\n\n rotationMap = " ++ show rotationMap)
   $ lookup key rotationMap
 
 makeEdge :: (SpecialBackend b n, ING.Graph gr) =>
-  gr (NodeName, Icon) Edge -> SpecialQDiagram b n -> [((NodeName, Icon), (Bool, Angle n))] ->
+  gr NamedIcon Edge -> SpecialQDiagram b n -> [(NamedIcon, (Bool, Angle n))] ->
   ING.LEdge Edge -> SpecialQDiagram b n -> SpecialQDiagram b n
 makeEdge graph dia rotationMap (node0, node1, edge@(Edge _ _ (namePort0, namePort1))) =
   connectMaybePorts portAngles edge
@@ -211,7 +215,7 @@ makeEdge graph dia rotationMap (node0, node1, edge@(Edge _ _ (namePort0, namePor
 
 -- | addEdges draws the edges underneath the nodes.
 addEdges :: (SpecialBackend b n, ING.Graph gr) =>
-  gr (NodeName, Icon) Edge -> (SpecialQDiagram b n, [((NodeName, Icon), (Bool, Angle n))]) -> SpecialQDiagram b n
+  gr NamedIcon Edge -> (SpecialQDiagram b n, [(NamedIcon, (Bool, Angle n))]) -> SpecialQDiagram b n
 addEdges graph (dia, rotationMap) = dia <> applyAll connections dia
   where
     connections = makeEdge graph dia rotationMap <$> ING.labEdges graph
@@ -235,12 +239,12 @@ scoreAngle iconPosition edges reflected angle = sum $ (^(2 :: Int)) <$> fmap edg
     angleDiff = smallestAngleDiff (reflected, angle) shaftAngle portAngles
 
 bestAngleForIcon :: (SpecialNum n, ING.Graph gr) =>
-  Map.Map (NodeName, Icon) (Point V2 n)
-  -> gr (NodeName, Icon) Edge
-  -> (NodeName, Icon)
+  Map.Map NamedIcon (Point V2 n)
+  -> gr NamedIcon Edge
+  -> NamedIcon
   -> Bool
   -> (Angle n, n)
-bestAngleForIcon positionMap graph key@(NodeName nodeId, _) reflected =
+bestAngleForIcon positionMap graph key@(NamedIcon (NodeName nodeId) _) reflected =
   minimumBy (compare `on` snd) $ (\angle -> (angle, scoreAngle iconPosition edges reflected angle)) <$> fmap (@@ turn) possibleAngles
   where
     possibleAngles = [0,(1/24)..1]
@@ -261,10 +265,10 @@ bestAngleForIcon positionMap graph key@(NodeName nodeId, _) reflected =
       (_, nameAndPort) = edgeConnection edge
 
 findIconRotation :: (SpecialNum n, ING.Graph gr) =>
-  Map.Map (NodeName, Icon) (Point V2 n)
-  -> gr (NodeName, Icon) Edge
-  -> (NodeName, Icon)
-  -> ((NodeName, Icon), (Bool, Angle n))
+  Map.Map NamedIcon (Point V2 n)
+  -> gr NamedIcon Edge
+  -> NamedIcon
+  -> (NamedIcon, (Bool, Angle n))
 findIconRotation positionMap graph key = (key, (reflected, angle)) where
   -- Smaller scores are better
   (reflectedAngle, reflectedScore) = bestAngleForIcon positionMap graph key True
@@ -273,19 +277,19 @@ findIconRotation positionMap graph key = (key, (reflected, angle)) where
   angle = if reflected then reflectedAngle else nonReflectedAngle
 
 rotateNodes :: (SpecialNum n, ING.Graph gr) =>
-  Map.Map (NodeName, Icon) (Point V2 n)
-  -> gr (NodeName, Icon) Edge
-  -> [((NodeName, Icon), (Bool, Angle n))]
+  Map.Map NamedIcon (Point V2 n)
+  -> gr NamedIcon Edge
+  -> [(NamedIcon, (Bool, Angle n))]
 rotateNodes positionMap graph = findIconRotation positionMap graph <$> Map.keys positionMap
 
 -- END rotateNodes --
 
-type LayoutResult a b = Gr (GV.AttributeNode (NodeName, b)) (GV.AttributeNode a)
+type LayoutResult a = Gr (GV.AttributeNode NamedIcon) (GV.AttributeNode a)
 
 placeNodes :: forall a b gr. (SpecialBackend b Double, ING.Graph gr) =>
-   LayoutResult a Icon
-   -> gr (NodeName, Icon) Edge
-   -> (SpecialQDiagram b Double, [((NodeName, Icon), (Bool, Angle Double))])
+   LayoutResult a
+   -> gr NamedIcon Edge
+   -> (SpecialQDiagram b Double, [(NamedIcon, (Bool, Angle Double))])
 placeNodes layoutResult graph = (mconcat placedNodes, rotationMap)
   where
     positionMap = fst $ getGraph layoutResult
@@ -294,7 +298,7 @@ placeNodes layoutResult graph = (mconcat placedNodes, rotationMap)
     placedNodes = fmap placeNode rotationMap
 
     -- todo: Not sure if the diagrams should already be centered at this point.
-    placeNode (key@(name, icon), (reflected, angle)) = place transformedDia diaPosition where
+    placeNode (key@(NamedIcon name icon), (reflected, angle)) = place transformedDia diaPosition where
       origDia = iconToDiagram icon name 0 reflected angle
       transformedDia = centerXY $ rotate angle $ (if reflected then reflectX else id) origDia
       diaPosition = graphvizScaleFactor *^ (positionMap Map.! key)
@@ -320,20 +324,20 @@ customLayoutParams = GV.defaultParams{
 
 doGraphLayout :: forall b.
   SpecialBackend b Double =>
-  Gr (NodeName, Icon) Edge
+  Gr NamedIcon Edge
   -> IO (SpecialQDiagram b Double)
 doGraphLayout graph = do
   layoutResult <- layoutGraph' layoutParams GVA.Neato graph
   --  layoutResult <- layoutGraph' layoutParams GVA.Fdp graph
   pure $ addEdges graph $ placeNodes layoutResult graph
   where
-    layoutParams :: GV.GraphvizParams Int (NodeName,Icon) e () (NodeName,Icon)
+    layoutParams :: GV.GraphvizParams Int NamedIcon e () NamedIcon
     --layoutParams :: GV.GraphvizParams Int l el Int l
     layoutParams = customLayoutParams{
       GV.fmtNode = nodeAttribute
       }
-    nodeAttribute :: (Int, (NodeName, Icon)) -> [GV.Attribute]
-    nodeAttribute (_, (_, nodeIcon)) =
+    nodeAttribute :: (Int, NamedIcon) -> [GV.Attribute]
+    nodeAttribute (_, NamedIcon _ nodeIcon) =
       -- GVA.Width and GVA.Height have a minimum of 0.01
       --[GVA.Width diaWidth, GVA.Height diaHeight]
       [GVA.Width circleDiameter, GVA.Height circleDiameter]
@@ -359,5 +363,5 @@ renderIngSyntaxGraph ::
   Gr SgNamedNode Edge -> IO (SpecialQDiagram b Double)
 renderIngSyntaxGraph = renderIconGraph . ING.nmap (mapNodeInNamedNode nodeToIcon)
 
-renderIconGraph :: SpecialBackend b Double => Gr (NodeName, Icon) Edge -> IO (SpecialQDiagram b Double)
+renderIconGraph :: SpecialBackend b Double => Gr NamedIcon Edge -> IO (SpecialQDiagram b Double)
 renderIconGraph = doGraphLayout

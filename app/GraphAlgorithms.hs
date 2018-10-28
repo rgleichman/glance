@@ -16,6 +16,7 @@ import Types(SyntaxNode(..), IngSyntaxGraph, Edge(..),
             CaseOrGuardTag(..), Port(..), NameAndPort(..), SgNamedNode(..))
 import Util(maybeBoolToBool, sgNamedNodeToSyntaxNode)
 --import Util(printSelf)
+{-# ANN module "HLint: ignore Use record patterns" #-}
 
 -- See graph_algs.txt for pseudocode
 

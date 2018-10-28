@@ -1,6 +1,7 @@
 {-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, ConstraintKinds #-}
 
 module Types (
+  NamedIcon(..),
   Icon(..),
   SyntaxNode(..),
   NodeName(..),
@@ -26,6 +27,9 @@ import Diagrams.TwoD.Text(Text)
 
 import Data.Typeable(Typeable)
 
+data NamedIcon = NamedIcon {niName :: NodeName, niIcon :: Icon}
+  deriving (Show, Eq, Ord)
+
 -- TYPES --
 -- | A datatype that represents an icon.
 -- The TextBoxIcon's data is the text that appears in the text box.
@@ -35,11 +39,13 @@ data Icon = TextBoxIcon String | GuardIcon Int
   | FlatLambdaIcon [String] | ApplyAIcon Int | ComposeIcon Int
   | PAppIcon Int String | CaseIcon Int | CaseResultIcon
   | BindTextBoxIcon String
-  -- TODO: NestedApply should have the type NestedApply (Maybe (Name, Icon)) [Maybe (Name, Icon)]
-  | NestedApply LikeApplyFlavor [Maybe (NodeName, Icon)]
-  | NestedPApp [(Maybe (NodeName, Icon), String)]
-  | NestedCaseIcon [Maybe (NodeName, Icon)]
-  | NestedGuardIcon [Maybe (NodeName, Icon)]
+  -- TODO: NestedApply should have the type NestedApply (Maybe NamedIcon) [Maybe NamedIcon]
+  | NestedApply
+    LikeApplyFlavor  -- apply or compose
+    [Maybe NamedIcon]  -- list of arguments or functions
+  | NestedPApp [(Maybe NamedIcon, String)]
+  | NestedCaseIcon [Maybe NamedIcon]
+  | NestedGuardIcon [Maybe NamedIcon]
   deriving (Show, Eq, Ord)
 
 data LikeApplyFlavor = ApplyNodeFlavor | ComposeNodeFlavor deriving (Show, Eq, Ord)
@@ -84,7 +90,7 @@ data EdgeEnd = EndAp1Result | EndAp1Arg | EndNone deriving (Show, Eq, Ord)
 
 -- | A drawing is a map from names to Icons, a list of edges,
 -- and a map of names to subDrawings
-data Drawing = Drawing [(NodeName, Icon)] [Edge] deriving (Show, Eq)
+data Drawing = Drawing [NamedIcon] [Edge] deriving (Show, Eq)
 
 data SgNamedNode = SgNamedNode NodeName SyntaxNode deriving (Ord, Eq, Show)
 

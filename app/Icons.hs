@@ -28,9 +28,12 @@ import Data.Either(partitionEithers)
 import Data.List(find)
 import Data.Maybe(catMaybes, listToMaybe, isJust, fromJust)
 
-import Types(Icon(..), SpecialQDiagram, SpecialBackend, SpecialNum, NodeName, Port(..), LikeApplyFlavor(..),
-            SyntaxNode(..))
+import Types(Icon(..), SpecialQDiagram, SpecialBackend, SpecialNum
+            , NodeName, Port(..), LikeApplyFlavor(..),
+            SyntaxNode(..), NamedIcon(..))
 import DrawingColors(colorScheme, ColorStyle(..))
+
+{-# ANN module "HLint: ignore Use record patterns" #-}
 
 -- TYPES --
 -- | A TransformableDia is a function that returns a diagram for an icon when given
@@ -97,21 +100,21 @@ findNestedIcon name icon = case icon of
   NestedPApp args -> snd <$> findIcon name (fmap fst args)
   _ -> Nothing
 
-findIcon :: NodeName -> [Maybe (NodeName, Icon)] -> Maybe (Int, Icon)
+findIcon :: NodeName -> [Maybe NamedIcon] -> Maybe (Int, Icon)
 findIcon name args = icon where
   numberedArgs = zip ([0,1..] :: [Int]) args
   filteredArgs = Arrow.second fromJust <$> filter (isJust . snd) numberedArgs
-  nameMatches (_, (n, _)) = n == name
+  nameMatches (_, NamedIcon n _) = n == name
   icon = case find nameMatches filteredArgs of
     Nothing -> listToMaybe $ catMaybes $ fmap findSubSubIcon filteredArgs
-    Just (argNum, (_, finalIcon)) -> Just (argNum, finalIcon)
+    Just (argNum, NamedIcon _ finalIcon) -> Just (argNum, finalIcon)
     where
-      findSubSubIcon (argNum, (_, subIcon)) = case findNestedIcon name subIcon of
+      findSubSubIcon (argNum, NamedIcon _ subIcon) = case findNestedIcon name subIcon of
         Nothing -> Nothing
         Just x -> Just (argNum, x)
 
 generalNestedPortAngles :: SpecialNum n =>
-  (Port -> [Angle n]) -> [Maybe (NodeName, Icon)] -> Port -> Maybe NodeName -> [Angle n]
+  (Port -> [Angle n]) -> [Maybe NamedIcon] -> Port -> Maybe NodeName -> [Angle n]
 generalNestedPortAngles defaultAngles args port maybeNodeName = case maybeNodeName of
   Nothing -> defaultAngles port
   Just name -> case findIcon name args of
@@ -124,7 +127,7 @@ reflectXAngle x = reflectedAngle where
   reflectedAngle = (-) <$> halfTurn <*> normalizedAngle
 
 -- TODO reflect the angles for the right side sub-icons
-nestedGuardPortAngles :: SpecialNum n => [Maybe (NodeName, Icon)] -> Port -> Maybe NodeName -> [Angle n]
+nestedGuardPortAngles :: SpecialNum n => [Maybe NamedIcon] -> Port -> Maybe NodeName -> [Angle n]
 nestedGuardPortAngles args port maybeNodeName = case maybeNodeName of
   Nothing -> guardPortAngles port
   Just name -> case findIcon name args of
@@ -290,7 +293,7 @@ generalTextAppDia textCol borderCol numArgs str name _ reflect angle = nameDiagr
 
 -- TODO Refactor with generalNestedDia
 nestedPAppDia :: SpecialBackend b n =>
-  [Colour Double] -> [(Maybe (NodeName, Icon), String)] -> TransformableDia b n
+  [Colour Double] -> [(Maybe NamedIcon, String)] -> TransformableDia b n
 nestedPAppDia borderCols funcNodeNameAndArgs name nestingLevel reflect angle = named name $ case funcNodeNameAndArgs of
   [] -> mempty
   (maybeFunText:args) -> centerXY $ centerY finalDia ||| transformedText ||| resultCircleAndPort
@@ -307,21 +310,21 @@ nestedPAppDia borderCols funcNodeNameAndArgs name nestingLevel reflect angle = n
         rotate quarterTurn (apply0Triangle borderCol) :
         zipWith (makeInnerIcon False) argPortsConst args
 
-  
+
       allPorts = makeQualifiedPort name inputPortConst <> alignT triangleAndPorts -- alignL (strutX separation ||| trianglePortsCircle)
       topAndBottomLineWidth = width allPorts
-      -- boxHeight = height 
+      -- boxHeight = height
       argBox = alignT $ lwG defaultLineWidth $ lc borderCol $ roundedRect topAndBottomLineWidth (height allPorts + verticalSeparation) (circleRadius * 0.5)
       finalDia = argBox <> allPorts
 
       makeInnerIcon _ portNum (Nothing, str) = centerX $ makeLabelledPort name reflect angle str portNum
-      makeInnerIcon True _ ((Just (_, TextBoxIcon t)), _) = transformCorrectedTextBox t (textBoxTextC colorScheme) borderCol reflect angle
-      makeInnerIcon func _ ((Just (iconNodeName, icon)), _) = iconToDiagram icon iconNodeName innerLevel reflect angle where
+      makeInnerIcon True _ (Just (NamedIcon _ (TextBoxIcon t)), _) = transformCorrectedTextBox t (textBoxTextC colorScheme) borderCol reflect angle
+      makeInnerIcon func _ (Just (NamedIcon iconNodeName icon), _) = iconToDiagram icon iconNodeName innerLevel reflect angle where
         innerLevel = if func then nestingLevel else nestingLevel + 1
-  
+
 
 generalNestedDia :: SpecialBackend b n =>
-  (Colour Double -> SpecialQDiagram b n) -> [Colour Double] -> [Maybe (NodeName, Icon)] -> TransformableDia b n
+  (Colour Double -> SpecialQDiagram b n) -> [Colour Double] -> [Maybe NamedIcon] -> TransformableDia b n
 generalNestedDia dia borderCols funcNodeNameAndArgs name nestingLevel reflect angle = named name $ case funcNodeNameAndArgs of
   [] -> mempty
   (maybeFunText:args) -> centerXY $  transformedText ||| centerY finalDia
@@ -337,19 +340,19 @@ generalNestedDia dia borderCols funcNodeNameAndArgs name nestingLevel reflect an
         reflectX (dia borderCol) :
         zipWith (makeInnerIcon False) argPortsConst args ++
         [makeQualifiedPort name resultPortConst <> alignR (lc borderCol $ lwG defaultLineWidth $ fc borderCol $ circle circleRadius)]
-  
+
       allPorts = makeQualifiedPort name inputPortConst <> alignL trianglePortsCircle
       topAndBottomLineWidth = width allPorts - circleRadius
       argBox = alignL $ lwG defaultLineWidth $ lc borderCol $ roundedRect topAndBottomLineWidth (height allPorts + verticalSeperation) (circleRadius * 0.5)
       finalDia = argBox <> allPorts
 
       makeInnerIcon _ portNum Nothing = makeQualifiedPort name portNum <> portCircle
-      makeInnerIcon True _ (Just (_, TextBoxIcon t)) = transformCorrectedTextBox t (textBoxTextC colorScheme) borderCol reflect angle
-      makeInnerIcon func _ (Just (iconNodeName, icon)) = iconToDiagram icon iconNodeName innerLevel reflect angle where
+      makeInnerIcon True _ (Just (NamedIcon _ (TextBoxIcon t))) = transformCorrectedTextBox t (textBoxTextC colorScheme) borderCol reflect angle
+      makeInnerIcon func _ (Just (NamedIcon iconNodeName icon)) = iconToDiagram icon iconNodeName innerLevel reflect angle where
         innerLevel = if func then nestingLevel else nestingLevel + 1
 
 nestedApplyDia :: SpecialBackend b n =>
-  LikeApplyFlavor -> [Maybe (NodeName, Icon)] -> TransformableDia b n
+  LikeApplyFlavor -> [Maybe NamedIcon] -> TransformableDia b n
 nestedApplyDia flavor = case flavor of
   ApplyNodeFlavor -> generalNestedDia apply0Triangle (nestingC colorScheme)
   ComposeNodeFlavor -> generalNestedDia composeSemiCircle (repeat $ apply1C colorScheme)
@@ -452,12 +455,20 @@ guardTriangle portDia =
 -- 1 -> bottom
 -- odds -> left
 -- evens -> right
-generalNestedGuard :: SpecialBackend b n =>
-  Colour Double -> (SpecialQDiagram b n -> SpecialQDiagram b n) -> SpecialQDiagram b n -> [Maybe (NodeName, Icon)] -> TransformableDia b n
+generalNestedGuard :: SpecialBackend b n
+                   => Colour Double
+                   -> (SpecialQDiagram b n -> SpecialQDiagram b n)
+                   -> SpecialQDiagram b n
+                   -> [Maybe NamedIcon]
+                   -> TransformableDia b n
 generalNestedGuard triangleColor lBracket bottomDia inputAndArgs name nestingLevel reflect angle = named name $ case inputAndArgs of
   [] -> mempty
   input : args -> centerXY finalDia where
-    finalDia = alignT (bottomDia <> makeQualifiedPort name resultPortConst) <> alignB (inputIcon === (bigVerticalLine <> guardDia <> makeQualifiedPort name inputPortConst))
+    finalDia = alignT (bottomDia <> makeQualifiedPort name resultPortConst)
+               <> alignB
+               (inputIcon === (bigVerticalLine
+                               <> guardDia
+                               <> makeQualifiedPort name inputPortConst))
 
     iconMapper (Port portNum) arg
       | even portNum = Right $ guardTriangle port ||| makeInnerIcon True arg
@@ -475,13 +486,13 @@ generalNestedGuard triangleColor lBracket bottomDia inputAndArgs name nestingLev
         verticalLine = strutY 0.4
 
     inputIcon = makeInnerIcon False input
-    
+
     guardDia = vcat (alignT trianglesAndBrackets)
     bigVerticalLine = alignT $ lwG defaultLineWidth $ lc triangleColor $ vrule (height guardDia)
 
     makeInnerIcon innerReflected mNameAndIcon = case mNameAndIcon of
       Nothing -> mempty
-      Just (iconNodeName, icon) -> if innerReflected
+      Just (NamedIcon iconNodeName icon) -> if innerReflected
         then reflectX dia
         else dia
         where
@@ -499,7 +510,7 @@ guardLBracket portDia = alignL (alignT ell) <> portDia
 -- resultPortConst: Bottom result port
 -- Ports 3,5...: The left ports for the booleans
 -- Ports 2,4...: The right ports for the values
-nestedGuardDia :: SpecialBackend b n => [Maybe (NodeName, Icon)] -> TransformableDia b n
+nestedGuardDia :: SpecialBackend b n => [Maybe NamedIcon] -> TransformableDia b n
 nestedGuardDia = generalNestedGuard lineCol guardLBracket mempty
 
 -- TODO Improve design to be more than a circle.
@@ -518,7 +529,7 @@ caseC portDia = caseResult <> portDia
 -- resultPortConst: Bottom result port
 -- Ports 3,5...: The left ports for the results
 -- Ports 2,4...: The right ports for the patterns
-nestedCaseDia :: SpecialBackend b n => [Maybe (NodeName, Icon)] -> TransformableDia b n
+nestedCaseDia :: SpecialBackend b n => [Maybe NamedIcon] -> TransformableDia b n
 nestedCaseDia = generalNestedGuard (patternC colorScheme) caseC caseResult
 
 -- END Guard and case icons
