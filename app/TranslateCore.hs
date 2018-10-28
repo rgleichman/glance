@@ -265,12 +265,17 @@ makeArg args port = case find (findArg port) args of
   Nothing -> Nothing
   Just (SgNamedNode argName argSyntaxNode, _) -> Just $ NamedIcon argName (nodeToIcon argSyntaxNode)
 
-nestedApplySyntaxNodeToIcon :: LikeApplyFlavor -> Int -> [(SgNamedNode, Edge)] -> Icon
-nestedApplySyntaxNodeToIcon flavor numArgs args = NestedApply flavor argList where
-  -- argList should be of length numArgs + 1, since argList includes the function expression
-  dummyNode = LikeApplyNode flavor numArgs
-  argPorts = take numArgs (argumentPorts dummyNode)
-  argList = fmap (makeArg args) (inputPort dummyNode : argPorts)
+nestedApplySyntaxNodeToIcon :: LikeApplyFlavor
+                            -> Int
+                            -> [(SgNamedNode, Edge)]
+                            -> Icon
+nestedApplySyntaxNodeToIcon flavor numArgs args =
+  NestedApply flavor headIcon argList
+  where
+    dummyNode = LikeApplyNode flavor numArgs
+    argPorts = take numArgs (argumentPorts dummyNode)
+    headIcon = makeArg args (inputPort dummyNode)
+    argList = fmap (makeArg args) argPorts
 
 nestedCaseOrGuardNodeToIcon :: CaseOrGuardTag -> Int -> [(SgNamedNode, Edge)] -> Icon
 nestedCaseOrGuardNodeToIcon tag numArgs args = case tag of

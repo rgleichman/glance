@@ -57,8 +57,10 @@ lineCol = lineC colorScheme
 
 iconToDiagram :: SpecialBackend b n => Icon -> TransformableDia b n
 iconToDiagram icon = case icon of
-  ApplyAIcon n -> nestedApplyDia ApplyNodeFlavor $ replicate (1 + n) Nothing
-  ComposeIcon n -> nestedApplyDia ComposeNodeFlavor $ replicate (1 + n) Nothing
+  ApplyAIcon n ->
+    nestedApplyDia ApplyNodeFlavor Nothing $ replicate (1 + n) Nothing
+  ComposeIcon n ->
+    nestedApplyDia ComposeNodeFlavor Nothing $ replicate (1 + n) Nothing
   PAppIcon n str -> generalTextAppDia (patternTextC colorScheme) (patternC colorScheme) n str
   TextBoxIcon s -> textBox s
   BindTextBoxIcon s -> identDiaFunc $ bindTextBox s
@@ -66,7 +68,7 @@ iconToDiagram icon = case icon of
   CaseIcon n -> nestedCaseDia $ replicate (1 + (2 * n)) Nothing
   CaseResultIcon -> identDiaFunc caseResult
   FlatLambdaIcon x -> flatLambda x
-  NestedApply flavor args -> nestedApplyDia flavor args
+  NestedApply flavor headIcon args -> nestedApplyDia flavor headIcon args
   NestedPApp args -> nestedPAppDia (repeat $ patternC colorScheme) args
   NestedCaseIcon args -> nestedCaseDia args
   NestedGuardIcon args -> nestedGuardDia args
@@ -96,7 +98,7 @@ guardPortAngles (Port port) = case port of
 
 findNestedIcon :: NodeName -> Icon -> Maybe Icon
 findNestedIcon name icon = case icon of
-  NestedApply _ args -> snd <$> findIcon name args
+  NestedApply _ headIcon args -> snd <$> findIcon name (headIcon : args)
   NestedPApp args -> snd <$> findIcon name (fmap fst args)
   _ -> Nothing
 
@@ -113,13 +115,17 @@ findIcon name args = icon where
         Nothing -> Nothing
         Just x -> Just (argNum, x)
 
-generalNestedPortAngles :: SpecialNum n =>
-  (Port -> [Angle n]) -> [Maybe NamedIcon] -> Port -> Maybe NodeName -> [Angle n]
-generalNestedPortAngles defaultAngles args port maybeNodeName = case maybeNodeName of
-  Nothing -> defaultAngles port
-  Just name -> case findIcon name args of
-    Nothing -> []
-    Just (_, icon) -> getPortAngles icon port Nothing
+generalNestedPortAngles :: SpecialNum n
+                        => (Port -> [Angle n])
+                        -> Maybe NamedIcon
+                        -> [Maybe NamedIcon]
+                        -> Port -> Maybe NodeName -> [Angle n]
+generalNestedPortAngles defaultAngles headIcon args port maybeNodeName =
+  case maybeNodeName of
+    Nothing -> defaultAngles port
+    Just name -> case findIcon name (headIcon : args) of
+      Nothing -> []
+      Just (_, icon) -> getPortAngles icon port Nothing
 
 reflectXAngle :: SpecialNum n => Angle n -> Angle n
 reflectXAngle x = reflectedAngle where
@@ -152,8 +158,11 @@ getPortAngles icon port maybeNodeName = case icon of
   CaseIcon _ -> guardPortAngles port
   CaseResultIcon -> []
   FlatLambdaIcon _ -> applyPortAngles port
-  NestedApply _ args -> generalNestedPortAngles applyPortAngles args port maybeNodeName
-  NestedPApp args -> generalNestedPortAngles pAppPortAngles (fmap fst args) port maybeNodeName
+  NestedApply _ headIcon args ->
+    generalNestedPortAngles applyPortAngles headIcon args port maybeNodeName
+  NestedPApp (headIcon : args) ->
+    generalNestedPortAngles
+    pAppPortAngles (fst headIcon) (fmap fst args) port maybeNodeName
   NestedCaseIcon args -> nestedGuardPortAngles args port maybeNodeName
   NestedGuardIcon args -> nestedGuardPortAngles args port maybeNodeName
 
@@ -322,12 +331,15 @@ nestedPAppDia borderCols funcNodeNameAndArgs name nestingLevel reflect angle = n
       makeInnerIcon func _ (Just (NamedIcon iconNodeName icon), _) = iconToDiagram icon iconNodeName innerLevel reflect angle where
         innerLevel = if func then nestingLevel else nestingLevel + 1
 
-
-generalNestedDia :: SpecialBackend b n =>
-  (Colour Double -> SpecialQDiagram b n) -> [Colour Double] -> [Maybe NamedIcon] -> TransformableDia b n
-generalNestedDia dia borderCols funcNodeNameAndArgs name nestingLevel reflect angle = named name $ case funcNodeNameAndArgs of
+generalNestedDia :: SpecialBackend b n
+                 => (Colour Double -> SpecialQDiagram b n)
+                 -> [Colour Double]
+                 -> Maybe NamedIcon
+                 -> [Maybe NamedIcon]
+                 -> TransformableDia b n
+generalNestedDia dia borderCols maybeFunText funcNodeNameAndArgs name nestingLevel reflect angle = named name $ case funcNodeNameAndArgs of
   [] -> mempty
-  (maybeFunText:args) -> centerXY $  transformedText ||| centerY finalDia
+  args -> centerXY $  transformedText ||| centerY finalDia
     where
       borderCol = borderCols !! nestingLevel
 
@@ -351,8 +363,11 @@ generalNestedDia dia borderCols funcNodeNameAndArgs name nestingLevel reflect an
       makeInnerIcon func _ (Just (NamedIcon iconNodeName icon)) = iconToDiagram icon iconNodeName innerLevel reflect angle where
         innerLevel = if func then nestingLevel else nestingLevel + 1
 
-nestedApplyDia :: SpecialBackend b n =>
-  LikeApplyFlavor -> [Maybe NamedIcon] -> TransformableDia b n
+nestedApplyDia :: SpecialBackend b n
+  => LikeApplyFlavor
+  -> Maybe NamedIcon
+  -> [Maybe NamedIcon]
+  -> TransformableDia b n
 nestedApplyDia flavor = case flavor of
   ApplyNodeFlavor -> generalNestedDia apply0Triangle (nestingC colorScheme)
   ComposeNodeFlavor -> generalNestedDia composeSemiCircle (repeat $ apply1C colorScheme)

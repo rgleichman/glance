@@ -158,39 +158,6 @@ arrowTestDrawing = Drawing arrowTestIcons arrowTestEdges where
     iconToIconEnds arr1 EndAp1Arg arr4 EndAp1Arg
     ]
 
-nestedTextDrawing :: Drawing
-nestedTextDrawing = Drawing nestedTestIcons nestedTestEdges where
-  [n1, t1, t2, inner, t, n2, n3, foo, in1, n4] = fmap NodeName [0..9]
-  nestedTestIcons = fmap tupleToNamedIcon [
-    (n1, NestedApply ApplyNodeFlavor args),
-    (t1, TextBoxIcon "T1"),
-    (t2, TextBoxIcon "t2")
-    ]
-    where
-      innerArgs = fmap (fmap tupleToNamedIcon) [
-        Just (inner, TextBoxIcon "inner"),
-        Just (t, TextBoxIcon "t"),
-        Nothing,
-        Just (n2,
-              NestedApply
-              ApplyNodeFlavor
-              (fmap (fmap tupleToNamedIcon) [Just (n4, TextBoxIcon "N4"), Nothing]))
-        ]
-      args = fmap (fmap tupleToNamedIcon) [
-        Just (n3, TextBoxIcon "n3"),
-        Nothing,
-        Just (foo, TextBoxIcon "3"),
-        Just (in1, NestedApply ApplyNodeFlavor innerArgs)
-        ]
-  nestedTestEdges = [
-    iconToIntPort t1 n1 2,
-    --iconToIntPort "t1" "in" 1,
-    --iconToIntPort "t2" ("n1" .> "in") 3,
-    --iconToIntPort "t2" ("n1" .> "in" .> "n2") 2
-    -- TODO This edge is not drawn currently. See todo in drawingToIconGraph in Rendering.
-    iconToIntPort t2 n2 2
-    ]
-
 -- TODO refactor these Drawings
 nestedCaseDrawing :: Drawing
 nestedCaseDrawing = Drawing icons [] where
@@ -255,7 +222,6 @@ renderTests = do
       fact1Drawing,
       fact2Drawing,
       arrowTestDrawing,
-      nestedTextDrawing,
       nestedCaseDrawing,
       nestedGuardDrawing,
       flatCaseDrawing,

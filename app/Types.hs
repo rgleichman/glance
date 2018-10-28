@@ -39,9 +39,9 @@ data Icon = TextBoxIcon String | GuardIcon Int
   | FlatLambdaIcon [String] | ApplyAIcon Int | ComposeIcon Int
   | PAppIcon Int String | CaseIcon Int | CaseResultIcon
   | BindTextBoxIcon String
-  -- TODO: NestedApply should have the type NestedApply (Maybe NamedIcon) [Maybe NamedIcon]
   | NestedApply
     LikeApplyFlavor  -- apply or compose
+    (Maybe NamedIcon)  -- The function for apply, or the argument for compose
     [Maybe NamedIcon]  -- list of arguments or functions
   | NestedPApp [(Maybe NamedIcon, String)]
   | NestedCaseIcon [Maybe NamedIcon]
