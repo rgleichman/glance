@@ -60,14 +60,15 @@ data SgBind = SgBind String Reference deriving (Eq, Show, Ord)
 data SgSink = SgSink String NameAndPort deriving (Eq, Ord, Show)
 
 -- TODO Replace lists with sets
--- | SyntaxGraph is an abstract representation for Haskell syntax. SyntaxGraphs are
--- generated from the Haskell syntax tree, and are used to generate Drawings
+-- | A SyntaxGraph is an abstract representation of Haskell syntax. SyntaxGraphs
+-- are generated from the Haskell syntax tree and are used to generate Drawings.
 data SyntaxGraph = SyntaxGraph {
   sgNodes :: [SgNamedNode],
   sgEdges :: [Edge],
   sgSinks :: [SgSink],
   sgBinds :: [SgBind],
-  -- sgEmbedMap keeps track of nodes embedded in other nodes. If (child, parent) is in the Map, then child is embedded inside parent.
+  -- sgEmbedMap keeps track of nodes embedded in other nodes. If (child, parent)
+  -- is in the Map, then child is embedded inside parent.
   sgEmbedMap :: [(NodeName, NodeName)]
   } deriving (Show, Eq)
 

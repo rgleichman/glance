@@ -104,14 +104,8 @@ getArrowOpts (t, h) _ (fromAngle, toAngle) (NameAndPort (NodeName nodeNum) mPort
     ap1ResultTexture = solid (apply1C colorScheme)
 
     lookupTail EndNone = id
-    lookupTail EndAp1Arg = (arrowTail .~ dart')
-      . (tailTexture .~ ap1ArgTexture) . (tailStyle %~  ap1ArgStyle)
-    lookupTail EndAp1Result = (arrowTail .~ arg1ResT) . (tailTexture .~ ap1ResultTexture)
 
     lookupHead EndNone = id
-    lookupHead EndAp1Arg = (arrowHead .~ dart)
-      . (headTexture .~ ap1ArgTexture) . (headStyle %~ ap1ArgStyle)
-    lookupHead EndAp1Result = (arrowHead .~ arg1ResH) . (headTexture .~ ap1ResultTexture)
 
     arrowOptions =
       arrowHead .~ noHead $

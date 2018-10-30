@@ -33,9 +33,9 @@ data NamedIcon = NamedIcon {niName :: NodeName, niIcon :: Icon}
 -- TYPES --
 -- | A datatype that represents an icon.
 -- The TextBoxIcon's data is the text that appears in the text box.
--- The LambdaRegionIcon's data is the number of lambda ports, and the name of it's
--- subdrawing.
-data Icon = TextBoxIcon String | GuardIcon Int
+data Icon = TextBoxIcon String
+  | GuardIcon
+    Int  -- Number of alternatives
   | FlatLambdaIcon [String] | ApplyAIcon Int | ComposeIcon Int
   | PAppIcon Int String | CaseIcon Int | CaseResultIcon
   | BindTextBoxIcon String
@@ -63,7 +63,8 @@ data SyntaxNode =
   | BindNameNode String
   | LiteralNode String -- Literal values like the string "Hello World"
   | FunctionDefNode [String] -- Function definition (ie. lambda expression)
-  | GuardNode Int
+  | GuardNode
+    Int  -- Number of alternatives
   | CaseNode Int
   | CaseResultNode -- TODO remove caseResultNode
   | NestedCaseOrGuardNode CaseOrGuardTag Int [(SgNamedNode, Edge)]
@@ -79,14 +80,15 @@ data NameAndPort = NameAndPort NodeName (Maybe Port) deriving (Show, Eq, Ord)
 
 type Connection = (NameAndPort, NameAndPort)
 
+-- TODO Consider removing EdgeOption and EdgeEnd since they are unused.
 data EdgeOption = EdgeInPattern deriving (Show, Eq, Ord)
+
+data EdgeEnd = EndNone deriving (Show, Eq, Ord)
 
 -- | An Edge has an name of the source icon, and its optional port number,
 -- and the name of the destination icon, and its optional port number.
 data Edge = Edge {edgeOptions::[EdgeOption], edgeEnds :: (EdgeEnd, EdgeEnd), edgeConnection :: Connection}
   deriving (Show, Eq, Ord)
-
-data EdgeEnd = EndAp1Result | EndAp1Arg | EndNone deriving (Show, Eq, Ord)
 
 -- | A drawing is a map from names to Icons, a list of edges,
 -- and a map of names to subDrawings

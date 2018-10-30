@@ -517,7 +517,7 @@ guardLBracket :: SpecialBackend b n =>
   SpecialQDiagram b n -> SpecialQDiagram b n
 guardLBracket portDia = alignL (alignT ell) <> portDia
   where
-    ellShape = fromOffsets $ map r2 [(0, guardSize), (-guardSize,0)]
+    ellShape = fromOffsets $ map r2 [(0, guardSize), (-guardSize, 0)]
     ell = lineJoin LineJoinRound $ lwG defaultLineWidth $ lc (boolC colorScheme) (strokeLine ellShape)
 
 -- | The ports of the guard icon are as follows:
