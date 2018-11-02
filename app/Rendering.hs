@@ -25,7 +25,8 @@ import Data.Typeable(Typeable)
 --import qualified Debug.Trace
 --import Data.Word(Word16)
 
-import Icons(colorScheme, iconToDiagram, defaultLineWidth, ColorStyle(..), getPortAngles)
+import Icons(colorScheme, iconToDiagram, defaultLineWidth, ColorStyle(..)
+            , getPortAngles, TransformParams(..))
 import TranslateCore(nodeToIcon)
 import Types(Edge(..), Icon, EdgeOption(..), Drawing(..), EdgeEnd(..),
   NameAndPort(..), SpecialQDiagram, SpecialBackend, SpecialNum, NodeName(..), Port(..),
@@ -293,7 +294,7 @@ placeNodes layoutResult graph = (mconcat placedNodes, rotationMap)
 
     -- todo: Not sure if the diagrams should already be centered at this point.
     placeNode (key@(NamedIcon name icon), (reflected, angle)) = place transformedDia diaPosition where
-      origDia = iconToDiagram icon name 0 reflected angle
+      origDia = iconToDiagram icon (TransformParams name 0 reflected angle)
       transformedDia = centerXY $ rotate angle $ (if reflected then reflectX else id) origDia
       diaPosition = graphvizScaleFactor *^ (positionMap Map.! key)
 
@@ -338,7 +339,10 @@ doGraphLayout graph = do
       where
         -- This type annotation (:: SpecialQDiagram b n) requires Scoped Typed Variables, which only works if the function's
         -- type signiture has "forall b e."
-        dia = iconToDiagram nodeIcon (NodeName (-1)) 0 False mempty :: SpecialQDiagram b Double
+        dia :: SpecialQDiagram b Double
+        dia = iconToDiagram
+              nodeIcon
+              (TransformParams (NodeName (-1)) 0 False mempty)
 
         diaWidth = drawingToGraphvizScaleFactor * width dia
         diaHeight = drawingToGraphvizScaleFactor * height dia

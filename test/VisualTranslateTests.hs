@@ -10,10 +10,11 @@ import qualified Data.Graph.Inductive.Graph as ING
 import Data.List(intercalate)
 
 import Types(SpecialQDiagram, SpecialBackend, NodeName(..))
-import Translate(translateStringToCollapsedGraphAndDecl, translateStringToSyntaxGraph)
+import Translate(translateStringToCollapsedGraphAndDecl
+                , translateStringToSyntaxGraph)
 import TranslateCore(syntaxGraphToFglGraph, SyntaxGraph(..))
 import Rendering(renderIngSyntaxGraph)
-import Icons(textBox)
+import Icons(textBox, TransformParams(..))
 
 
 prettyShowList :: Show a => [a] -> String
@@ -202,7 +203,7 @@ letTests = [
   -- TODO fix. See UnitTests/letTests
   "y = g $ f y",
   "y = let {a = f b; b = g a} in b",
-  
+
   "y = let {a= 1; x = let {a = 27; x = f a 2} in x} in x",
   "y = let {a = b; b = a; d = f a} in d",
   "y = let {a = b; b = a} in a",
@@ -255,7 +256,9 @@ testDecls = mconcat [
   ]
 
 
-translateStringToDrawing :: SpecialBackend b Double => String -> IO (SpecialQDiagram b Double)
+translateStringToDrawing :: SpecialBackend b Double =>
+  String
+  -> IO (SpecialQDiagram b Double)
 translateStringToDrawing s = do
   putStrLn $ "Translating string: " ++ s
   let
@@ -280,6 +283,10 @@ visualTranslateTests :: SpecialBackend b Double => IO (SpecialQDiagram b Double)
 visualTranslateTests = do
   drawings <- traverse translateStringToDrawing testDecls
   let
-    textDrawings = fmap (\t -> alignL $ textBox t (NodeName (-1)) 0 False mempty) testDecls
+    textDrawings
+      = fmap
+        (\t ->
+           alignL $ textBox t (TransformParams (NodeName (-1)) 0 False mempty))
+        testDecls
     vCattedDrawings = vsep 1 $ zipWith (===) (fmap alignL drawings) textDrawings
   pure vCattedDrawings

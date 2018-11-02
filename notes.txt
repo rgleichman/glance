@@ -12,7 +12,7 @@ View circle.svg with svg-preview plug-in.
 To use ghci for the main executable:
 stack ghci glance
 
-To use ghci with the test file:
+To use ghci with the test modules:
 stack ghci glance:test:glance-test
 
 For all warnings (some warnings duplicated):
