@@ -67,10 +67,6 @@ lineCol = lineC colorScheme
 
 iconToDiagram :: SpecialBackend b n => Icon -> TransformableDia b n
 iconToDiagram icon = case icon of
-  ApplyAIcon n ->
-    nestedApplyDia ApplyNodeFlavor Nothing $ replicate (1 + n) Nothing
-  ComposeIcon n ->
-    nestedApplyDia ComposeNodeFlavor Nothing $ replicate (1 + n) Nothing
   PAppIcon n str ->
     generalTextAppDia (patternTextC colorScheme) (patternC colorScheme) n str
   TextBoxIcon s -> textBox s
@@ -165,8 +161,6 @@ nestedGuardPortAngles args port maybeNodeName = case maybeNodeName of
 
 getPortAngles :: SpecialNum n => Icon -> Port -> Maybe NodeName -> [Angle n]
 getPortAngles icon port maybeNodeName = case icon of
-  ApplyAIcon _ -> applyPortAngles port
-  ComposeIcon _ -> applyPortAngles port
   PAppIcon _ _ -> applyPortAngles port
   TextBoxIcon _ -> []
   BindTextBoxIcon _ -> []

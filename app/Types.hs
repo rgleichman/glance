@@ -36,8 +36,10 @@ data NamedIcon = NamedIcon {niName :: NodeName, niIcon :: Icon}
 data Icon = TextBoxIcon String
   | GuardIcon
     Int  -- Number of alternatives
-  | FlatLambdaIcon [String] | ApplyAIcon Int | ComposeIcon Int
-  | PAppIcon Int String | CaseIcon Int | CaseResultIcon
+  | FlatLambdaIcon [String]
+  | PAppIcon Int String
+  | CaseIcon Int
+  | CaseResultIcon
   | BindTextBoxIcon String
   | NestedApply
     LikeApplyFlavor  -- apply or compose
@@ -55,6 +57,7 @@ data CaseOrGuardTag = CaseTag | GuardTag deriving (Show, Eq, Ord)
 -- TODO remove Ints from SyntaxNode data constructors.
 data SyntaxNode =
   LikeApplyNode LikeApplyFlavor Int -- Function application, composition, and applying to a composition
+  -- NestedApplyNode is only created in GraphAlgorithms, not during translation.
   | NestedApplyNode LikeApplyFlavor Int [(SgNamedNode, Edge)]
   | PatternApplyNode String Int -- Destructors as used in patterns
   -- | NestedPatternApplyNode String Int [(SgNamedNode, Edge)]

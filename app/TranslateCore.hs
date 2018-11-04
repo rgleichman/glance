@@ -246,12 +246,13 @@ nListString 1 = "[_]"
 nListString n = '[' : replicate (n -1) ',' ++ "]"
 
 nodeToIcon :: SyntaxNode -> Icon
-nodeToIcon (LikeApplyNode ApplyNodeFlavor n) = ApplyAIcon n
-nodeToIcon (LikeApplyNode ComposeNodeFlavor n) = ComposeIcon n
-nodeToIcon (NestedApplyNode flavor x edges) = nestedApplySyntaxNodeToIcon flavor x edges
+nodeToIcon (LikeApplyNode flavor n)
+  = NestedApply flavor Nothing (replicate n Nothing)
+nodeToIcon (NestedApplyNode flavor x edges)
+  = nestedApplySyntaxNodeToIcon flavor x edges
 nodeToIcon (PatternApplyNode s n) = PAppIcon n s
--- nodeToIcon (NestedPatternApplyNode s n children) = nestedPatternNodeToIcon s n children
-nodeToIcon (NestedPatternApplyNode s children) = nestedPatternNodeToIcon s children
+nodeToIcon (NestedPatternApplyNode s children)
+  = nestedPatternNodeToIcon s children
 nodeToIcon (NameNode s) = TextBoxIcon s
 nodeToIcon (BindNameNode s) = BindTextBoxIcon s
 nodeToIcon (LiteralNode s) = TextBoxIcon s
@@ -259,7 +260,8 @@ nodeToIcon (FunctionDefNode x) = FlatLambdaIcon x
 nodeToIcon (GuardNode n) = GuardIcon n
 nodeToIcon (CaseNode n) = CaseIcon n
 nodeToIcon CaseResultNode = CaseResultIcon
-nodeToIcon (NestedCaseOrGuardNode tag x edges) = nestedCaseOrGuardNodeToIcon tag x edges
+nodeToIcon (NestedCaseOrGuardNode tag x edges)
+  = nestedCaseOrGuardNodeToIcon tag x edges
 
 makeArg :: [(SgNamedNode, Edge)] -> Port -> Maybe NamedIcon
 makeArg args port = case find (findArg port) args of

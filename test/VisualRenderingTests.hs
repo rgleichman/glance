@@ -18,63 +18,6 @@ iconToIntPort x y p = iconToPort x y (Port p)
 intPortToPort :: NodeName -> Int -> NodeName -> Int -> Edge
 intPortToPort x1 port1 x2 port2 = portToPort x1 (Port port1) x2 (Port port2)
 
-drawing0 :: Drawing
-drawing0 = Drawing d0Icons d0Edges where
-  [d0A, d0B, d0Res, d0Foo, d0Bar] = fmap NodeName [0..4] --["A", "B", "res", "foo", "bar"]
-  d0Icons = fmap tupleToNamedIcon
-    [(d0A, ApplyAIcon 1),
-     (d0B, ApplyAIcon 1),
-     (d0Res, CaseResultIcon),
-     (d0Foo, TextBoxIcon "foo"),
-     (d0Bar, TextBoxIcon "bar")
-    ]
-  d0Edges =
-    [
-      intPortToPort d0A 0 d0B 1,
-      iconToIntPort d0Foo d0B 0,
-      iconToIntPort d0Res d0A 1,
-      iconToIntPort d0Foo d0B 0,
-      iconToIntPort d0Bar d0B 2,
-      iconToIntPort d0Bar d0A 2
-    ]
-
-
-fG0, fOne, fEq0, fMinus1, fEq0Ap, fMinus1Ap, fTimes, fRecurAp, fTimesAp, fArg, fRes :: NodeName
-[fG0, fOne, fEq0, fMinus1, fEq0Ap, fMinus1Ap, fTimes, fRecurAp, fTimesAp, fArg, fRes] =
-  fmap NodeName [0..10]
---  ["g0", "one", "eq0", "-1", "eq0Ap", "-1Ap", "*", "recurAp", "*Ap", "arg", "res"]
-
-fact0Drawing :: Drawing
-fact0Drawing = Drawing fact0Icons fact0Edges where
-  fact0Icons = fmap tupleToNamedIcon
-    [
-      (fG0, GuardIcon 2),
-      (fOne, TextBoxIcon "1"),
-      (fEq0, TextBoxIcon "== 0"),
-      (fMinus1, TextBoxIcon "-1"),
-      (fEq0Ap, ApplyAIcon 1),
-      (fMinus1Ap, ApplyAIcon 1),
-      (fTimes, TextBoxIcon "*"),
-      (fRecurAp, ApplyAIcon 1),
-      (fTimesAp, ApplyAIcon 2),
-      -- (fArg, BranchIcon),
-      (fRes, CaseResultIcon)
-    ]
-  fact0Edges = [
-    iconToIntPort fEq0 fEq0Ap 0,
-    intPortToPort fEq0Ap 1 fG0 3,
-    iconToIntPort fMinus1 fMinus1Ap 0,
-    iconToIntPort fTimes fTimesAp 0,
-    iconToIntPort fOne fG0 2,
-    intPortToPort fTimesAp 2 fG0 4,
-    intPortToPort fRecurAp 1 fTimesAp 3,
-    iconToIntPort fArg fEq0Ap 2,
-    iconToIntPort fArg fMinus1Ap 2,
-    iconToIntPort fArg fTimesAp 1,
-    intPortToPort fMinus1Ap 1 fRecurAp 2,
-    iconToIntPort fRes fG0 0
-    ]
-
 -- TODO refactor these Drawings
 nestedCaseDrawing :: Drawing
 nestedCaseDrawing = Drawing icons [] where
@@ -166,8 +109,6 @@ renderTests = do
   pure vCattedDrawings
   where
     allDrawings = [
-      drawing0,
-      fact0Drawing,
       nestedCaseDrawing,
       nestedGuardDrawing,
       flatCaseDrawing,
