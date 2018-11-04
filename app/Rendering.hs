@@ -205,7 +205,7 @@ makeEdge graph dia rotationMap (node0, node1, edge@(Edge _ _ (namePort0, namePor
     getPortPoint n = head $ fromMaybeError
       ("makeEdge: port not found. Port: " ++ show n ++ ". Valid ports: " ++ show diaNodeNamePointMap)
       (lookup n diaNodeNamePointMap)
-    
+
     portAngles = (icon0PortAngle, icon1PortAngle)
 
 -- | addEdges draws the edges underneath the nodes.
@@ -246,10 +246,10 @@ bestAngleForIcon positionMap graph key@(NamedIcon (NodeName nodeId) _) reflected
     -- possibleAngles = [0, 1/2] -- (uncomment this line and comment out the line above to disable rotation)
     iconPosition = positionMap Map.! key
     edges = getPositionAndAngles <$> fmap getSucEdge (ING.lsuc graph nodeId) <> fmap getPreEdge (ING.lpre graph nodeId)
-  
+
     getPositionAndAngles (node, nameAndPort) = (positionMap Map.! nodeLabel, portAngles) where
       nodeLabel = fromMaybeError "getPositionAndAngles: node not found" $ ING.lab graph node
-      portAngles = findPortAngles key nameAndPort  
+      portAngles = findPortAngles key nameAndPort
 
   -- Edge points from id to otherNode
     getSucEdge (otherNode, edge) = (otherNode, nameAndPort) where
@@ -347,7 +347,10 @@ doGraphLayout graph = do
         diaWidth = drawingToGraphvizScaleFactor * width dia
         diaHeight = drawingToGraphvizScaleFactor * height dia
         circleDiameter' = max diaWidth diaHeight
-        circleDiameter = if circleDiameter' <= 0.01 then error ("circleDiameter too small: " ++ show circleDiameter') else circleDiameter'
+        circleDiameter
+          = if circleDiameter' <= 0.01
+            then error ("circleDiameter too small: " ++ show circleDiameter')
+            else circleDiameter'
 
 -- | Given a Drawing, produce a Diagram complete with rotated/flipped icons and
 -- lines connecting ports and icons. IO is needed for the GraphViz layout.

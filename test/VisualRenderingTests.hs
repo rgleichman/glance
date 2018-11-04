@@ -126,6 +126,38 @@ flatGuardDrawing = Drawing icons edges where
     ]
   edges = []
 
+nestedPAppDia :: Drawing
+nestedPAppDia = Drawing icons []
+  where
+    icons = [
+      NamedIcon (NodeName 1) (NestedPApp [(Nothing, "baz")])
+      , NamedIcon
+        (NodeName 2)
+        (NestedPApp
+          [ (Nothing, "")
+          , (Just (NamedIcon (NodeName 1) (TextBoxIcon "foo")), "bar")
+          , (Nothing, "bar")])
+      , NamedIcon
+        (NodeName 3)
+        (NestedPApp
+          [
+            (Just (NamedIcon (NodeName 4) (TextBoxIcon "foo")), "bar")
+          , (Nothing, "bar")])
+      ]
+
+nestedApplyDia :: Drawing
+nestedApplyDia = Drawing icons []
+  where
+    icons = [
+      NamedIcon
+      (NodeName 1)
+      (NestedApply
+        ApplyNodeFlavor
+        (Just $ NamedIcon (NodeName 1) (TextBoxIcon "foo"))
+        [])
+        --[Just $ NamedIcon (NodeName 1) (TextBoxIcon "bar")])
+      ]
+
 --renderTests :: IO (Diagram B)
 renderTests :: SpecialBackend b Double => IO (SpecialQDiagram b Double)
 renderTests = do
@@ -139,6 +171,7 @@ renderTests = do
       nestedCaseDrawing,
       nestedGuardDrawing,
       flatCaseDrawing,
-      flatGuardDrawing
-      -- TODO Add a nested test where the function expression is nested.
+      flatGuardDrawing,
+      nestedPAppDia,
+      nestedApplyDia
       ]

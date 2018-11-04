@@ -349,7 +349,8 @@ nestedPAppDia
     case funcNodeNameAndArgs of
       [] -> mempty
       (maybeFunText:args) ->
-        centerXY $ centerY finalDia ||| transformedText ||| resultCircleAndPort
+        centerXY
+        $ centerY finalDia ||| beside' unitX transformedText resultCircleAndPort
         where
           borderCol = borderCols !! nestingLevel
 
@@ -367,7 +368,6 @@ nestedPAppDia
                              rotate quarterTurn (apply0Triangle borderCol) :
                              zipWith (makeInnerIcon False) argPortsConst args
 
-
           allPorts
             = makeQualifiedPort name inputPortConst <> alignT triangleAndPorts
             -- alignL (strutX separation ||| trianglePortsCircle)
@@ -383,19 +383,16 @@ nestedPAppDia
 
           makeInnerIcon _ portNum (Nothing, str)
             = centerX $ makeLabelledPort name reflect angle str portNum
-          makeInnerIcon True _ (Just (NamedIcon _ (TextBoxIcon t)), _)
-            = transformCorrectedTextBox
-              t
-              (textBoxTextC colorScheme)
-              borderCol
-              reflect
-              angle
           makeInnerIcon func _ (Just (NamedIcon iconNodeName icon), _)
             = iconToDiagram
               icon
               (TransformParams iconNodeName innerLevel reflect angle)
             where
               innerLevel = if func then nestingLevel else nestingLevel + 1
+
+-- | Like beside, but it puts the second dia atop the first dia
+beside' :: (Semigroup a, Juxtaposable a) => V a (N a) -> a -> a -> a
+beside' dir dia1 dia2 = juxtapose dir dia1 dia2 <> dia1
 
 generalNestedDia :: SpecialBackend b n
                  => (Colour Double -> SpecialQDiagram b n)
@@ -407,11 +404,9 @@ generalNestedDia
   dia
   borderCols
   maybeFunText
-  funcNodeNameAndArgs
+  args
   (TransformParams name nestingLevel reflect angle)
-  = named name $ case funcNodeNameAndArgs of
-  [] -> mempty
-  args -> centerXY $  transformedText ||| centerY finalDia
+  = named name $ centerXY $ beside' unitX transformedText finalDia
     where
       borderCol = borderCols !! nestingLevel
 
@@ -442,13 +437,6 @@ generalNestedDia
 
       makeInnerIcon _ portNum Nothing
         = makeQualifiedPort name portNum <> portCircle
-      makeInnerIcon True _ (Just (NamedIcon _ (TextBoxIcon t)))
-        = transformCorrectedTextBox
-          t
-          (textBoxTextC colorScheme)
-          borderCol
-          reflect
-          angle
       makeInnerIcon func _ (Just (NamedIcon iconNodeName icon))
         = iconToDiagram
           icon
