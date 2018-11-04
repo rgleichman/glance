@@ -41,7 +41,8 @@ import Data.Semigroup(Semigroup, (<>))
 import Types(Icon, SyntaxNode(..), Edge(..), EdgeOption(..),
   NameAndPort(..), IDState, SgNamedNode(..), NodeName(..), Port,
   LikeApplyFlavor(..), CaseOrGuardTag(..), IDState(..), NamedIcon(..))
-import Util(noEnds, nameAndPort, makeSimpleEdge, justName, maybeBoolToBool, mapNodeInNamedNode, nodeNameToInt, tupleToNamedIcon)
+import Util(noEnds, nameAndPort, makeSimpleEdge, justName, maybeBoolToBool
+           , mapNodeInNamedNode, nodeNameToInt)
 import Icons(Icon(..), inputPort, resultPort, argumentPorts, guardRhsPorts, guardBoolPorts)
 
 {-# ANN module "HLint: ignore Use list comprehension" #-}
@@ -250,7 +251,6 @@ nodeToIcon (LikeApplyNode flavor n)
   = NestedApply flavor Nothing (replicate n Nothing)
 nodeToIcon (NestedApplyNode flavor x edges)
   = nestedApplySyntaxNodeToIcon flavor x edges
-nodeToIcon (PatternApplyNode s n) = PAppIcon n s
 nodeToIcon (NestedPatternApplyNode s children)
   = nestedPatternNodeToIcon s children
 nodeToIcon (NameNode s) = TextBoxIcon s

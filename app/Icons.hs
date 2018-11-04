@@ -67,8 +67,6 @@ lineCol = lineC colorScheme
 
 iconToDiagram :: SpecialBackend b n => Icon -> TransformableDia b n
 iconToDiagram icon = case icon of
-  PAppIcon n str ->
-    generalTextAppDia (patternTextC colorScheme) (patternC colorScheme) n str
   TextBoxIcon s -> textBox s
   BindTextBoxIcon s -> identDiaFunc $ bindTextBox s
   GuardIcon n -> nestedGuardDia $ replicate (1 + (2 * n)) Nothing
@@ -161,7 +159,6 @@ nestedGuardPortAngles args port maybeNodeName = case maybeNodeName of
 
 getPortAngles :: SpecialNum n => Icon -> Port -> Maybe NodeName -> [Angle n]
 getPortAngles icon port maybeNodeName = case icon of
-  PAppIcon _ _ -> applyPortAngles port
   TextBoxIcon _ -> []
   BindTextBoxIcon _ -> []
   GuardIcon _ -> guardPortAngles port
@@ -212,7 +209,6 @@ argumentPorts :: SyntaxNode -> [Port]
 argumentPorts n = case n of
   LikeApplyNode  _ _-> defaultPorts
   NestedApplyNode _ _ _ -> defaultPorts
-  PatternApplyNode  _ _-> defaultPorts
   NestedPatternApplyNode _ _-> defaultPorts
   FunctionDefNode _ -> defaultPorts
   NestedCaseOrGuardNode _ _ _-> defaultPorts
@@ -227,7 +223,6 @@ argumentPorts n = case n of
 -- END Port numbers
 
 -- END Exported icon functions --
-
 
 -- BEGIN Diagram helper functions --
 
@@ -293,45 +288,6 @@ resultIcon =  lw none $ fc (lamArgResC colorScheme) unitSquare
 
 -- BEGIN Apply like icons
 
--- | apply port locations:
--- inputPortConst: Function
--- resultPortConst: Result
--- Ports 2,3..: Arguments
-coloredApplyADia ::
-  (SpecialBackend b n) =>
-  Colour Double -> Int -> SpecialQDiagram b n
-coloredApplyADia appColor n = centerXY finalDia where
-  trianglePortsCircle = hcat [
-    reflectX (apply0Triangle appColor)
-    , hcat $ take n
-      $ map
-      (\x -> makePort x <> portCircle <> strutX (circleRadius * 1.5))
-      argPortsConst
-    , makePort resultPortConst
-      <> alignR
-      (lc appColor $ lwG defaultLineWidth $ fc appColor $ circle circleRadius)
-    ]
-  allPorts = makePort inputPortConst <> alignL trianglePortsCircle
-  topAndBottomLineWidth = width allPorts - circleRadius
-  topAndBottomLine
-    = alignL $ lwG defaultLineWidth $ lc appColor $ hrule topAndBottomLineWidth
-  finalDia = topAndBottomLine === allPorts === topAndBottomLine
-
-generalTextAppDia :: SpecialBackend b n =>
-  Colour Double -> Colour Double -> Int -> String -> TransformableDia b n
-generalTextAppDia
-  textCol
-  borderCol
-  numArgs
-  str
-  (TransformParams name _ reflect angle)
-  = nameDiagram name rotateDia
-  where
-    rotateDia =
-      transformCorrectedTextBox str textCol borderCol reflect angle
-      |||
-      coloredApplyADia borderCol numArgs
-
 -- TODO Refactor with generalNestedDia
 nestedPAppDia :: SpecialBackend b n =>
   [Colour Double] -> [(Maybe NamedIcon, String)] -> TransformableDia b n
@@ -388,6 +344,10 @@ nestedPAppDia
 beside' :: (Semigroup a, Juxtaposable a) => V a (N a) -> a -> a -> a
 beside' dir dia1 dia2 = juxtapose dir dia1 dia2 <> dia1
 
+-- | apply port locations:
+-- inputPortConst: Function
+-- resultPortConst: Result
+-- Ports 2,3..: Arguments
 generalNestedDia :: SpecialBackend b n
                  => (Colour Double -> SpecialQDiagram b n)
                  -> [Colour Double]
@@ -496,7 +456,7 @@ commentTextArea textColor t =
 multilineComment :: SpecialBackend b n =>
   Colour Double
   -> AlphaColour Double -> String -> SpecialQDiagram b n
-multilineComment textColor boxColor t = lwG (0.6 * defaultLineWidth) textDia
+multilineComment textColor _boxColor t = lwG (0.6 * defaultLineWidth) textDia
   where
     textLines = lines t
     textAreas = map (commentTextArea textColor) textLines

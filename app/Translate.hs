@@ -181,15 +181,16 @@ makeNestedPatternGraph applyIconName funStr argVals = nestedApplyResult
     newGraph = SyntaxGraph icons [] nestedSinks allBinds newEMap
     nestedApplyResult = (newGraph <> combinedGraph, nameAndPort applyIconName (resultPort pAppNode))
 
-makePatternGraph' :: NodeName -> String -> [GraphAndRef] -> (SyntaxGraph, NameAndPort)
-makePatternGraph' applyIconName funStr argVals = (newGraph <> combinedGraph, nameAndPort applyIconName (resultPort pAppNode))
-  where
-    pAppNode = PatternApplyNode funStr numArgs
-    argumentNamePorts = map (nameAndPort applyIconName) $ argumentPorts pAppNode
-    combinedGraph = combineExpressions True $ zip argVals argumentNamePorts
-    numArgs = length argVals
-    icons = [SgNamedNode applyIconName pAppNode]
-    newGraph = syntaxGraphFromNodes icons
+-- TODO Delete makePatternGraph'
+-- makePatternGraph' :: NodeName -> String -> [GraphAndRef] -> (SyntaxGraph, NameAndPort)
+-- makePatternGraph' applyIconName funStr argVals = (newGraph <> combinedGraph, nameAndPort applyIconName (resultPort pAppNode))
+--   where
+--     pAppNode = PatternApplyNode funStr numArgs
+--     argumentNamePorts = map (nameAndPort applyIconName) $ argumentPorts pAppNode
+--     combinedGraph = combineExpressions True $ zip argVals argumentNamePorts
+--     numArgs = length argVals
+--     icons = [SgNamedNode applyIconName pAppNode]
+--     newGraph = syntaxGraphFromNodes icons
 
 evalPApp :: Show l => QName l -> [Pat l] -> State IDState (SyntaxGraph, NameAndPort)
 evalPApp name patterns = case patterns of

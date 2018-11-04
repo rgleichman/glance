@@ -37,7 +37,6 @@ data Icon = TextBoxIcon String
   | GuardIcon
     Int  -- Number of alternatives
   | FlatLambdaIcon [String]
-  | PAppIcon Int String
   | CaseIcon Int
   | CaseResultIcon
   | BindTextBoxIcon String
@@ -59,8 +58,6 @@ data SyntaxNode =
   LikeApplyNode LikeApplyFlavor Int -- Function application, composition, and applying to a composition
   -- NestedApplyNode is only created in GraphAlgorithms, not during translation.
   | NestedApplyNode LikeApplyFlavor Int [(SgNamedNode, Edge)]
-  | PatternApplyNode String Int -- Destructors as used in patterns
-  -- | NestedPatternApplyNode String Int [(SgNamedNode, Edge)]
   | NestedPatternApplyNode String [(Maybe SgNamedNode, String)]
   | NameNode String -- Identifiers or symbols
   | BindNameNode String
