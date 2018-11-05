@@ -1,5 +1,8 @@
 {-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeFamilies #-}
-module Main where
+module Main
+  (main
+  , CmdLineOptions(..)) where
+
 import Prelude hiding (return)
 
 -- Note: (#) and (&) are hidden in all Glance source files, since they would require
@@ -64,7 +67,7 @@ translateFileMain = customExecParser parserPrefs  opts >>= renderFile where
   parserPrefs = defaultPrefs{
     prefShowHelpOnError = True
     }
-  
+
   opts = info (helper <*> optionParser)
     (fullDesc
     Dia.<> progDesc "Translate a Haskell source file (.hs) into an SVG image."

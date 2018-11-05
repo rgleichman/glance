@@ -28,10 +28,10 @@ import Data.Typeable(Typeable)
 import Icons(colorScheme, iconToDiagram, defaultLineWidth, ColorStyle(..)
             , getPortAngles, TransformParams(..))
 import TranslateCore(nodeToIcon)
-import Types(Edge(..), Icon, EdgeOption(..), Drawing(..), EdgeEnd(..),
-  NameAndPort(..), SpecialQDiagram, SpecialBackend, SpecialNum, NodeName(..), Port(..),
-  SgNamedNode, NamedIcon(..))
-import Util(fromMaybeError, mapNodeInNamedNode, namedIconToTuple, tupleToNamedIcon)
+import Types(Edge(..), EdgeOption(..), Drawing(..), EdgeEnd(..), NameAndPort(..), SpecialQDiagram, SpecialBackend, SpecialNum, NodeName(..), Port(..), SgNamedNode, NamedIcon(..))
+
+
+import Util(fromMaybeError, mapNodeInNamedNode, namedIconToTuple)
 
 -- If the inferred types for these functions becomes unweildy,
 -- try using PartialTypeSignitures.
@@ -72,15 +72,6 @@ drawingToIconGraph (Drawing nodes edges) =
               ++ show name ++ " Edge=" ++ show e
 
 
--- | Custom arrow tail for the arg1 result circle.
--- The ArrowHT type does not seem to be documented.
-arg1ResT :: (RealFloat n) => ArrowHT n
-arg1ResT len _ = (alignR $ circle (len / 2), mempty)
-
--- | Arrow head version of arg1ResT
-arg1ResH :: (RealFloat n) => ArrowHT n
-arg1ResH len _ = (alignL $ circle (len / 2), mempty)
-
 bezierShaft :: (V t ~ V2, TrailLike t) => Angle (N t) -> Angle (N t) -> t
 bezierShaft angle1 angle2 = fromSegments [bezier3 c1 c2 x] where
   scaleFactor = 0.5
@@ -99,10 +90,6 @@ getArrowOpts (t, h) _ (fromAngle, toAngle) (NameAndPort (NodeName nodeNum) mPort
     hashedColor = edgeColors !! namePortHash
     namePortHash = mod (portNum + (503 * nodeNum)) numEdgeColors
     Port portNum = fromMaybe (Port 0) mPort
-
-    ap1ArgTexture = solid (backgroundC colorScheme)
-    ap1ArgStyle = lwG defaultLineWidth . lc (apply1C colorScheme)
-    ap1ResultTexture = solid (apply1C colorScheme)
 
     lookupTail EndNone = id
 

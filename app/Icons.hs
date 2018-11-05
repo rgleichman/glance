@@ -170,6 +170,8 @@ getPortAngles icon port maybeNodeName = case icon of
   NestedPApp (headIcon : args) ->
     generalNestedPortAngles
     pAppPortAngles (fst headIcon) (fmap fst args) port maybeNodeName
+  NestedPApp _ ->
+    error "getPortAngles called on a NestedPApp with not enough arguments."
   NestedCaseIcon args -> nestedGuardPortAngles args port maybeNodeName
   NestedGuardIcon args -> nestedGuardPortAngles args port maybeNodeName
 

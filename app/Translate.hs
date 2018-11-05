@@ -89,7 +89,7 @@ nameToString :: Exts.Name l -> String
 nameToString (Ident _ s) = s
 nameToString (Symbol _ s) = s
 
-qNameToString :: QName l -> String
+qNameToString :: Show l => QName l -> String
 qNameToString (Qual _ (Exts.ModuleName _ modName) name) = modName ++ "." ++ nameToString name
 qNameToString (UnQual _ name) = nameToString name
 qNameToString (Special _ (UnitCon _)) = "()"
@@ -99,6 +99,7 @@ qNameToString (Special _ (TupleCon _ _ n)) = nTupleString n
 qNameToString (Special _ (Cons _)) = "(:)"
 -- unboxed singleton tuple constructor
 qNameToString (Special _ (UnboxedSingleCon _)) = "(# #)"
+qNameToString q = error $ "Unsupported syntax in qNameToSrting: " <> show q
 
 -- END Names helper functions
 
@@ -263,7 +264,7 @@ strToGraphRef c str = fmap mapper (makeBox str) where
     then GraphAndRef mempty (Left str)
     else grNamePortToGrRef gr
 
-evalQName :: QName l -> EvalContext -> State IDState GraphAndRef
+evalQName :: Show l => QName l -> EvalContext -> State IDState GraphAndRef
 evalQName qName c = case qName of
   UnQual _ _ -> graphRef
   Qual _ _ _ -> graphRef
@@ -437,6 +438,7 @@ evalBinds c (BDecls _ decls) =
     augmentedContext = boundNames <> c
   in
     ((,augmentedContext) . mconcat) <$>  mapM (evalDecl augmentedContext) decls
+evalBinds _ binds = error $ "Unsupported syntax in evalBinds: " <> show binds
 
 evalGeneralLet :: Show l => (EvalContext -> State IDState GraphAndRef) -> EvalContext -> Binds l-> State IDState GraphAndRef
 evalGeneralLet expOrRhsEvaler c bs = do
@@ -457,9 +459,11 @@ evalLet context binds e = evalGeneralLet (`evalExp` e) context binds
 
 evalStmt :: Show l => EvalContext -> Stmt l -> State IDState GraphAndRef
 evalStmt c (Qualifier _ e) = evalExp c e
+evalStmt _ q = error $ "Unsupported syntax in evalStmt: " <> show q
 
 evalStmts :: Show l => EvalContext -> [Stmt l] -> State IDState GraphAndRef
 evalStmts c [stmt] = evalStmt c stmt
+evalStmts _ stmts = error $ "Unsupported syntax in evalStmts: " <> show stmts
 
 evalGuardedRhs :: Show l => EvalContext -> GuardedRhs l -> State IDState (GraphAndRef, GraphAndRef)
 evalGuardedRhs c (GuardedRhs _ stmts e) = (,) <$> evalStmts c stmts <*> evalExp c e
@@ -616,16 +620,17 @@ evalRightSection c op e =
 evalEnums :: Show l => l -> EvalContext -> String -> [Exp l] -> State IDState GraphAndRef
 evalEnums l c s exps = grNamePortToGrRef <$> evalFunExpAndArgs c ApplyNodeFlavor (makeVarExp l s, exps)
 
-desugarDo :: [Stmt l] -> Exp l
+desugarDo :: Show l => [Stmt l] -> Exp l
 desugarDo [Qualifier _ e] = e
 desugarDo (Qualifier l e : stmts) = InfixApp l e thenOp (desugarDo stmts)
   where thenOp = makeQVarOp l ">>"
 desugarDo (Generator l pat e : stmts) =
   InfixApp l e (makeQVarOp l ">>=") (Lambda l [pat] (desugarDo stmts))
 desugarDo (LetStmt l binds : stmts) = Let l binds (desugarDo stmts)
+desugarDo stmts = error $ "Unsupported syntax in degugarDo: " <> show stmts
 
 -- TODO: Finish evalRecConstr
-evalRecConstr :: EvalContext -> QName l -> [Exts.FieldUpdate l] -> State IDState GraphAndRef
+evalRecConstr :: Show l => EvalContext -> QName l -> [Exts.FieldUpdate l] -> State IDState GraphAndRef
 evalRecConstr c qName _ = evalQName qName c
 
 -- BEGIN generalEvalLambda
@@ -634,7 +639,11 @@ evalRecConstr c qName _ = evalQName qName c
 asBindGraphZipper :: Maybe String -> NameAndPort -> SyntaxGraph
 asBindGraphZipper asName nameNPort = makeAsBindGraph (Right nameNPort) [asName]
 
-generalEvalLambda :: Show l => EvalContext -> [Pat l] -> (EvalContext -> State IDState GraphAndRef) -> State IDState (SyntaxGraph, NameAndPort)
+generalEvalLambda :: Show l
+  => EvalContext
+  -> [Pat l]
+  -> (EvalContext -> State IDState GraphAndRef)
+  -> State IDState (SyntaxGraph, NameAndPort)
 generalEvalLambda context patterns rhsEvalFun = do
   lambdaName <- getUniqueName
   patternValsWithAsNames <- mapM evalPattern patterns
@@ -712,13 +721,14 @@ evalExp c x = case x of
 -- BEGIN evalMatches
 
 -- Only used by matchesToCase
-matchToAlt :: Match l -> Alt l
+matchToAlt :: Show l => Match l -> Alt l
 matchToAlt (Match l _ mtaPats rhs binds) = Alt l altPattern rhs binds where
   altPattern = case mtaPats of
     [onePat] -> onePat
     _ -> PTuple l Exts.Boxed mtaPats
+matchToAlt match = error $ "Unsupported syntax in matchToAlt: " <> show match
 
-matchesToCase :: Match l -> [Match l] -> State IDState (Match l)
+matchesToCase :: Show l => Match l -> [Match l] -> State IDState (Match l)
 matchesToCase match [] = pure match
 matchesToCase firstMatch@(Match srcLoc funName pats _ _) restOfMatches = do
   -- There is a special case in Icons.hs/makeLabelledPort to exclude " tempvar"
@@ -736,6 +746,8 @@ matchesToCase firstMatch@(Match srcLoc funName pats _ _) restOfMatches = do
   where
     allMatches = firstMatch:restOfMatches
     alts = fmap matchToAlt allMatches
+matchesToCase firstMatch _
+  = error $ "Unsupported syntax in matchesToCase: " <> show firstMatch
 
 evalMatch :: Show l => EvalContext -> Match l -> State IDState SyntaxGraph
 evalMatch c (Match _ name patterns rhs maybeWhereBinds) = do
@@ -747,6 +759,7 @@ evalMatch c (Match _ name patterns rhs maybeWhereBinds) = do
   let
     newBinding = bindsToSyntaxGraph [SgBind matchFunNameString (Right lambdaPort)]
   pure $ makeEdges (newBinding <> lambdaGraph)
+evalMatch _ match = error $ "Unsupported syntax in evalMatch: " <> show match
 
 evalMatches :: Show l => EvalContext -> [Match l] -> State IDState SyntaxGraph
 evalMatches _ [] = pure mempty
@@ -767,10 +780,11 @@ evalPatBind c (PatBind _ pat rhs maybeWhereBinds) = do
     asBindGraph = makeAsBindGraph rhsRef [mPatAsName]
     gr = asBindGraph <> SyntaxGraph mempty newEdges newSinks bindings mempty
   pure . makeEdges $ (gr <> rhsGraph <> patGraph)
+evalPatBind _ decl = error $ "Unsupported syntax in evalPatBind: " <> show decl
 
 -- Pretty printing the entire type sig results in extra whitespace in the middle
 -- TODO May want to trim whitespace from (prettyPrint typeForNames)
-evalTypeSig :: Decl l -> State IDState (SyntaxGraph, NameAndPort)
+evalTypeSig :: Show l => Decl l -> State IDState (SyntaxGraph, NameAndPort)
 evalTypeSig (TypeSig _ names typeForNames) = makeBox
   (intercalate "," (fmap prettyPrintWithoutNewlines names)
    ++ " :: "
@@ -779,6 +793,8 @@ evalTypeSig (TypeSig _ names typeForNames) = makeBox
     -- TODO Make custom version of prettyPrint for type signitures.
     -- Use (unwords . words) to convert consecutive whitspace characters to one space
     prettyPrintWithoutNewlines = unwords . words . prettyPrint
+evalTypeSig decl
+  = error $ "Unsupported syntax in evalTypeSig: " <> show decl
 
 evalDecl :: Show l => EvalContext -> Decl l -> State IDState SyntaxGraph
 evalDecl c d = case d of
@@ -842,5 +858,8 @@ translateStringToCollapsedGraphAndDecl s = (drawing, decl) where
 
 translateModuleToCollapsedGraphs :: Show l => Module l -> [IngSyntaxGraph FGR.Gr]
 translateModuleToCollapsedGraphs (Module _ _ _ _ decls) = fmap translateDeclToCollapsedGraph decls
+translateModuleToCollapsedGraphs moduleSyntax
+  = error $ "Unsupported syntax in translateModuleToCollapsedGraphs: "
+    <> show moduleSyntax
 
 -- END Exported functions

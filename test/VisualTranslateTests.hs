@@ -275,7 +275,7 @@ translateStringToDrawing s = do
       putStr "\nCollapsed Graph:\n"
       print collapsedGraph
       putStr "\n\n"
-  -- printAction
+  if False then printAction else pure ()  -- Supress unused printAction warning
   renderIngSyntaxGraph collapsedGraph
   -- renderIngSyntaxGraph fglGraph
 

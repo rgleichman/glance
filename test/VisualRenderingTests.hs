@@ -7,16 +7,13 @@ module VisualRenderingTests (
 import Diagrams.Prelude hiding ((#), (&))
 
 import Rendering (renderDrawing)
-import Types (NodeName(..), Drawing(..), Edge, Icon(..), Port(..), EdgeEnd(..),
-              LikeApplyFlavor(..), SpecialQDiagram, SpecialBackend, NamedIcon(..))
-import Util(portToPort, iconToPort,
-            iconToIconEnds, iconTailToPort, tupleToNamedIcon)
+import Types (NodeName(..), Drawing(..), Edge, Icon(..), Port(..), LikeApplyFlavor(..), SpecialQDiagram, SpecialBackend, NamedIcon(..))
+
+import Util(iconToPort, tupleToNamedIcon)
+
 
 iconToIntPort :: NodeName -> NodeName -> Int -> Edge
 iconToIntPort x y p = iconToPort x y (Port p)
-
-intPortToPort :: NodeName -> Int -> NodeName -> Int -> Edge
-intPortToPort x1 port1 x2 port2 = portToPort x1 (Port port1) x2 (Port port2)
 
 -- TODO refactor these Drawings
 nestedCaseDrawing :: Drawing

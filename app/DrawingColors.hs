@@ -1,6 +1,9 @@
 module DrawingColors (
-  ColorStyle(..),
-  colorScheme
+  ColorStyle(..)
+  , colorScheme
+  , colorOnBlackScheme
+  , whiteOnBlackScheme
+  , randomColorScheme
 ) where
 
 import Diagrams.Prelude hiding ((&), (#))
@@ -57,7 +60,7 @@ colorOnBlackScheme = ColorStyle {
     lightBlue = sRGB24 35 156 255
     lightPurple = sRGB24 208 137 255
     lightGreen = sRGB24 180 255 145
-    
+
 
 whiteOnBlackScheme :: (Floating a, Ord a) => ColorStyle a
 whiteOnBlackScheme = ColorStyle {
