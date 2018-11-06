@@ -31,7 +31,7 @@ import Data.Maybe(catMaybes, listToMaybe, isJust, fromJust)
 
 import Types(Icon(..), SpecialQDiagram, SpecialBackend, SpecialNum
             , NodeName, Port(..), LikeApplyFlavor(..),
-            SyntaxNode(..), NamedIcon(..))
+            SyntaxNode(..), NamedIcon(..), Labeled(..))
 import DrawingColors(colorScheme, ColorStyle(..))
 
 {-# ANN module "HLint: ignore Use record patterns" #-}
@@ -74,7 +74,8 @@ iconToDiagram icon = case icon of
   CaseResultIcon -> identDiaFunc caseResult
   FlatLambdaIcon x -> flatLambda x
   NestedApply flavor headIcon args -> nestedApplyDia flavor headIcon args
-  NestedPApp args -> nestedPAppDia (repeat $ patternC colorScheme) args
+  NestedPApp constructor args
+    -> nestedPAppDia (repeat $ patternC colorScheme) constructor args
   NestedCaseIcon args -> nestedCaseDia args
   NestedGuardIcon args -> nestedGuardDia args
 
@@ -104,7 +105,8 @@ guardPortAngles (Port port) = case port of
 findNestedIcon :: NodeName -> Icon -> Maybe Icon
 findNestedIcon name icon = case icon of
   NestedApply _ headIcon args -> snd <$> findIcon name (headIcon : args)
-  NestedPApp args -> snd <$> findIcon name (fmap fst args)
+  NestedPApp constructor args ->
+    snd <$> findIcon name (fmap laValue (constructor:args))
   _ -> Nothing
 
 findIcon :: NodeName -> [Maybe NamedIcon] -> Maybe (Int, Icon)
@@ -167,11 +169,9 @@ getPortAngles icon port maybeNodeName = case icon of
   FlatLambdaIcon _ -> applyPortAngles port
   NestedApply _ headIcon args ->
     generalNestedPortAngles applyPortAngles headIcon args port maybeNodeName
-  NestedPApp (headIcon : args) ->
+  NestedPApp headIcon args ->
     generalNestedPortAngles
-    pAppPortAngles (fst headIcon) (fmap fst args) port maybeNodeName
-  NestedPApp _ ->
-    error "getPortAngles called on a NestedPApp with not enough arguments."
+    pAppPortAngles (laValue headIcon) (fmap laValue args) port maybeNodeName
   NestedCaseIcon args -> nestedGuardPortAngles args port maybeNodeName
   NestedGuardIcon args -> nestedGuardPortAngles args port maybeNodeName
 
@@ -292,23 +292,25 @@ resultIcon =  lw none $ fc (lamArgResC colorScheme) unitSquare
 
 -- TODO Refactor with generalNestedDia
 nestedPAppDia :: SpecialBackend b n =>
-  [Colour Double] -> [(Maybe NamedIcon, String)] -> TransformableDia b n
+  [Colour Double]
+  -> Labeled (Maybe NamedIcon)
+  -> [Labeled (Maybe NamedIcon)]
+  -> TransformableDia b n
 nestedPAppDia
   borderCols
-  funcNodeNameAndArgs
+  maybeFunText
+  args
   (TransformParams name nestingLevel reflect angle)
   = named name $
-    case funcNodeNameAndArgs of
-      [] -> mempty
-      (maybeFunText:args) ->
         centerXY
         $ centerY finalDia ||| beside' unitX transformedText resultCircleAndPort
         where
           borderCol = borderCols !! nestingLevel
 
-          transformedText = case maybeFunText of
-            (Just _, _) -> makeInnerIcon True inputPortConst maybeFunText
-            (Nothing, _) -> mempty
+          transformedText = case laValue maybeFunText of
+            (Just _) ->
+              makeInnerIcon True inputPortConst maybeFunText
+            Nothing -> mempty
           separation = circleRadius * 1.5
           verticalSeparation = circleRadius
           resultCircleAndPort
@@ -333,9 +335,9 @@ nestedPAppDia
               (circleRadius * 0.5)
           finalDia = argBox <> allPorts
 
-          makeInnerIcon _ portNum (Nothing, str)
+          makeInnerIcon _ portNum (Labeled Nothing str)
             = centerX $ makeLabelledPort name reflect angle str portNum
-          makeInnerIcon func _ (Just (NamedIcon iconNodeName icon), _)
+          makeInnerIcon func _ (Labeled (Just (NamedIcon iconNodeName icon)) _)
             = iconToDiagram
               icon
               (TransformParams iconNodeName innerLevel reflect angle)

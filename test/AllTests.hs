@@ -1,3 +1,4 @@
+module Main (main) where
 import Prelude hiding (return)
 
 import Diagrams.Backend.SVG.CmdLine(B)

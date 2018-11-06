@@ -7,7 +7,7 @@ module VisualRenderingTests (
 import Diagrams.Prelude hiding ((#), (&))
 
 import Rendering (renderDrawing)
-import Types (NodeName(..), Drawing(..), Edge, Icon(..), Port(..), LikeApplyFlavor(..), SpecialQDiagram, SpecialBackend, NamedIcon(..))
+import Types (Labeled(..), NodeName(..), Drawing(..), Edge, Icon(..), Port(..), LikeApplyFlavor(..), SpecialQDiagram, SpecialBackend, NamedIcon(..))
 
 import Util(iconToPort, tupleToNamedIcon)
 
@@ -70,19 +70,18 @@ nestedPAppDia :: Drawing
 nestedPAppDia = Drawing icons []
   where
     icons = [
-      NamedIcon (NodeName 1) (NestedPApp [(Nothing, "baz")])
+      NamedIcon (NodeName 1) (NestedPApp (Labeled Nothing "baz") [])
       , NamedIcon
         (NodeName 2)
         (NestedPApp
-          [ (Nothing, "")
-          , (Just (NamedIcon (NodeName 1) (TextBoxIcon "foo")), "bar")
-          , (Nothing, "bar")])
+          (Labeled Nothing "")
+          [ Labeled (Just (NamedIcon (NodeName 1) (TextBoxIcon "foo"))) "bar"
+          , Labeled Nothing "bar"])
       , NamedIcon
         (NodeName 3)
         (NestedPApp
-          [
-            (Just (NamedIcon (NodeName 4) (TextBoxIcon "foo")), "bar")
-          , (Nothing, "bar")])
+          (Labeled (Just (NamedIcon (NodeName 4) (TextBoxIcon "foo"))) "bar")
+          [Labeled Nothing "bar"])
       ]
 
 nestedApplyDia :: Drawing

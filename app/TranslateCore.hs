@@ -31,14 +31,13 @@ module TranslateCore(
 ) where
 
 import Control.Monad.State(State, state)
-import qualified Control.Arrow as Arrow
 import Data.Either(partitionEithers)
 import qualified Data.Graph.Inductive.PatriciaTree as FGR
 import qualified Data.Graph.Inductive.Graph as ING
 import Data.List(find)
 import Data.Semigroup(Semigroup, (<>))
 
-import Types(Icon, SyntaxNode(..), Edge(..), EdgeOption(..),
+import Types(Labeled(..), Icon, SyntaxNode(..), Edge(..), EdgeOption(..),
   NameAndPort(..), IDState, SgNamedNode(..), NodeName(..), Port,
   LikeApplyFlavor(..), CaseOrGuardTag(..), IDState(..), NamedIcon(..))
 import Util(noEnds, nameAndPort, makeSimpleEdge, justName, maybeBoolToBool
@@ -289,11 +288,12 @@ nestedCaseOrGuardNodeToIcon tag numArgs args = case tag of
     argPorts = take (2 * numArgs) $ argumentPorts dummyNode
     argList = fmap (makeArg args) (inputPort dummyNode : argPorts)
 
-nestedPatternNodeToIcon :: String -> [(Maybe SgNamedNode, String)] -> Icon
-nestedPatternNodeToIcon str children = NestedPApp $
-  (Just (NamedIcon (NodeName (-1)) (TextBoxIcon str)), "")
-  :
-  fmap (Arrow.first $ fmap (mapNodeInNamedNode nodeToIcon)) children
+nestedPatternNodeToIcon :: String -> [Labeled (Maybe SgNamedNode)] -> Icon
+nestedPatternNodeToIcon str children = NestedPApp
+  (pure (Just (NamedIcon (NodeName (-1)) (TextBoxIcon str))))
+  (fmap
+    (fmap (fmap (mapNodeInNamedNode nodeToIcon)))
+    children)
 
 findArg :: Port -> (SgNamedNode, Edge) -> Bool
 findArg currentPort (SgNamedNode argName _, Edge _ _ (NameAndPort fromName fromPort, NameAndPort toName toPort))

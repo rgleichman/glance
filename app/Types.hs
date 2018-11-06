@@ -19,16 +19,28 @@ module Types (
   SgNamedNode(..),
   IngSyntaxGraph,
   LikeApplyFlavor(..),
-  CaseOrGuardTag(..)
+  CaseOrGuardTag(..),
+  Labeled(..)
 ) where
 
 import Diagrams.Prelude(QDiagram, V2, Any, Renderable, Path, IsName)
 import Diagrams.TwoD.Text(Text)
 
+import Control.Applicative(Applicative(..))
 import Data.Typeable(Typeable)
 
 data NamedIcon = NamedIcon {niName :: NodeName, niIcon :: Icon}
   deriving (Show, Eq, Ord)
+
+data Labeled a = Labeled {laValue :: a, laLabel :: String}
+  deriving (Show, Eq, Ord)
+
+instance Functor Labeled where
+  fmap f (Labeled value str) = Labeled (f value) str
+
+instance Applicative Labeled where
+  pure x = Labeled x ""
+  (Labeled f fStr) <*> (Labeled x xStr) = Labeled (f x) (fStr <> xStr)
 
 -- TYPES --
 -- | A datatype that represents an icon.
@@ -44,12 +56,15 @@ data Icon = TextBoxIcon String
     LikeApplyFlavor  -- apply or compose
     (Maybe NamedIcon)  -- The function for apply, or the argument for compose
     [Maybe NamedIcon]  -- list of arguments or functions
-  | NestedPApp [(Maybe NamedIcon, String)]
+  | NestedPApp
+    (Labeled (Maybe NamedIcon))  -- Data constructor
+    [Labeled (Maybe NamedIcon)]  -- Arguments
   | NestedCaseIcon [Maybe NamedIcon]
   | NestedGuardIcon [Maybe NamedIcon]
   deriving (Show, Eq, Ord)
 
-data LikeApplyFlavor = ApplyNodeFlavor | ComposeNodeFlavor deriving (Show, Eq, Ord)
+data LikeApplyFlavor = ApplyNodeFlavor | ComposeNodeFlavor
+  deriving (Show, Eq, Ord)
 
 data CaseOrGuardTag = CaseTag | GuardTag deriving (Show, Eq, Ord)
 
@@ -58,7 +73,7 @@ data SyntaxNode =
   LikeApplyNode LikeApplyFlavor Int -- Function application, composition, and applying to a composition
   -- NestedApplyNode is only created in GraphAlgorithms, not during translation.
   | NestedApplyNode LikeApplyFlavor Int [(SgNamedNode, Edge)]
-  | NestedPatternApplyNode String [(Maybe SgNamedNode, String)]
+  | NestedPatternApplyNode String [Labeled (Maybe SgNamedNode)]
   | NameNode String -- Identifiers or symbols
   | BindNameNode String
   | LiteralNode String -- Literal values like the string "Hello World"

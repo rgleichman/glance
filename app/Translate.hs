@@ -28,7 +28,7 @@ import TranslateCore(Reference, SyntaxGraph(..), EvalContext, GraphAndRef(..), S
   makeBox, nTupleString, nTupleSectionString, nListString,
   syntaxGraphToFglGraph, getUniqueString, bindsToSyntaxGraph, graphAndRefToGraph,
   initialIdState)
-import Types(NameAndPort(..), IDState,
+import Types(Labeled(..), NameAndPort(..), IDState,
   Edge, SyntaxNode(..), IngSyntaxGraph, NodeName, SgNamedNode(..),
   LikeApplyFlavor(..))
 import Util(makeSimpleEdge, nameAndPort, justName)
@@ -164,8 +164,8 @@ makeNestedPatternGraph applyIconName funStr argVals = nestedApplyResult
     (nestedArgs, _, nestedSinks, nestedBinds, nestedEMaps) = graphsToComponents $ fmap snd nestedNamedNodesAndGraphs
 
     argListMapper (str, arg) = case arg of
-      Left _ -> (Nothing, str)
-      Right (namedNode, _) -> (Just namedNode, str)
+      Left _ -> Labeled Nothing str
+      Right (namedNode, _) -> Labeled (Just namedNode) str
 
     argList = fmap argListMapper mappedArgs
 
