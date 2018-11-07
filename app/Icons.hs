@@ -28,6 +28,7 @@ import qualified Control.Arrow as Arrow
 import Data.Either(partitionEithers)
 import Data.List(find)
 import Data.Maybe(catMaybes, listToMaybe, isJust, fromJust)
+import Data.Typeable(Typeable)
 
 import Types(Icon(..), SpecialQDiagram, SpecialBackend, SpecialNum
             , NodeName, Port(..), LikeApplyFlavor(..),
@@ -290,7 +291,44 @@ resultIcon =  lw none $ fc (lamArgResC colorScheme) unitSquare
 
 -- BEGIN Apply like icons
 
--- TODO Refactor with generalNestedDia
+makeAppInnerIcon :: SpecialBackend b n =>
+  TransformParams n ->
+  Bool ->
+  Port ->
+  Labeled (Maybe NamedIcon) ->
+  SpecialQDiagram b n
+makeAppInnerIcon (TransformParams name _ reflect angle) _ portNum
+  (Labeled Nothing str)
+  = centerX $ makeLabelledPort name reflect angle str portNum
+makeAppInnerIcon (TransformParams _ nestingLevel reflect angle) func _
+  (Labeled (Just (NamedIcon iconNodeName icon)) _)
+  = iconToDiagram
+    icon
+    (TransformParams iconNodeName innerLevel reflect angle)
+  where
+    innerLevel = if func then nestingLevel else nestingLevel + 1
+
+makeTransformedText :: SpecialBackend b n =>
+  TransformParams n
+  -> Labeled (Maybe NamedIcon)
+  -> SpecialQDiagram b n
+makeTransformedText tp maybeFunText = case laValue maybeFunText of
+  Just _ ->
+    makeAppInnerIcon tp True inputPortConst maybeFunText
+  Nothing -> mempty
+
+appArgBox :: (HasStyle a, Typeable (N a)
+             , TrailLike a, RealFloat (N a), V a ~ V2)
+          => Colour Double -> N a -> N a -> a
+appArgBox borderCol topAndBottomLineWidth portHeight
+  = lwG defaultLineWidth $ lc borderCol
+    $ roundedRect
+    topAndBottomLineWidth
+    (portHeight + verticalSeparation)
+    (circleRadius * 0.5)
+  where
+    verticalSeparation = circleRadius
+
 nestedPAppDia :: SpecialBackend b n =>
   [Colour Double]
   -> Labeled (Maybe NamedIcon)
@@ -300,49 +338,30 @@ nestedPAppDia
   borderCols
   maybeFunText
   args
-  (TransformParams name nestingLevel reflect angle)
-  = named name $
-        centerXY
-        $ centerY finalDia ||| beside' unitX transformedText resultCircleAndPort
-        where
-          borderCol = borderCols !! nestingLevel
+  tp@(TransformParams name nestingLevel _ _)
+  = named name $ centerXY
+    $ centerY finalDia ||| beside' unitX transformedText resultCircleAndPort
+  where
+    borderCol = borderCols !! nestingLevel
+    transformedText = makeTransformedText tp maybeFunText
+    separation = circleRadius * 1.5
+    resultCircleAndPort
+      = makeQualifiedPort name resultPortConst
+        <> alignR
+        (lc borderCol
+          $ lwG defaultLineWidth $ fc borderCol $ circle circleRadius)
+    triangleAndPorts
+      = vsep separation $
+        rotate quarterTurn (apply0Triangle borderCol) :
+        zipWith (makeAppInnerIcon tp False) argPortsConst args
+    allPorts
+      = makeQualifiedPort name inputPortConst <> alignT triangleAndPorts
+    argBox = alignT $ appArgBox
+             borderCol
+             (width allPorts)
+             (height allPorts)
+    finalDia = argBox <> allPorts
 
-          transformedText = case laValue maybeFunText of
-            (Just _) ->
-              makeInnerIcon True inputPortConst maybeFunText
-            Nothing -> mempty
-          separation = circleRadius * 1.5
-          verticalSeparation = circleRadius
-          resultCircleAndPort
-            = makeQualifiedPort name resultPortConst
-              <> alignR
-              (lc borderCol
-                $ lwG defaultLineWidth $ fc borderCol $ circle circleRadius)
-          triangleAndPorts = vsep separation $
-                             rotate quarterTurn (apply0Triangle borderCol) :
-                             zipWith (makeInnerIcon False) argPortsConst args
-
-          allPorts
-            = makeQualifiedPort name inputPortConst <> alignT triangleAndPorts
-            -- alignL (strutX separation ||| trianglePortsCircle)
-          topAndBottomLineWidth = width allPorts
-          -- boxHeight = height
-          argBox
-            = alignT $ lwG defaultLineWidth $ lc borderCol
-              $ roundedRect
-              topAndBottomLineWidth
-              (height allPorts + verticalSeparation)
-              (circleRadius * 0.5)
-          finalDia = argBox <> allPorts
-
-          makeInnerIcon _ portNum (Labeled Nothing str)
-            = centerX $ makeLabelledPort name reflect angle str portNum
-          makeInnerIcon func _ (Labeled (Just (NamedIcon iconNodeName icon)) _)
-            = iconToDiagram
-              icon
-              (TransformParams iconNodeName innerLevel reflect angle)
-            where
-              innerLevel = if func then nestingLevel else nestingLevel + 1
 
 -- | Like beside, but it puts the second dia atop the first dia
 beside' :: (Semigroup a, Juxtaposable a) => V a (N a) -> a -> a -> a
@@ -363,44 +382,28 @@ generalNestedDia
   borderCols
   maybeFunText
   args
-  (TransformParams name nestingLevel reflect angle)
+  tp@(TransformParams name nestingLevel _ _)
   = named name $ centerXY $ beside' unitX transformedText finalDia
     where
       borderCol = borderCols !! nestingLevel
-
-      transformedText = case maybeFunText of
-        Just _ -> makeInnerIcon True inputPortConst maybeFunText
-        Nothing -> mempty
-      seperation = circleRadius * 1.5
-      verticalSeperation = circleRadius
-      trianglePortsCircle = hsep seperation $
+      transformedText = makeTransformedText tp (pure maybeFunText)
+      separation = circleRadius * 1.5
+      trianglePortsCircle = hsep separation $
         reflectX (dia borderCol) :
-        zipWith (makeInnerIcon False) argPortsConst args ++
+        zipWith (makeAppInnerIcon tp False) argPortsConst (fmap pure args) ++
         [makeQualifiedPort name resultPortConst
          <> alignR
           (lc borderCol $ lwG defaultLineWidth $ fc borderCol
             $ circle circleRadius)
         ]
-
       allPorts
         = makeQualifiedPort name inputPortConst <> alignL trianglePortsCircle
-      topAndBottomLineWidth = width allPorts - circleRadius
-      argBox
-        = alignL $ lwG defaultLineWidth $ lc borderCol
-          $ roundedRect
-          topAndBottomLineWidth
-          (height allPorts + verticalSeperation)
-          (circleRadius * 0.5)
+      argBox = alignL $ appArgBox
+               borderCol
+               (width allPorts - circleRadius)
+               (height allPorts)
       finalDia = argBox <> allPorts
 
-      makeInnerIcon _ portNum Nothing
-        = makeQualifiedPort name portNum <> portCircle
-      makeInnerIcon func _ (Just (NamedIcon iconNodeName icon))
-        = iconToDiagram
-          icon
-          (TransformParams iconNodeName innerLevel reflect angle)
-        where
-          innerLevel = if func then nestingLevel else nestingLevel + 1
 
 nestedApplyDia :: SpecialBackend b n
   => LikeApplyFlavor
