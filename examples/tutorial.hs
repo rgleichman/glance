@@ -2,7 +2,7 @@
 Glance drawings, but also to get you thinking about visual programming languages.
 Why is Glance designed the way it is? What are other ways it could work?
 How could it be extended? I feel that we are just at the very beginning of
-visual programming languages, and that there is a huge universe of  visual
+visual programming languages, and that there is a huge universe of visual
 programming language designs waiting to be discovered.
 
 This tutorial assumes that the reader has some familiarity with the basics
@@ -75,6 +75,10 @@ represents the value returned by function (i.e. what's on the right side
 of the -> in a lambda expression). The green circle represents the function
 that has been defined.
 
+A dashed boundary is drawn around all the icons inside a function, including the
+function definition icon itself. This makes it easier to tell what icons belong
+to which function definition.
+
 In this case, the formal parameter x is the dot inside the green lambda icon,
 and the return value 3 * x is the red circle in the function application icon,
 which is connected to the blue square. The function itself is bound to the name f.
@@ -142,28 +146,13 @@ f x y =  max (2 * y) (1 + x)
 f x y =  max (2 * y) (1 + x)
 
 {-
-
-No Code Regions:
-
-Something different about Glance is that Glance does not have any rigid code regions.
-In other visual programming languages, the icons inside the body of a function
-would be restricted to a rectangle. In Glance, all icons are on the same level.
-Theoretically, Glance's flat layout should allow more compact drawings since space
-is not wasted by extra boxes.
+Here are two examples of nested functions:
 
 f1 = (\x1 -> (\x2 -> (\x3 -> sum [x1, x2, x3])))
 -}
 f1 = (\x1 -> (\x2 -> (\x3 -> sum [x1, x2, x3])))
 
-{-In most other visual languages, the above code would require three nested
-regions.
-
-Without regions however, it can be difficult to see in which function a parameter
-is used. In the code below for example, it would probably take some time to
-figure out that x is only being used in an inner function. To address this, I hope
-to have Glance draw a perimeter around all icons inside a function. This would occur
-after layout so it would not make the drawing any larger.
-
+{-
 f1 x y = (\z -> x + z) y
 -}
 f1 x y = (\z -> x + z) y
@@ -187,18 +176,18 @@ y = foo (3 + (baz 2)) (8 * (baz 2))
 {-As soon as an expression is used more than once, the tree topology is lost,
 and Glance extracts the sub-expression into a separate (non-nested) icon.
 
-y = foo (3 + bazOf2) (8* bazOf2) where bazOf2 = baz 2
+y = foo (3 + bazOf2) (8 * bazOf2) where bazOf2 = baz 2
 -}
-y = foo (3 + bazOf2) (8* bazOf2) where bazOf2 = baz 2
+y = foo (3 + bazOf2) (8 * bazOf2) where bazOf2 = baz 2
 
 {-There are many different ways that function application trees can be represented.
 The linear layout Glance currently uses is just the simplest. Large expressions
 (just like long lines of code) become hard to read with the linear layout.
 Other tree layouts could make these large expressions much more readable.
 
-y = (((2 + 4 * 4) - (7+ 2 + baz)*8)/21)
+y = (((2 + 4 * 4) - (7 + 2 + baz) * 8) / 21)
 -}
-y = (((2 + 4 * 4) - (7+ 2 + baz)*8)/21)
+y = (((2 + 4 * 4) - (7 + 2 + baz) * 8) / 21)
 
 {-
 Patterns:

@@ -7,7 +7,9 @@ module VisualRenderingTests (
 import Diagrams.Prelude hiding ((#), (&))
 
 import Rendering (renderDrawing)
-import Types (Labeled(..), NodeName(..), Drawing(..), Edge, Icon(..), Port(..), LikeApplyFlavor(..), SpecialQDiagram, SpecialBackend, NamedIcon(..))
+import Types (Labeled(..), NodeName(..), Drawing(..), Edge, Icon(..), Port(..)
+             , LikeApplyFlavor(..), SpecialQDiagram, SpecialBackend
+             , NamedIcon(..))
 
 import Util(iconToPort, tupleToNamedIcon)
 
@@ -15,34 +17,39 @@ import Util(iconToPort, tupleToNamedIcon)
 iconToIntPort :: NodeName -> NodeName -> Int -> Edge
 iconToIntPort x y p = iconToPort x y (Port p)
 
+n0, n1, n2, n3, n4, n5, n6, n7, n8, n9, n10 :: NodeName
+nodeNames :: [NodeName]
+nodeNames@[n0, n1, n2, n3, n4, n5, n6, n7, n8, n9, n10] = fmap NodeName [0..10]
+
+ni0, ni1, ni2, ni3, ni4, ni5, ni6, ni7, ni8, ni9, ni10 :: Icon -> NamedIcon
+[ni0, ni1, ni2, ni3, ni4, ni5, ni6, ni7, ni8, ni9, ni10] = fmap NamedIcon nodeNames
+
 -- TODO refactor these Drawings
 nestedCaseDrawing :: Drawing
 nestedCaseDrawing = Drawing icons [] where
-  [n0, n1, n2, n3, n4, n5, n6, n7, n8, n9] = fmap NodeName [0..9]
   icons = fmap tupleToNamedIcon [
     (n0, NestedCaseIcon [Nothing, Nothing, Nothing]),
-    (n1, NestedCaseIcon [Nothing, Just $ NamedIcon n2 (TextBoxIcon "n2"), Nothing]),
-    (n3, NestedCaseIcon [Nothing, Nothing, Just $ NamedIcon n4 (TextBoxIcon "n4")]),
+    (n1, NestedCaseIcon [Nothing, Just $ ni2 (TextBoxIcon "n2"), Nothing]),
+    (n3, NestedCaseIcon [Nothing, Nothing, Just $ ni4 (TextBoxIcon "n4")]),
     (n5, NestedCaseIcon [Nothing,
-                         Just $ NamedIcon n6 (TextBoxIcon "n6"),
-                         Just $ NamedIcon n7 (TextBoxIcon "n7"),
-                         Just $ NamedIcon n8 (TextBoxIcon "n8"),
-                         Just $ NamedIcon n9 (TextBoxIcon "n9")])
+                         Just $ ni6 (TextBoxIcon "n6"),
+                         Just $ ni7 (TextBoxIcon "n7"),
+                         Just $ ni8 (TextBoxIcon "n8"),
+                         Just $ ni9 (TextBoxIcon "n9")])
     ]
 
 nestedGuardDrawing :: Drawing
 nestedGuardDrawing = Drawing icons edges where
-  [n0, n1, n2, n3, n4, n5, n6, n7, n8, n9, n10] = fmap NodeName [0..10]
-  icons = fmap tupleToNamedIcon [
-    (n10, TextBoxIcon "n10"),
-    (n0, NestedGuardIcon [Nothing, Nothing, Nothing]),
-    (n1, NestedGuardIcon [Nothing, Just $ NamedIcon n2 (TextBoxIcon "n2"), Nothing]),
-    (n3, NestedGuardIcon [Nothing, Nothing, Just $ NamedIcon n4 (TextBoxIcon "n4")]),
-    (n5, NestedGuardIcon [Nothing,
-                         Just $ NamedIcon n6 (TextBoxIcon "n6"),
-                         Just $ NamedIcon n7 (TextBoxIcon "n7"),
-                         Just $ NamedIcon n8 (TextBoxIcon "n8"),
-                         Just $ NamedIcon n9 (TextBoxIcon "n9")])
+  icons = [
+    ni10 $ TextBoxIcon "n10"
+    , ni0 $ NestedGuardIcon [Nothing, Nothing, Nothing]
+    , ni1 $ NestedGuardIcon [Nothing, Just $ ni2 (TextBoxIcon "n2"), Nothing]
+    , ni3 $ NestedGuardIcon [Nothing, Nothing, Just $ ni4 (TextBoxIcon "n4")]
+    , ni5 $ NestedGuardIcon [Nothing,
+                         Just $ ni6 (TextBoxIcon "n6"),
+                         Just $ ni7 (TextBoxIcon "n7"),
+                         Just $ ni8 (TextBoxIcon "n8"),
+                         Just $ ni9 (TextBoxIcon "n9")]
     ]
   edges = [
     iconToIntPort n10 n5 0
@@ -70,7 +77,7 @@ nestedPAppDia :: Drawing
 nestedPAppDia = Drawing icons []
   where
     icons = [
-      NamedIcon (NodeName 1) (NestedPApp (Labeled Nothing "baz") [])
+      NamedIcon n0 (NestedPApp (Labeled Nothing "baz") [])
       , NamedIcon
         (NodeName 2)
         (NestedPApp
@@ -97,6 +104,16 @@ nestedApplyDia = Drawing icons []
         --[Just $ NamedIcon (NodeName 1) (TextBoxIcon "bar")])
       ]
 
+lambdaDia :: Drawing
+lambdaDia = Drawing icons []
+  where
+    icons = [
+      ni0 $ FlatLambdaIcon ["foo", "bar"] [n0, n1]
+      , ni1 CaseResultIcon
+      , ni2 $ GuardIcon 3
+      ]
+
+
 --renderTests :: IO (Diagram B)
 renderTests :: SpecialBackend b Double => IO (SpecialQDiagram b Double)
 renderTests = do
@@ -105,10 +122,11 @@ renderTests = do
   pure vCattedDrawings
   where
     allDrawings = [
-      nestedCaseDrawing,
-      nestedGuardDrawing,
-      flatCaseDrawing,
-      flatGuardDrawing,
-      nestedPAppDia,
-      nestedApplyDia
+      nestedCaseDrawing
+      , nestedGuardDrawing
+      , flatCaseDrawing
+      , flatGuardDrawing
+      , nestedPAppDia
+      , nestedApplyDia
+      , lambdaDia
       ]

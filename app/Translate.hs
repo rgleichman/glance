@@ -366,7 +366,7 @@ applyComposeScoreHelper exp1 exp2 = (appScore, compScore) where
 
   leftComp = 1 + min e1App e1Comp
   rightComp = min (1 + e2App) e2Comp
-  
+
   compScore = max leftComp rightComp
 
 -- TODO Consider putting this logic in a separate "simplifyExpression" function.
@@ -651,26 +651,33 @@ generalEvalLambda context patterns rhsEvalFun = do
     patternVals = fmap fst patternValsWithAsNames
     patternStrings = concatMap namesInPattern patternValsWithAsNames
     rhsContext = patternStrings <> context
+  GraphAndRef rhsRawGraph rhsRef <- rhsEvalFun rhsContext
+  let
     paramNames = fmap patternName patternValsWithAsNames
-    lambdaNode = FunctionDefNode paramNames
+    enclosedNodeNames = snnName <$> sgNodes combinedGraph
+    lambdaNode = FunctionDefNode paramNames enclosedNodeNames
     lambdaPorts = map (nameAndPort lambdaName) $ argumentPorts lambdaNode
     patternGraph = mconcat $ fmap graphAndRefToGraph patternVals
 
     (patternEdges, newBinds) =
       partitionEithers $ zipWith makePatternEdges patternVals lambdaPorts
 
-  GraphAndRef rhsRawGraph rhsRef <- rhsEvalFun rhsContext
-  let
     icons = [SgNamedNode lambdaName lambdaNode]
     returnPort = nameAndPort lambdaName (inputPort lambdaNode)
     (newEdges, newSinks) = case rhsRef of
       Left s -> (patternEdges, [SgSink s returnPort])
-      Right rhsPort ->  (makeSimpleEdge (rhsPort, returnPort) : patternEdges, mempty)
+      Right rhsPort ->
+        (makeSimpleEdge (rhsPort, returnPort) : patternEdges, mempty)
     finalGraph = SyntaxGraph icons newEdges newSinks newBinds mempty
 
-    asBindGraph = mconcat $ zipWith asBindGraphZipper (fmap snd patternValsWithAsNames) lambdaPorts
-  
-  pure (deleteBindings . makeEdges $ (asBindGraph <> rhsRawGraph <> patternGraph <> finalGraph), nameAndPort lambdaName (resultPort lambdaNode))
+    asBindGraph = mconcat $ zipWith
+                  asBindGraphZipper
+                  (fmap snd patternValsWithAsNames)
+                  lambdaPorts
+    combinedGraph = deleteBindings . makeEdges
+                    $ (asBindGraph <> rhsRawGraph <> patternGraph <> finalGraph)
+
+  pure (combinedGraph, nameAndPort lambdaName (resultPort lambdaNode))
   where
     -- TODO Like evalPatBind, this edge should have an indicator that it is the input to a pattern.
     -- makePatternEdges creates the edges between the patterns and the parameter ports.

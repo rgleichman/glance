@@ -19,7 +19,8 @@ module Icons
     defaultLineWidth,
     ColorStyle(..),
     colorScheme,
-    coloredTextBox
+    coloredTextBox,
+    circleRadius
     ) where
 
 import Diagrams.Prelude hiding ((&), (#), Name)
@@ -73,7 +74,7 @@ iconToDiagram icon = case icon of
   GuardIcon n -> nestedGuardDia $ replicate (1 + (2 * n)) Nothing
   CaseIcon n -> nestedCaseDia $ replicate (1 + (2 * n)) Nothing
   CaseResultIcon -> identDiaFunc caseResult
-  FlatLambdaIcon x -> flatLambda x
+  FlatLambdaIcon x _ -> flatLambda x
   NestedApply flavor headIcon args -> nestedApplyDia flavor headIcon args
   NestedPApp constructor args
     -> nestedPAppDia (repeat $ patternC colorScheme) constructor args
@@ -167,7 +168,7 @@ getPortAngles icon port maybeNodeName = case icon of
   GuardIcon _ -> guardPortAngles port
   CaseIcon _ -> guardPortAngles port
   CaseResultIcon -> []
-  FlatLambdaIcon _ -> applyPortAngles port
+  FlatLambdaIcon _ _ -> applyPortAngles port
   NestedApply _ headIcon args ->
     generalNestedPortAngles applyPortAngles headIcon args port maybeNodeName
   NestedPApp headIcon args ->
@@ -213,7 +214,7 @@ argumentPorts n = case n of
   LikeApplyNode  _ _-> defaultPorts
   NestedApplyNode _ _ _ -> defaultPorts
   NestedPatternApplyNode _ _-> defaultPorts
-  FunctionDefNode _ -> defaultPorts
+  FunctionDefNode _ _ -> defaultPorts
   NestedCaseOrGuardNode _ _ _-> defaultPorts
   GuardNode _ -> defaultPorts
   CaseNode _ -> defaultPorts

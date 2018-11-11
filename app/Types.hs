@@ -29,6 +29,9 @@ import Diagrams.TwoD.Text(Text)
 import Control.Applicative(Applicative(..))
 import Data.Typeable(Typeable)
 
+newtype NodeName = NodeName Int deriving (Typeable, Eq, Ord, Show)
+instance IsName NodeName
+
 data NamedIcon = NamedIcon {niName :: NodeName, niIcon :: Icon}
   deriving (Show, Eq, Ord)
 
@@ -48,7 +51,9 @@ instance Applicative Labeled where
 data Icon = TextBoxIcon String
   | GuardIcon
     Int  -- Number of alternatives
-  | FlatLambdaIcon [String]
+  | FlatLambdaIcon
+    [String]  -- Parameter labels
+    [NodeName]  -- Nodes inside the lambda
   | CaseIcon Int
   | CaseResultIcon
   | BindTextBoxIcon String
@@ -68,6 +73,12 @@ data LikeApplyFlavor = ApplyNodeFlavor | ComposeNodeFlavor
 
 data CaseOrGuardTag = CaseTag | GuardTag deriving (Show, Eq, Ord)
 
+data SgNamedNode = SgNamedNode {
+  snnName :: NodeName
+  , snnNode :: SyntaxNode
+  }
+  deriving (Ord, Eq, Show)
+
 -- TODO remove Ints from SyntaxNode data constructors.
 data SyntaxNode =
   LikeApplyNode LikeApplyFlavor Int -- Function application, composition, and applying to a composition
@@ -77,16 +88,15 @@ data SyntaxNode =
   | NameNode String -- Identifiers or symbols
   | BindNameNode String
   | LiteralNode String -- Literal values like the string "Hello World"
-  | FunctionDefNode [String] -- Function definition (ie. lambda expression)
+  | FunctionDefNode  -- Function definition (ie. lambda expression)
+    [String]  -- Parameter labels
+    [NodeName]  -- Nodes inside the lambda
   | GuardNode
     Int  -- Number of alternatives
   | CaseNode Int
   | CaseResultNode -- TODO remove caseResultNode
   | NestedCaseOrGuardNode CaseOrGuardTag Int [(SgNamedNode, Edge)]
   deriving (Show, Eq, Ord)
-
-newtype NodeName = NodeName Int deriving (Typeable, Eq, Ord, Show)
-instance IsName NodeName
 
 newtype Port = Port Int deriving (Typeable, Eq, Ord, Show)
 instance IsName Port
@@ -108,8 +118,6 @@ data Edge = Edge {edgeOptions::[EdgeOption], edgeEnds :: (EdgeEnd, EdgeEnd), edg
 -- | A drawing is a map from names to Icons, a list of edges,
 -- and a map of names to subDrawings
 data Drawing = Drawing [NamedIcon] [Edge] deriving (Show, Eq)
-
-data SgNamedNode = SgNamedNode NodeName SyntaxNode deriving (Ord, Eq, Show)
 
 -- | IDState is an Abstract Data Type that is used as a state whose value is a unique id.
 newtype IDState = IDState Int deriving (Eq, Show)

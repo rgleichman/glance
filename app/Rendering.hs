@@ -16,7 +16,7 @@ import qualified Data.Map as Map
 import Data.Function(on)
 import qualified Data.Graph.Inductive as ING
 import Data.Graph.Inductive.PatriciaTree (Gr)
-import Data.List(minimumBy)
+import Data.List(find, minimumBy)
 import Data.Maybe(fromMaybe)
 import Data.Typeable(Typeable)
 
@@ -26,9 +26,11 @@ import Data.Typeable(Typeable)
 --import Data.Word(Word16)
 
 import Icons(colorScheme, iconToDiagram, defaultLineWidth, ColorStyle(..)
-            , getPortAngles, TransformParams(..))
+            , getPortAngles, TransformParams(..), circleRadius)
 import TranslateCore(nodeToIcon)
-import Types(Edge(..), EdgeOption(..), Drawing(..), EdgeEnd(..), NameAndPort(..), SpecialQDiagram, SpecialBackend, SpecialNum, NodeName(..), Port(..), SgNamedNode, NamedIcon(..))
+import Types(Edge(..), EdgeOption(..), Drawing(..), EdgeEnd(..), NameAndPort(..)
+            , SpecialQDiagram, SpecialBackend, SpecialNum, NodeName(..)
+            , Port(..), SgNamedNode, NamedIcon(..), Icon(..))
 
 
 import Util(fromMaybeError, mapNodeInNamedNode, namedIconToTuple)
@@ -197,8 +199,11 @@ makeEdge graph dia rotationMap (node0, node1, edge@(Edge _ _ (namePort0, namePor
 
 -- | addEdges draws the edges underneath the nodes.
 addEdges :: (SpecialBackend b n, ING.Graph gr) =>
-  gr NamedIcon Edge -> (SpecialQDiagram b n, [(NamedIcon, (Bool, Angle n))]) -> SpecialQDiagram b n
-addEdges graph (dia, rotationMap) = dia <> applyAll connections dia
+  gr NamedIcon Edge
+  -> SpecialQDiagram b n
+  -> [(NamedIcon, (Bool, Angle n))]
+  -> SpecialQDiagram b n
+addEdges graph dia rotationMap = applyAll connections dia
   where
     connections = makeEdge graph dia rotationMap <$> ING.labEdges graph
 
@@ -266,24 +271,49 @@ rotateNodes positionMap graph = findIconRotation positionMap graph <$> Map.keys 
 
 -- END rotateNodes --
 
-type LayoutResult a = Gr (GV.AttributeNode NamedIcon) (GV.AttributeNode a)
-
-placeNodes :: forall a b gr. (SpecialBackend b Double, ING.Graph gr) =>
-   LayoutResult a
-   -> gr NamedIcon Edge
-   -> (SpecialQDiagram b Double, [(NamedIcon, (Bool, Angle Double))])
-placeNodes layoutResult graph = (mconcat placedNodes, rotationMap)
+drawLambdaRegions :: SpecialBackend b Double =>
+  [(NamedIcon, SpecialQDiagram b Double)]
+  -> SpecialQDiagram b Double
+drawLambdaRegions placedNodes
+  = mconcat $ fmap (drawRegion . niIcon . fst) placedNodes
   where
-    positionMap = fst $ getGraph layoutResult
-    rotationMap = rotateNodes positionMap graph
+    drawRegion (FlatLambdaIcon _ enclosedNames)
+      = regionRect enclosedDias
+      where
+        enclosedDias = fmap findDia enclosedNames
+        findDia n1
+          = fromMaybe mempty
+            $ snd <$> find (\(NamedIcon n2 _, _) -> n1 == n2) placedNodes
+    drawRegion _ = mempty
 
-    placedNodes = fmap placeNode rotationMap
+    -- TODO Use something better than a rectangle
+    regionRect dias
+      = moveTo (centerPoint combinedDia)
+        $ lc lightgreen (lwG defaultLineWidth contentsRect)
+      where
+        combinedDia = mconcat dias
+        rectPadding = 3 * circleRadius
+        contentsRect = dashingG [0.4 * circleRadius, 0.8 * circleRadius] 0
+                       $ roundedRect
+                       (rectPadding + width combinedDia)
+                       (rectPadding + height combinedDia)
+                       (3 * circleRadius)
 
-    -- todo: Not sure if the diagrams should already be centered at this point.
-    placeNode (key@(NamedIcon name icon), (reflected, angle)) = place transformedDia diaPosition where
-      origDia = iconToDiagram icon (TransformParams name 0 reflected angle)
-      transformedDia = centerXY $ rotate angle $ (if reflected then reflectX else id) origDia
-      diaPosition = graphvizScaleFactor *^ (positionMap Map.! key)
+placeNodes :: SpecialBackend b Double =>
+  Map.Map NamedIcon (P2 Double)
+  -> [(NamedIcon, (Bool, Angle Double))]
+  -> [(NamedIcon, SpecialQDiagram b Double)]
+placeNodes positionMap = fmap placeNode
+  where
+    placeNode (key@(NamedIcon name icon), (reflected, angle))
+      = (key, place transformedDia diaPosition)
+      where
+        origDia = centerXY
+                  $ iconToDiagram icon (TransformParams name 0 reflected angle)
+        transformedDia = centerXY $ rotate angle
+                         $ (if reflected then reflectX else id) origDia
+        diaPosition = graphvizScaleFactor *^ (positionMap Map.! key)
+
 
 customLayoutParams :: GV.GraphvizParams n v e () v
 customLayoutParams = GV.defaultParams{
@@ -311,7 +341,14 @@ doGraphLayout :: forall b.
 doGraphLayout graph = do
   layoutResult <- layoutGraph' layoutParams GVA.Neato graph
   --  layoutResult <- layoutGraph' layoutParams GVA.Fdp graph
-  pure $ addEdges graph $ placeNodes layoutResult graph
+  let
+    positionMap = fst $ getGraph layoutResult
+    rotationMap = rotateNodes positionMap graph
+    placedNodeList = placeNodes positionMap rotationMap
+    placedNodes = mconcat $ fmap snd placedNodeList
+    edges = addEdges graph placedNodes rotationMap
+    placedRegions = drawLambdaRegions placedNodeList
+  pure (placedNodes <> edges <> placedRegions)
   where
     layoutParams :: GV.GraphvizParams Int NamedIcon e () NamedIcon
     --layoutParams :: GV.GraphvizParams Int l el Int l
@@ -324,7 +361,8 @@ doGraphLayout graph = do
       --[GVA.Width diaWidth, GVA.Height diaHeight]
       [GVA.Width circleDiameter, GVA.Height circleDiameter]
       where
-        -- This type annotation (:: SpecialQDiagram b n) requires Scoped Typed Variables, which only works if the function's
+        -- This type annotation (:: SpecialQDiagram b n) requires Scoped Typed
+        -- Variables, which only works if the function's
         -- type signiture has "forall b e."
         dia :: SpecialQDiagram b Double
         dia = iconToDiagram
@@ -351,5 +389,6 @@ renderIngSyntaxGraph ::
   Gr SgNamedNode Edge -> IO (SpecialQDiagram b Double)
 renderIngSyntaxGraph = renderIconGraph . ING.nmap (mapNodeInNamedNode nodeToIcon)
 
-renderIconGraph :: SpecialBackend b Double => Gr NamedIcon Edge -> IO (SpecialQDiagram b Double)
+renderIconGraph :: SpecialBackend b Double
+                => Gr NamedIcon Edge -> IO (SpecialQDiagram b Double)
 renderIconGraph = doGraphLayout

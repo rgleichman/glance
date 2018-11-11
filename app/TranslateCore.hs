@@ -255,7 +255,7 @@ nodeToIcon (NestedPatternApplyNode s children)
 nodeToIcon (NameNode s) = TextBoxIcon s
 nodeToIcon (BindNameNode s) = BindTextBoxIcon s
 nodeToIcon (LiteralNode s) = TextBoxIcon s
-nodeToIcon (FunctionDefNode x) = FlatLambdaIcon x
+nodeToIcon (FunctionDefNode x names) = FlatLambdaIcon x names
 nodeToIcon (GuardNode n) = GuardIcon n
 nodeToIcon (CaseNode n) = CaseIcon n
 nodeToIcon CaseResultNode = CaseResultIcon

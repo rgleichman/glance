@@ -51,10 +51,19 @@ renderFile (CmdLineOptions inputFilename outputFilename imageWidth includeCommen
 
   diagrams <- traverse renderIngSyntaxGraph drawings
   let
-    commentsInBoxes = fmap (\(Exts.Comment _ _ c) -> Dia.alignL $ multilineComment Dia.white (Dia.opaque Dia.white) c) comments
-    diagramsAndComments = Dia.vsep 2 $ zipWith (\x y -> x Dia.=== Dia.strutY 0.4 Dia.=== y) commentsInBoxes (fmap Dia.alignL diagrams)
+    commentsInBoxes
+      = fmap
+        (\(Exts.Comment _ _ c) ->
+            Dia.alignL $ multilineComment Dia.white (Dia.opaque Dia.white) c)
+        comments
+    diagramsAndComments
+      = Dia.vsep 2 $ zipWith
+        (\x y -> x Dia.=== Dia.strutY 0.4 Dia.=== y)
+        commentsInBoxes
+        (fmap Dia.alignL diagrams)
     justDiagrams = Dia.vsep 1 $ fmap Dia.alignL diagrams
-    diagramsAndMaybeComments = if includeComments then diagramsAndComments else justDiagrams
+    diagramsAndMaybeComments
+      = if includeComments then diagramsAndComments else justDiagrams
   --print comments
 
     finalDia = Dia.bgFrame 1 (backgroundC colorScheme) diagramsAndMaybeComments
