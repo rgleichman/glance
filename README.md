@@ -45,7 +45,7 @@ Below is a getting started guide for Glance rendered by Glance itself ([source h
 
 `stack exec glance-exe -- examples/tutorial.hs examples/tutorial.svg 873 -c`
 
-<img src="https://cdn.rawgit.com/rgleichman/glance/798466004c3dfe10fd1b3b25df23e66d61ec1e87/examples/tutorial.svg" alt="Introduction to Glance" />
+<img src="https://cdn.rawgit.com/rgleichman/glance/9d9862539dda7b7aceea33616816ac30ccf9b393/examples/tutorial.svg" alt="Introduction to Glance" />
 
 You should now be able to understand Glance's visual syntax. If you would like to see how visual code might be an improvement over textual code, or if you just want to see more examples, please take a look at the Glance wiki page [Advantages of Glance](../../wiki/Advantages-of-Glance).
 
