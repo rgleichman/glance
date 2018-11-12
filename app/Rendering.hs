@@ -32,7 +32,6 @@ import Data.Typeable(Typeable)
 --import qualified Data.GraphViz.Types
 --import Data.GraphViz.Commands
 --import qualified Debug.Trace
---import Data.Word(Word16)
 
 import Icons(colorScheme, iconToDiagram, defaultLineWidth, ColorStyle(..)
             , getPortAngles, TransformParams(..), circleRadius)
@@ -40,7 +39,6 @@ import TranslateCore(nodeToIcon)
 import Types(Edge(..), EdgeOption(..), Drawing(..), EdgeEnd(..), NameAndPort(..)
             , SpecialQDiagram, SpecialBackend, SpecialNum, NodeName(..)
             , Port(..), SgNamedNode, NamedIcon(..), Icon(..))
-
 
 import Util(fromMaybeError, mapNodeInNamedNode, namedIconToTuple)
 
@@ -244,10 +242,14 @@ makeEdge graph dia rotationMap
                      shaftAngle
                      (findPortAngles node1label namePort1)
 
-    getPortPoint n = head $ fromMaybeError
-      ("makeEdge: port not found. Port: " ++ show n ++ ". Valid ports: "
-        ++ show diaNodeNamePointMap)
-      (lookup n diaNodeNamePointMap)
+    getPortPoint n = case foundPoints of
+      [point] -> point
+      _ -> error $ "Multiple points with named: " <> show n
+      where
+        foundPoints = fromMaybeError
+          ( "makeEdge: port not found. Port: " ++ show n ++ ". Valid ports: "
+            ++ show diaNodeNamePointMap)
+          (lookup n diaNodeNamePointMap)
 
     portAngles = (icon0PortAngle, icon1PortAngle)
 
@@ -297,7 +299,6 @@ bestAngleForIcon positionMap graph key@(NamedIcon (NodeName nodeId) _) reflected
     edges = getPositionAndAngles
             <$> ( fmap getSucEdge (ING.lsuc graph nodeId)
                   <> fmap getPreEdge (ING.lpre graph nodeId))
-
 
     getPositionAndAngles (node, nameAndPort)
       = (positionMap Map.! nodeLabel, portAngles)
