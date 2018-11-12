@@ -81,7 +81,8 @@ data SgNamedNode = SgNamedNode {
 
 -- TODO remove Ints from SyntaxNode data constructors.
 data SyntaxNode =
-  LikeApplyNode LikeApplyFlavor Int -- Function application, composition, and applying to a composition
+ -- Function application, composition, and applying to a composition
+  LikeApplyNode LikeApplyFlavor Int
   -- NestedApplyNode is only created in GraphAlgorithms, not during translation.
   | NestedApplyNode LikeApplyFlavor Int [(SgNamedNode, Edge)]
   | NestedPatternApplyNode String [Labeled (Maybe SgNamedNode)]
@@ -112,20 +113,24 @@ data EdgeEnd = EndNone deriving (Show, Eq, Ord)
 
 -- | An Edge has an name of the source icon, and its optional port number,
 -- and the name of the destination icon, and its optional port number.
-data Edge = Edge {edgeOptions::[EdgeOption], edgeEnds :: (EdgeEnd, EdgeEnd), edgeConnection :: Connection}
+data Edge = Edge { edgeOptions :: [EdgeOption]
+                 , edgeEnds :: (EdgeEnd, EdgeEnd), edgeConnection :: Connection}
   deriving (Show, Eq, Ord)
 
 -- | A drawing is a map from names to Icons, a list of edges,
 -- and a map of names to subDrawings
 data Drawing = Drawing [NamedIcon] [Edge] deriving (Show, Eq)
 
--- | IDState is an Abstract Data Type that is used as a state whose value is a unique id.
+-- | IDState is an Abstract Data Type that is used as a state whose value is a
+-- unique id.
 newtype IDState = IDState Int deriving (Eq, Show)
 
-type SpecialNum n = (Floating n, RealFrac n, RealFloat n, Typeable n, Show n, Enum n)
+type SpecialNum n
+  = (Floating n, RealFrac n, RealFloat n, Typeable n, Show n, Enum n)
 
 -- Note that SpecialBackend is a constraint synonym, not a type synonym.
-type SpecialBackend b n = (SpecialNum n, Renderable (Path V2 n) b, Renderable (Text n) b)
+type SpecialBackend b n
+  = (SpecialNum n, Renderable (Path V2 n) b, Renderable (Text n) b)
 
 type SpecialQDiagram b n = QDiagram b V2 n Any
 
