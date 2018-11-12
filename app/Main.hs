@@ -5,14 +5,18 @@ module Main
 
 import Prelude hiding (return)
 
--- Note: (#) and (&) are hidden in all Glance source files, since they would require
--- - an special case when translating when Glance is run on its own source code.
+-- Note: (#) and (&) are hidden in all Glance source files, since they would
+-- require a special case when translating when Glance is run on its own source
+-- code.
 import qualified Diagrams.Prelude as Dia hiding ((#), (&))
 
 import qualified Language.Haskell.Exts as Exts
 
 -- Options.Applicative does not seem to work qualified
-import Options.Applicative
+import Options.Applicative(header, progDesc, fullDesc, helper, info
+                          , defaultPrefs, customExecParser, help, short, switch
+                          , metavar, auto, argument, str, prefShowHelpOnError
+                          , Parser)
 
 import Icons(ColorStyle(..), colorScheme, multilineComment)
 import Rendering(renderIngSyntaxGraph)
@@ -31,16 +35,23 @@ optionParser = CmdLineOptions
   <$> argument str (metavar "INPUT_FILE" Dia.<> help "Input .hs filename")
   <*> argument str (metavar "OUTPUT_FILE" Dia.<> help "Output .svg filename")
   <*> argument auto (metavar "IMAGE_WIDTH" Dia.<> help "Output image width")
-  <*> switch (short 'c' Dia.<> help "Include comments between top level declarations.")
+  <*> switch
+  (short 'c' Dia.<> help "Include comments between top level declarations.")
 
 renderFile :: CmdLineOptions -> IO ()
-renderFile (CmdLineOptions inputFilename outputFilename imageWidth includeComments) = do
+renderFile (CmdLineOptions
+             inputFilename
+             outputFilename
+             imageWidth
+             includeComments)
+  = do
   putStrLn $ "Translating file " ++ inputFilename ++ " into a Glance image."
   parseResult <- Exts.parseFileWithComments
-    (Exts.defaultParseMode
-      {Exts.extensions = [Exts.EnableExtension Exts.MultiParamTypeClasses, Exts.EnableExtension Exts.FlexibleContexts],
-      Exts.parseFilename = inputFilename
-      })
+    (Exts.defaultParseMode {
+        Exts.extensions = [Exts.EnableExtension Exts.MultiParamTypeClasses
+                          , Exts.EnableExtension Exts.FlexibleContexts]
+        , Exts.parseFilename = inputFilename
+        })
     inputFilename
   let
     (parsedModule, comments) = Exts.fromParseResult parseResult

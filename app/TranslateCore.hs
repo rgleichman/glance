@@ -13,14 +13,12 @@ module TranslateCore(
   getUniqueString,
   edgesForRefPortList,
   combineExpressions,
-  --qualifyNameAndPort,
   makeApplyGraph,
   makeGuardGraph,
   namesInPattern,
   lookupReference,
   deleteBindings,
   makeEdges,
-  --makeEdgesCore,
   makeBox,
   nTupleString,
   nTupleSectionString,
@@ -32,17 +30,19 @@ module TranslateCore(
 
 import Control.Monad.State(State, state)
 import Data.Either(partitionEithers)
-import qualified Data.Graph.Inductive.PatriciaTree as FGR
 import qualified Data.Graph.Inductive.Graph as ING
+import qualified Data.Graph.Inductive.PatriciaTree as FGR
 import Data.List(find)
 import Data.Semigroup(Semigroup, (<>))
 
-import Types(Labeled(..), Icon, SyntaxNode(..), Edge(..), EdgeOption(..),
-  NameAndPort(..), IDState, SgNamedNode(..), NodeName(..), Port,
-  LikeApplyFlavor(..), CaseOrGuardTag(..), IDState(..), NamedIcon(..))
+import Icons(inputPort, resultPort, argumentPorts, guardRhsPorts
+            , guardBoolPorts)
+import Types(Labeled(..), Icon(..), SyntaxNode(..), Edge(..), EdgeOption(..)
+            , NameAndPort(..), IDState, SgNamedNode(..), NodeName(..), Port
+            , LikeApplyFlavor(..), CaseOrGuardTag(..), IDState(..)
+            , NamedIcon(..))
 import Util(noEnds, nameAndPort, makeSimpleEdge, justName, maybeBoolToBool
            , mapNodeInNamedNode, nodeNameToInt)
-import Icons(Icon(..), inputPort, resultPort, argumentPorts, guardRhsPorts, guardBoolPorts)
 
 {-# ANN module "HLint: ignore Use list comprehension" #-}
 
@@ -73,8 +73,15 @@ data SyntaxGraph = SyntaxGraph {
   } deriving (Show, Eq)
 
 instance Semigroup SyntaxGraph where
-  (SyntaxGraph icons1 edges1 sinks1 sources1 map1) <> (SyntaxGraph icons2 edges2 sinks2 sources2 map2) =
-    SyntaxGraph (icons1 <> icons2) (edges1 <> edges2) (sinks1 <> sinks2) (sources1 <> sources2) (map1 <> map2)
+  (<>)
+    (SyntaxGraph icons1 edges1 sinks1 sources1 map1)
+    (SyntaxGraph icons2 edges2 sinks2 sources2 map2)
+    = SyntaxGraph
+      (icons1 <> icons2)
+      (edges1 <> edges2)
+      (sinks1 <> sinks2)
+      (sources1 <> sources2)
+      (map1 <> map2)
 
 instance Monoid SyntaxGraph where
   mempty = SyntaxGraph mempty mempty mempty mempty mempty
@@ -94,7 +101,8 @@ syntaxGraphFromNodes :: [SgNamedNode] -> SyntaxGraph
 syntaxGraphFromNodes icons = SyntaxGraph icons mempty mempty mempty mempty
 
 syntaxGraphFromNodesEdges :: [SgNamedNode] -> [Edge] -> SyntaxGraph
-syntaxGraphFromNodesEdges icons edges = SyntaxGraph icons edges mempty mempty mempty
+syntaxGraphFromNodesEdges icons edges
+  = SyntaxGraph icons edges mempty mempty mempty
 
 bindsToSyntaxGraph :: [SgBind] -> SyntaxGraph
 bindsToSyntaxGraph binds = SyntaxGraph mempty mempty mempty binds mempty
@@ -134,46 +142,70 @@ getUniqueString base = fmap ((base ++). show) getId
 
 -- TODO: Refactor with combineExpressions
 edgesForRefPortList :: Bool -> [(Reference, NameAndPort)] -> SyntaxGraph
-edgesForRefPortList inPattern portExpPairs = mconcat $ fmap makeGraph portExpPairs where
-  edgeOpts = if inPattern then [EdgeInPattern] else []
-  makeGraph (ref, port) = case ref of
-    Left str -> if inPattern
-      then bindsToSyntaxGraph [SgBind str (Right port)]
-      else sinksToSyntaxGraph [SgSink str port]
-    Right resPort -> edgesToSyntaxGraph [Edge edgeOpts noEnds connection] where
-      connection = if inPattern
-        -- If in a pattern, then the port on the case icon is the data source.
-        then (port, resPort)
-        else (resPort, port)
+edgesForRefPortList inPattern portExpPairs
+  = mconcat $ fmap makeGraph portExpPairs
+  where
+    edgeOpts = if inPattern then [EdgeInPattern] else []
+    makeGraph (ref, port) = case ref of
+      Left str -> if inPattern
+        then bindsToSyntaxGraph [SgBind str (Right port)]
+        else sinksToSyntaxGraph [SgSink str port]
+      Right resPort -> edgesToSyntaxGraph [Edge edgeOpts noEnds connection]
+        where
+          connection = if inPattern
+                          -- If in a pattern, then the port on the case icon is
+                          -- the data source.
+                       then (port, resPort)
+                       else (resPort, port)
 
 combineExpressions :: Bool -> [(GraphAndRef, NameAndPort)] -> SyntaxGraph
-combineExpressions inPattern portExpPairs = mconcat $ fmap makeGraph portExpPairs where
-  edgeOpts = if inPattern then [EdgeInPattern] else []
-  makeGraph (GraphAndRef graph ref, port) = graph <> case ref of
-    Left str -> if inPattern
-      then bindsToSyntaxGraph [SgBind str (Right port)]
-      else sinksToSyntaxGraph [SgSink str port]
-    Right resPort -> edgesToSyntaxGraph [Edge edgeOpts noEnds (resPort, port)]
+combineExpressions inPattern portExpPairs
+  = mconcat $ fmap makeGraph portExpPairs
+  where
+    edgeOpts = if inPattern then [EdgeInPattern] else []
+    makeGraph (GraphAndRef graph ref, port) = graph <> case ref of
+      Left str -> if inPattern
+        then bindsToSyntaxGraph [SgBind str (Right port)]
+        else sinksToSyntaxGraph [SgSink str port]
+      Right resPort -> edgesToSyntaxGraph [Edge edgeOpts noEnds (resPort, port)]
 
-makeApplyGraph :: Int -> LikeApplyFlavor -> Bool -> NodeName -> GraphAndRef -> [GraphAndRef] -> (SyntaxGraph, NameAndPort)
-makeApplyGraph numArgs applyFlavor inPattern applyIconName funVal argVals = (newGraph <> combinedGraph, nameAndPort applyIconName (resultPort applyNode))
+makeApplyGraph ::
+  Int
+  -> LikeApplyFlavor
+  -> Bool
+  -> NodeName
+  -> GraphAndRef
+  -> [GraphAndRef]
+  -> (SyntaxGraph, NameAndPort)
+makeApplyGraph numArgs applyFlavor inPattern applyIconName funVal argVals
+  = (newGraph <> combinedGraph
+    , nameAndPort applyIconName (resultPort applyNode)
+    )
   where
     applyNode = LikeApplyNode applyFlavor numArgs
-    argumentNamePorts = map (nameAndPort applyIconName) (argumentPorts applyNode)
+    argumentNamePorts
+      = map (nameAndPort applyIconName) (argumentPorts applyNode)
     functionPort = nameAndPort applyIconName (inputPort applyNode)
-    combinedGraph = combineExpressions inPattern $ zip (funVal:argVals) (functionPort:argumentNamePorts)
+    combinedGraph = combineExpressions inPattern
+                    $ zip (funVal:argVals) (functionPort:argumentNamePorts)
     icons = [SgNamedNode applyIconName applyNode]
     newGraph = syntaxGraphFromNodes icons
 
 makeGuardGraph ::
-  Int -> NodeName -> [GraphAndRef] -> [GraphAndRef] -> (SyntaxGraph, NameAndPort)
-makeGuardGraph numPairs guardName bools exps = (newGraph, nameAndPort guardName (resultPort guardNode)) where
-  guardNode = GuardNode numPairs
-  expsWithPorts = zip exps $ map (nameAndPort guardName) guardRhsPorts
-  boolsWithPorts = zip bools $ map (nameAndPort guardName) guardBoolPorts
-  combindedGraph = combineExpressions False $ expsWithPorts <> boolsWithPorts
-  icons = [SgNamedNode guardName guardNode]
-  newGraph = syntaxGraphFromNodes icons <> combindedGraph
+  Int
+  -> NodeName
+  -> [GraphAndRef]
+  -> [GraphAndRef]
+  -> (SyntaxGraph, NameAndPort)
+makeGuardGraph numPairs guardName bools exps
+  = (newGraph, nameAndPort guardName (resultPort guardNode))
+  where
+    guardNode = GuardNode numPairs
+    expsWithPorts = zip exps $ map (nameAndPort guardName) guardRhsPorts
+    boolsWithPorts = zip bools $ map (nameAndPort guardName) guardBoolPorts
+    combindedGraph = combineExpressions False $ expsWithPorts <> boolsWithPorts
+    icons = [SgNamedNode guardName guardNode]
+    newGraph = syntaxGraphFromNodes icons <> combindedGraph
 
 namesInPatternHelper :: GraphAndRef -> [String]
 namesInPatternHelper (GraphAndRef graph ref) = case ref of
@@ -207,18 +239,18 @@ makeEdgesCore :: [SgSink] -> [SgBind] -> ([SgSink], [Edge])
 makeEdgesCore sinks bindings = partitionEithers $ fmap renameOrMakeEdge sinks
   where
     renameOrMakeEdge :: SgSink -> Either SgSink Edge
-    renameOrMakeEdge orig@(SgSink s destPort) = case lookup s (fmap sgBindToTuple bindings) of
-      Just ref -> case lookupReference bindings ref of
-        (Right sourcePort) -> Right $ makeSimpleEdge (sourcePort, destPort)
-        (Left newStr) -> Left $ SgSink newStr destPort
-      Nothing -> Left orig
+    renameOrMakeEdge orig@(SgSink s destPort)
+      = case lookup s (fmap sgBindToTuple bindings) of
+          Just ref -> case lookupReference bindings ref of
+            Right sourcePort -> Right $ makeSimpleEdge (sourcePort, destPort)
+            Left newStr -> Left $ SgSink newStr destPort
+          Nothing -> Left orig
 
 makeEdges :: SyntaxGraph -> SyntaxGraph
 makeEdges (SyntaxGraph icons edges sinks bindings eMap) = newGraph where
   (newSinks, newEdges) = makeEdgesCore sinks bindings
   newGraph = SyntaxGraph icons (newEdges <> edges) newSinks bindings eMap
 
--- TODO: remove / change due toSyntaxGraph
 makeBox :: String -> State IDState (SyntaxGraph, NameAndPort)
 makeBox str = do
   name <- getUniqueName
@@ -265,7 +297,8 @@ nodeToIcon (NestedCaseOrGuardNode tag x edges)
 makeArg :: [(SgNamedNode, Edge)] -> Port -> Maybe NamedIcon
 makeArg args port = case find (findArg port) args of
   Nothing -> Nothing
-  Just (SgNamedNode argName argSyntaxNode, _) -> Just $ NamedIcon argName (nodeToIcon argSyntaxNode)
+  Just (SgNamedNode argName argSyntaxNode, _)
+    -> Just $ NamedIcon argName (nodeToIcon argSyntaxNode)
 
 nestedApplySyntaxNodeToIcon :: LikeApplyFlavor
                             -> Int
@@ -279,7 +312,11 @@ nestedApplySyntaxNodeToIcon flavor numArgs args =
     headIcon = makeArg args (inputPort dummyNode)
     argList = fmap (makeArg args) argPorts
 
-nestedCaseOrGuardNodeToIcon :: CaseOrGuardTag -> Int -> [(SgNamedNode, Edge)] -> Icon
+nestedCaseOrGuardNodeToIcon ::
+  CaseOrGuardTag
+  -> Int
+  -> [(SgNamedNode, Edge)]
+  -> Icon
 nestedCaseOrGuardNodeToIcon tag numArgs args = case tag of
   CaseTag -> NestedCaseIcon argList
   GuardTag -> NestedGuardIcon argList
@@ -296,7 +333,9 @@ nestedPatternNodeToIcon str children = NestedPApp
     children)
 
 findArg :: Port -> (SgNamedNode, Edge) -> Bool
-findArg currentPort (SgNamedNode argName _, Edge _ _ (NameAndPort fromName fromPort, NameAndPort toName toPort))
+findArg currentPort
+  (SgNamedNode argName _
+  , Edge _ _ (NameAndPort fromName fromPort, NameAndPort toName toPort))
   | argName == fromName = maybeBoolToBool $ fmap (== currentPort) toPort
   | argName == toName = maybeBoolToBool $ fmap (== currentPort) fromPort
   | otherwise = False -- This case should never happen
@@ -309,7 +348,8 @@ lookupInEmbeddingMap origName eMap = lookupHelper origName where
   lookupHelper name = case lookup name eMap of
     Nothing -> name
     Just parent -> if parent == origName
-      then error $ "lookupInEmbeddingMap: Found cycle. Node = " ++ show origName ++ "\nEmbedding Map = " ++ show eMap
+      then error $ "lookupInEmbeddingMap: Found cycle. Node = "
+           ++ show origName ++ "\nEmbedding Map = " ++ show eMap
       else lookupHelper parent
 
 syntaxGraphToFglGraph :: SyntaxGraph -> FGR.Gr SgNamedNode Edge
@@ -318,4 +358,6 @@ syntaxGraphToFglGraph (SyntaxGraph nodes edges _ _ eMap) =
     labeledEdges = fmap makeLabeledEdge edges
 
     makeLabeledEdge e@(Edge _ _ (NameAndPort name1 _, NameAndPort name2 _)) =
-      (nodeNameToInt $ lookupInEmbeddingMap name1 eMap, nodeNameToInt $ lookupInEmbeddingMap name2 eMap, e)
+      (nodeNameToInt $ lookupInEmbeddingMap name1 eMap
+      , nodeNameToInt $ lookupInEmbeddingMap name2 eMap
+      , e)

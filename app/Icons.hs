@@ -2,7 +2,6 @@
 {-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeFamilies, ScopedTypeVariables #-}
 module Icons
     (
-    Icon(..),
     TransformParams(..),
     TransformableDia,
     getPortAngles,
