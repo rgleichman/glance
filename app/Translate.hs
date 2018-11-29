@@ -2,7 +2,8 @@
 module Translate(
   translateStringToSyntaxGraph,
   translateStringToCollapsedGraphAndDecl,
-  translateModuleToCollapsedGraphs
+  translateModuleToCollapsedGraphs,
+  qOpToExp
 ) where
 
 import Diagrams.Prelude((<>))
