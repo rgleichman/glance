@@ -3,7 +3,8 @@ module Translate(
   translateStringToSyntaxGraph,
   translateStringToCollapsedGraphAndDecl,
   translateModuleToCollapsedGraphs,
-  qOpToExp
+  qOpToExp,
+  qNameToString
 ) where
 
 import Diagrams.Prelude((<>))
@@ -495,7 +496,7 @@ evalBinds c (BDecls _ decls) =
     boundNames = concatMap getBoundVarName decls
     augmentedContext = boundNames <> c
   in
-    ((,augmentedContext) . mconcat) <$>  mapM (evalDecl augmentedContext) decls
+    (,augmentedContext) . mconcat <$> mapM (evalDecl augmentedContext) decls
 evalBinds _ binds = error $ "Unsupported syntax in evalBinds: " <> show binds
 
 evalGeneralLet :: Show l =>
