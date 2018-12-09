@@ -57,11 +57,51 @@ infixAppToSeApp l e1 op e2 = case op of
 hsPatToSimpPat :: Exts.Pat a -> SimpPat a
 hsPatToSimpPat = undefined
 
-hsBindsToDecls :: Exts.Binds a -> [SimpDecl a]
-hsBindsToDecls = undefined
+whereToLet :: Show a => a -> Exts.Rhs a -> Maybe (Exts.Binds a) -> SimpExp a
+whereToLet l rhs maybeBinds = val
+  where
+    rhsExp = hsRhsToExp rhs
+    val = case maybeBinds of
+      Nothing -> rhsExp
+      Just binds -> SeLet l (hsBindsToDecls binds) rhsExp
 
-hsAltToSimpAlt :: Exts.Alt a -> SimpAlt a
-hsAltToSimpAlt = undefined
+matchesToLambda :: a -> [Exts.Match a] -> SimpDecl a
+matchesToLambda = undefined
+
+hsDeclToSimpDecl :: Show a => Exts.Decl a -> SimpDecl a
+hsDeclToSimpDecl decl = case decl of
+  Exts.FunBind l matches -> matchesToLambda l matches
+  Exts.PatBind l pat rhs maybeBinds -> SdPatBind l (hsPatToSimpPat pat) expr
+    where
+      expr = whereToLet l rhs maybeBinds
+  -- TODO Exts.TypeSig
+  _ -> error $ "Unsupported syntax in hsDeclToSimpDecl: " ++ show decl
+
+hsBindsToDecls :: Show a => Exts.Binds a -> [SimpDecl a]
+hsBindsToDecls binds = case binds of
+  Exts.BDecls _ decls -> fmap hsDeclToSimpDecl decls
+  _ -> error $ "Unsupported syntax in hsBindsToDecls: " ++ show binds
+
+guardedRhsToSelectorAndVal :: Show a => Exts.GuardedRhs a -> SelectorAndVal a
+guardedRhsToSelectorAndVal rhs = case rhs of
+  Exts.GuardedRhs _ [s] valExp -> SelectorAndVal{svSelector=stmtToExp s
+                                                , svVal=hsExpToSimpExp valExp}
+  _ -> error $ "Unsupported syntax in guardedRhsToSelectorAndVal: " ++ show rhs
+  where
+    stmtToExp stmt = case stmt of
+      Exts.Qualifier _ e -> hsExpToSimpExp e
+      _ -> error
+           $ "Unsupported syntax in stmtToExp: " ++ show stmt
+
+hsRhsToExp :: Show a => Exts.Rhs a -> SimpExp a
+hsRhsToExp rhs = case rhs of
+  Exts.UnGuardedRhs _ e -> hsExpToSimpExp e
+  Exts.GuardedRhss l rhss
+    -> SeGuard l (fmap guardedRhsToSelectorAndVal rhss)
+
+hsAltToSimpAlt :: Show a => Exts.Alt a -> SimpAlt a
+hsAltToSimpAlt (Exts.Alt l pat rhs maybeBinds)
+  = SimpAlt{saPat=hsPatToSimpPat pat, saVal=whereToLet l rhs maybeBinds}
 
 ifToGuard :: a -> SimpExp a -> SimpExp a -> SimpExp a -> SimpExp a
 ifToGuard l e1 e2 e3

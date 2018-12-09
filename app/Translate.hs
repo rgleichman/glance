@@ -847,12 +847,12 @@ matchToAlt (Match l _ mtaPats rhs binds) = Alt l altPattern rhs binds where
     _ -> PTuple l Exts.Boxed mtaPats
 matchToAlt match = error $ "Unsupported syntax in matchToAlt: " <> show match
 
-matchesToCase :: Show l => Match l -> [Match l] -> State IDState (Match l)
-matchesToCase match [] = pure match
-matchesToCase firstMatch@(Match srcLoc funName pats _ _) restOfMatches = do
+matchesToCase :: Show l => Match l -> [Match l] -> Match l
+matchesToCase match [] = match
+matchesToCase firstMatch@(Match srcLoc funName pats _ _) restOfMatches = match
+  where
   -- There is a special case in Icons.hs/makeLabelledPort to exclude " tempvar"
-  tempStrings <- replicateM (length pats) (getUniqueString " tempvar")
-  let
+    tempStrings = fmap (\x -> " tempvar" ++ show x) [0..(length pats - 1)]
     tempPats = fmap (PVar srcLoc . Ident srcLoc) tempStrings
     tempVars = fmap (makeVarExp srcLoc) tempStrings
     tuple = Tuple srcLoc Exts.Boxed tempVars
@@ -861,8 +861,6 @@ matchesToCase firstMatch@(Match srcLoc funName pats _ _) restOfMatches = do
       _ -> Case srcLoc tuple alts
     rhs = UnGuardedRhs srcLoc caseExp
     match = Match srcLoc funName tempPats rhs Nothing
-  pure match
-  where
     allMatches = firstMatch:restOfMatches
     alts = fmap matchToAlt allMatches
 matchesToCase firstMatch _
@@ -884,7 +882,7 @@ evalMatch _ match = error $ "Unsupported syntax in evalMatch: " <> show match
 evalMatches :: Show l => EvalContext -> [Match l] -> State IDState SyntaxGraph
 evalMatches _ [] = pure mempty
 evalMatches c (firstMatch:restOfMatches)
-  = matchesToCase firstMatch restOfMatches >>= evalMatch c
+  = evalMatch c $ matchesToCase firstMatch restOfMatches
 
 -- END evalMatches
 

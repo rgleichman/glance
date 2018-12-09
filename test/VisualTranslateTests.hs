@@ -191,7 +191,8 @@ lambdaTests = [
   "y x = f x1 x2",
   "y (-1) = 2",
   "y 1 = 0",
-  "y x = z 3 where z = f x y"
+  "y x = z 3 where z = f x y",
+  "y (Foo x) = x; y (Bar x) = 3"  -- test multiple matches
   ]
 
 letTests :: [String]
