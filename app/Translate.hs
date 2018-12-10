@@ -4,7 +4,9 @@ module Translate(
   translateStringToCollapsedGraphAndDecl,
   translateModuleToCollapsedGraphs,
   qOpToExp,
-  qNameToString
+  qNameToString,
+  matchesToCase,
+  customParseDecl
 ) where
 
 import Diagrams.Prelude((<>))
@@ -851,7 +853,9 @@ matchesToCase :: Show l => Match l -> [Match l] -> Match l
 matchesToCase match [] = match
 matchesToCase firstMatch@(Match srcLoc funName pats _ _) restOfMatches = match
   where
-  -- There is a special case in Icons.hs/makeLabelledPort to exclude " tempvar"
+    -- There is a special case in Icons.hs/makeLabelledPort to exclude " tempvar"
+    -- TODO use a data constructor for the special case instead of using string
+    -- matching for tempvars.
     tempStrings = fmap (\x -> " tempvar" ++ show x) [0..(length pats - 1)]
     tempPats = fmap (PVar srcLoc . Ident srcLoc) tempStrings
     tempVars = fmap (makeVarExp srcLoc) tempStrings

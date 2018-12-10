@@ -1,8 +1,10 @@
-module SimplifySyntax where
+module SimplifySyntax (
+  stringToSimpDecl
+  ) where
 
 import qualified Language.Haskell.Exts as Exts
 
-import Translate(qOpToExp, qNameToString)
+import Translate(qOpToExp, qNameToString, matchesToCase, customParseDecl)
 -- A simplified Haskell syntax tree
 
 -- rhs is now SimpExp
@@ -18,28 +20,32 @@ data SimpExp l =
   | SeLet l [SimpDecl l] (SimpExp l)
   | SeCase l (SimpExp l) [SimpAlt l]
   | SeGuard l [SelectorAndVal l]
-
+  deriving (Show, Eq)
 
 data SelectorAndVal l = SelectorAndVal {
   svSelector :: SimpExp l
   , svVal :: SimpExp l
   }
+  deriving (Show, Eq)
 
 data SimpAlt l = SimpAlt {
   saPat :: SimpPat l
   , saVal :: SimpExp l
   }
+  deriving (Show, Eq)
 
 data SimpDecl l =
   -- These don't have decl lists, since only lets have decl lists
   SdFunBind l (Exts.Name l) [SimpPat l] (SimpExp l)
   | SdPatBind l (SimpPat l) (SimpExp l)
+  deriving (Show, Eq)
 
 data SimpPat l =
   SpVar l (Exts.Name l)
   | SpLit l (Exts.Sign l) (Exts.Literal l)
   | SpApp l (Exts.QName l) [SimpPat l]
   | SpAsPat l (Exts.Name l) (SimpPat l)
+  deriving (Show, Eq)
 
 infixAppToSeApp :: Show a =>
   a -> Exts.Exp a -> Exts.QOp a -> Exts.Exp a -> SimpExp a
@@ -54,8 +60,16 @@ infixAppToSeApp l e1 op e2 = case op of
   where
     defaultCase = hsExpToSimpExp $ Exts.App l (Exts.App l (qOpToExp op) e1) e2
 
-hsPatToSimpPat :: Exts.Pat a -> SimpPat a
-hsPatToSimpPat = undefined
+hsPatToSimpPat :: Show a => Exts.Pat a -> SimpPat a
+hsPatToSimpPat p = case p of
+  Exts.PVar l n -> SpVar l n
+  Exts.PLit l sign lit -> SpLit l sign lit
+  Exts.PInfixApp l p1 qName p2 -> hsPatToSimpPat (Exts.PApp l qName [p1, p2])
+  Exts.PApp l name patts -> SpApp l name (fmap hsPatToSimpPat patts)
+  Exts.PParen _ pat -> hsPatToSimpPat pat
+  Exts.PAsPat l name pat -> SpAsPat l name (hsPatToSimpPat pat)
+  -- TODO PTuple, PList, PWildCard
+  _ -> error $  "Unsupported syntax in hsPatToSimpPat: " <> show p
 
 whereToLet :: Show a => a -> Exts.Rhs a -> Maybe (Exts.Binds a) -> SimpExp a
 whereToLet l rhs maybeBinds = val
@@ -65,12 +79,23 @@ whereToLet l rhs maybeBinds = val
       Nothing -> rhsExp
       Just binds -> SeLet l (hsBindsToDecls binds) rhsExp
 
-matchesToLambda :: a -> [Exts.Match a] -> SimpDecl a
-matchesToLambda = undefined
+matchToFunBind :: Show a => Exts.Match a -> SimpDecl a
+matchToFunBind (Exts.Match l name patterns rhs maybeWhereBinds)
+  = SdFunBind
+    l
+    name
+    (fmap hsPatToSimpPat patterns)
+    (whereToLet l rhs maybeWhereBinds)
+matchToFunBind m = error $ "Unsupported syntax in matchToFunBind: " <> show m
+
+matchesToFunBind :: Show a => a -> [Exts.Match a] -> SimpDecl a
+matchesToFunBind l matches = case matches of
+  [] -> error $ "Empty matches in matchesToFunBind. Label is :" <> show l
+  (m : ms) -> matchToFunBind (matchesToCase m ms)
 
 hsDeclToSimpDecl :: Show a => Exts.Decl a -> SimpDecl a
 hsDeclToSimpDecl decl = case decl of
-  Exts.FunBind l matches -> matchesToLambda l matches
+  Exts.FunBind l matches -> matchesToFunBind l matches
   Exts.PatBind l pat rhs maybeBinds -> SdPatBind l (hsPatToSimpPat pat) expr
     where
       expr = whereToLet l rhs maybeBinds
@@ -125,3 +150,8 @@ hsExpToSimpExp x = case x of
   Exts.Case l e alts -> SeCase l (hsExpToSimpExp e) (fmap hsAltToSimpAlt alts)
   Exts.Paren _ e -> hsExpToSimpExp e
   _ -> error $ "Unsupported syntax in hsExpToSimpExp: " ++ show x
+
+-- Parsing
+
+stringToSimpDecl :: String -> SimpDecl Exts.SrcSpanInfo
+stringToSimpDecl = hsDeclToSimpDecl . customParseDecl
