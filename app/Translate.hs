@@ -21,11 +21,14 @@ import Data.Maybe(catMaybes, isJust, fromMaybe)
 import qualified Language.Haskell.Exts as Exts
 
 import Language.Haskell.Exts(
-  Decl(..), parseDeclWithMode, Name(..), Pat(..), Rhs(..),
-  Exp(..), QName(..), fromParseResult, Match(..), QOp(..), GuardedRhs(..),
-  Stmt(..), Binds(..), Alt(..), Module(..), SpecialCon(..), prettyPrint)
+  Decl(..), Name(..), Pat(..), Rhs(..),
+  Exp(..), QName(..), Match(..), QOp(..), GuardedRhs(..),
+  Stmt(..), Binds(..), Alt(..), Module(..), prettyPrint)
 
 import GraphAlgorithms(collapseNodes)
+import Icons(inputPort, resultPort, argumentPorts, caseRhsPorts,
+             casePatternPorts)
+import SimplifySyntax(qOpToExp, qNameToString, nameToString, customParseDecl)
 import TranslateCore(
   Reference, SyntaxGraph(..), EvalContext, GraphAndRef(..), SgSink(..),
   syntaxGraphFromNodes, syntaxGraphFromNodesEdges, getUniqueName,
@@ -39,8 +42,6 @@ import Types(Labeled(..), NameAndPort(..), IDState,
   Edge, SyntaxNode(..), IngSyntaxGraph, NodeName, SgNamedNode(..),
   LikeApplyFlavor(..))
 import Util(makeSimpleEdge, nameAndPort, justName)
-import Icons(inputPort, resultPort, argumentPorts, caseRhsPorts,
-             casePatternPorts)
 
 {-# ANN module "HLint: ignore Use record patterns" #-}
 
@@ -56,10 +57,6 @@ makeVarExp l  = Var l . UnQual l . Ident l
 
 makeQVarOp :: l -> String -> QOp l
 makeQVarOp l = QVarOp l . UnQual l . Ident l
-
-qOpToExp :: QOp l -> Exp l
-qOpToExp (QVarOp l n) = Var l n
-qOpToExp (QConOp l n) = Con l n
 
 -- | Make a syntax graph that has the bindings for a list of "as pattern" (@)
 -- names.
@@ -96,27 +93,6 @@ patternName (GraphAndRef _ ref, mStr) = fromMaybe
   mStr
 
 -- END Helper Functions --
-
--- BEGIN Names helper functions --
-
-nameToString :: Exts.Name l -> String
-nameToString (Ident _ s) = s
-nameToString (Symbol _ s) = s
-
-qNameToString :: Show l => QName l -> String
-qNameToString (Qual _ (Exts.ModuleName _ modName) name)
-  = modName ++ "." ++ nameToString name
-qNameToString (UnQual _ name) = nameToString name
-qNameToString (Special _ (UnitCon _)) = "()"
-qNameToString (Special _ (ListCon _)) = "[]"
-qNameToString (Special _ (FunCon _)) = "(->)"
-qNameToString (Special _ (TupleCon _ _ n)) = nTupleString n
-qNameToString (Special _ (Cons _)) = "(:)"
--- unboxed singleton tuple constructor
-qNameToString (Special _ (UnboxedSingleCon _)) = "(# #)"
-qNameToString q = error $ "Unsupported syntax in qNameToSrting: " <> show q
-
--- END Names helper functions
 
 -- BEGIN evalLit
 
@@ -951,18 +927,6 @@ translateDeclToSyntaxGraph :: Show l => Decl l -> SyntaxGraph
 translateDeclToSyntaxGraph d = graph where
   evaluatedDecl = evalDecl mempty d >>= showTopLevelBinds
   graph = evalState evaluatedDecl initialIdState
-
-customParseMode :: Exts.ParseMode
-customParseMode = Exts.defaultParseMode
-  {Exts.extensions =
-   [Exts.EnableExtension Exts.MultiParamTypeClasses,
-    Exts.EnableExtension Exts.FlexibleContexts,
-    Exts.EnableExtension Exts.TupleSections
-   ]
-  }
-
-customParseDecl :: String -> Decl Exts.SrcSpanInfo
-customParseDecl = fromParseResult . parseDeclWithMode customParseMode
 
 -- | Convert a single function declaration into a SyntaxGraph
 translateStringToSyntaxGraph :: String -> SyntaxGraph

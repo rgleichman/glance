@@ -1,10 +1,14 @@
 module SimplifySyntax (
   stringToSimpDecl
+  , qOpToExp
+  , qNameToString
+  , nameToString
+  , customParseDecl
   ) where
 
 import qualified Language.Haskell.Exts as Exts
 
-import Translate(qOpToExp, qNameToString, matchesToCase, customParseDecl)
+import TranslateCore(nTupleString)
 -- A simplified Haskell syntax tree
 
 -- rhs is now SimpExp
@@ -47,6 +51,35 @@ data SimpPat l =
   | SpAsPat l (Exts.Name l) (SimpPat l)
   deriving (Show, Eq)
 
+-- Helper functions
+
+makeVarExp :: l -> String -> Exts.Exp l
+makeVarExp l  = Exts.Var l . Exts.UnQual l . Exts.Ident l
+
+qOpToExp :: Exts.QOp l -> Exts.Exp l
+qOpToExp (Exts.QVarOp l n) = Exts.Var l n
+qOpToExp (Exts.QConOp l n) = Exts.Con l n
+
+nameToString :: Exts.Name l -> String
+nameToString (Exts.Ident _ s) = s
+nameToString (Exts.Symbol _ s) = s
+
+-- TODO refactor qNameToString
+qNameToString :: Show l => Exts.QName l -> String
+qNameToString (Exts.Qual _ (Exts.ModuleName _ modName) name)
+  = modName ++ "." ++ nameToString name
+qNameToString (Exts.UnQual _ name) = nameToString name
+qNameToString (Exts.Special _ (Exts.UnitCon _)) = "()"
+qNameToString (Exts.Special _ (Exts.ListCon _)) = "[]"
+qNameToString (Exts.Special _ (Exts.FunCon _)) = "(->)"
+qNameToString (Exts.Special _ (Exts.TupleCon _ _ n)) = nTupleString n
+qNameToString (Exts.Special _ (Exts.Cons _)) = "(:)"
+-- unboxed singleton tuple constructor
+qNameToString (Exts.Special _ (Exts.UnboxedSingleCon _)) = "(# #)"
+qNameToString q = error $ "Unsupported syntax in qNameToSrting: " <> show q
+
+--
+
 infixAppToSeApp :: Show a =>
   a -> Exts.Exp a -> Exts.QOp a -> Exts.Exp a -> SimpExp a
 infixAppToSeApp l e1 op e2 = case op of
@@ -87,6 +120,36 @@ matchToFunBind (Exts.Match l name patterns rhs maybeWhereBinds)
     (fmap hsPatToSimpPat patterns)
     (whereToLet l rhs maybeWhereBinds)
 matchToFunBind m = error $ "Unsupported syntax in matchToFunBind: " <> show m
+
+-- Only used by matchesToCase
+matchToAlt :: Show l => Exts.Match l -> Exts.Alt l
+matchToAlt (Exts.Match l _ mtaPats rhs binds) = Exts.Alt l altPattern rhs binds where
+  altPattern = case mtaPats of
+    [onePat] -> onePat
+    _ -> Exts.PTuple l Exts.Boxed mtaPats
+matchToAlt match = error $ "Unsupported syntax in matchToAlt: " <> show match
+
+-- TODO Refactor matchesToCase
+matchesToCase :: Show l => Exts.Match l -> [Exts.Match l] -> Exts.Match l
+matchesToCase match [] = match
+matchesToCase firstMatch@(Exts.Match srcLoc funName pats _ _) restOfMatches = match
+  where
+    -- There is a special case in Icons.hs/makeLabelledPort to exclude " tempvar"
+    -- TODO use a data constructor for the special case instead of using string
+    -- matching for tempvars.
+    tempStrings = fmap (\x -> " tempvar" ++ show x) [0..(length pats - 1)]
+    tempPats = fmap (Exts.PVar srcLoc . Exts.Ident srcLoc) tempStrings
+    tempVars = fmap (makeVarExp srcLoc) tempStrings
+    tuple = Exts.Tuple srcLoc Exts.Boxed tempVars
+    caseExp = case tempVars of
+      [oneTempVar] -> Exts.Case srcLoc oneTempVar alts
+      _ -> Exts.Case srcLoc tuple alts
+    rhs = Exts.UnGuardedRhs srcLoc caseExp
+    match = Exts.Match srcLoc funName tempPats rhs Nothing
+    allMatches = firstMatch:restOfMatches
+    alts = fmap matchToAlt allMatches
+matchesToCase firstMatch _
+  = error $ "Unsupported syntax in matchesToCase: " <> show firstMatch
 
 matchesToFunBind :: Show a => a -> [Exts.Match a] -> SimpDecl a
 matchesToFunBind l matches = case matches of
@@ -152,6 +215,18 @@ hsExpToSimpExp x = case x of
   _ -> error $ "Unsupported syntax in hsExpToSimpExp: " ++ show x
 
 -- Parsing
+
+customParseMode :: Exts.ParseMode
+customParseMode = Exts.defaultParseMode
+  {Exts.extensions =
+   [Exts.EnableExtension Exts.MultiParamTypeClasses,
+    Exts.EnableExtension Exts.FlexibleContexts,
+    Exts.EnableExtension Exts.TupleSections
+   ]
+  }
+
+customParseDecl :: String -> Exts.Decl Exts.SrcSpanInfo
+customParseDecl = Exts.fromParseResult . Exts.parseDeclWithMode customParseMode
 
 stringToSimpDecl :: String -> SimpDecl Exts.SrcSpanInfo
 stringToSimpDecl = hsDeclToSimpDecl . customParseDecl

@@ -46,7 +46,15 @@ executable glance-exe
                      , svg-builder
                      , optparse-applicative
   default-language:    Haskell2010
-  Other-modules: Icons, Rendering, Types, Util, Translate, TranslateCore, DrawingColors, GraphAlgorithms
+  Other-modules: Icons
+               , Rendering
+               , Types
+               , Util
+               , Translate
+               , TranslateCore
+               , DrawingColors
+               , GraphAlgorithms
+               , SimplifySyntax
 
 test-suite glance-test
   type:                exitcode-stdio-1.0
@@ -87,6 +95,7 @@ test-suite glance-test
                , TranslateCore
                , DrawingColors
                , GraphAlgorithms
+               , SimplifySyntax
 
 
 source-repository head
