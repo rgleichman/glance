@@ -28,7 +28,8 @@ import Language.Haskell.Exts(
 import GraphAlgorithms(collapseNodes)
 import Icons(inputPort, resultPort, argumentPorts, caseRhsPorts,
              casePatternPorts)
-import SimplifySyntax(qOpToExp, qNameToString, nameToString, customParseDecl)
+import SimplifySyntax(qOpToExp, qNameToString, nameToString, customParseDecl
+                     , SimpDecl(..))
 import TranslateCore(
   Reference, SyntaxGraph(..), EvalContext, GraphAndRef(..), SgSink(..),
   syntaxGraphFromNodes, syntaxGraphFromNodesEdges, getUniqueName,
@@ -904,6 +905,12 @@ evalDecl c d = case d of
     --TODO: Add other cases here
     _ -> pure mempty
 
+evalDecl' :: Show l => EvalContext -> SimpDecl l -> State IDState SyntaxGraph
+evalDecl' c d = case d of
+  SdPatBind l pat exp -> evalPatBind' l pat exp
+  SdFunBind _ _ _ _ -> undefined -- TODO
+  -- TypeSig _ _ _ -> -- TODO
+
 -- END evalDecl
 
 -- BEGIN Exported functions
@@ -926,6 +933,11 @@ showTopLevelBinds gr = do
 translateDeclToSyntaxGraph :: Show l => Decl l -> SyntaxGraph
 translateDeclToSyntaxGraph d = graph where
   evaluatedDecl = evalDecl mempty d >>= showTopLevelBinds
+  graph = evalState evaluatedDecl initialIdState
+
+translateDeclToSyntaxGraph' :: Show l => SimpDecl l -> SyntaxGraph
+translateDeclToSyntaxGraph' d = graph where
+  evaluatedDecl = evalDecl' mempty d >>= showTopLevelBinds
   graph = evalState evaluatedDecl initialIdState
 
 -- | Convert a single function declaration into a SyntaxGraph

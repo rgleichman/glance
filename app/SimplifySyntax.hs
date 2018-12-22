@@ -1,5 +1,10 @@
 module SimplifySyntax (
-  stringToSimpDecl
+  SimpExp(..)
+  , SelectorAndVal(..)
+  , SimpAlt(..)
+  , SimpDecl(..)
+  , SimpPat(..)
+  , stringToSimpDecl
   , qOpToExp
   , qNameToString
   , nameToString
