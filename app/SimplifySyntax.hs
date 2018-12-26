@@ -9,6 +9,7 @@ module SimplifySyntax (
   , qNameToString
   , nameToString
   , customParseDecl
+  , hsDeclToSimpDecl
   ) where
 
 import qualified Language.Haskell.Exts as Exts
@@ -45,8 +46,7 @@ data SimpAlt l = SimpAlt {
 
 data SimpDecl l =
   -- These don't have decl lists, since only lets have decl lists
-  SdFunBind l (Exts.Name l) [SimpPat l] (SimpExp l)
-  | SdPatBind l (SimpPat l) (SimpExp l)
+  SdPatBind l (SimpPat l) (SimpExp l)
   deriving (Show, Eq)
 
 data SimpPat l =
@@ -117,21 +117,24 @@ whereToLet l rhs maybeBinds = val
       Nothing -> rhsExp
       Just binds -> SeLet l (hsBindsToDecls binds) rhsExp
 
-matchToFunBind :: Show a => Exts.Match a -> SimpDecl a
-matchToFunBind (Exts.Match l name patterns rhs maybeWhereBinds)
-  = SdFunBind
+matchToSimpDecl :: Show a => Exts.Match a -> SimpDecl a
+matchToSimpDecl (Exts.Match l name patterns rhs maybeWhereBinds)
+  = SdPatBind
     l
-    name
-    (fmap hsPatToSimpPat patterns)
-    (whereToLet l rhs maybeWhereBinds)
-matchToFunBind m = error $ "Unsupported syntax in matchToFunBind: " <> show m
+    (SpVar l name)
+    (SeLambda l
+     (fmap hsPatToSimpPat patterns)
+     (whereToLet l rhs maybeWhereBinds))
+matchToSimpDecl m = error $ "Unsupported syntax in matchToSimpDecl: " <> show m
 
 -- Only used by matchesToCase
 matchToAlt :: Show l => Exts.Match l -> Exts.Alt l
-matchToAlt (Exts.Match l _ mtaPats rhs binds) = Exts.Alt l altPattern rhs binds where
-  altPattern = case mtaPats of
-    [onePat] -> onePat
-    _ -> Exts.PTuple l Exts.Boxed mtaPats
+matchToAlt (Exts.Match l _ mtaPats rhs binds)
+  = Exts.Alt l altPattern rhs binds
+  where
+    altPattern = case mtaPats of
+      [onePat] -> onePat
+      _ -> Exts.PTuple l Exts.Boxed mtaPats
 matchToAlt match = error $ "Unsupported syntax in matchToAlt: " <> show match
 
 -- TODO Refactor matchesToCase
@@ -159,7 +162,7 @@ matchesToCase firstMatch _
 matchesToFunBind :: Show a => a -> [Exts.Match a] -> SimpDecl a
 matchesToFunBind l matches = case matches of
   [] -> error $ "Empty matches in matchesToFunBind. Label is :" <> show l
-  (m : ms) -> matchToFunBind (matchesToCase m ms)
+  (m : ms) -> matchToSimpDecl (matchesToCase m ms)
 
 hsDeclToSimpDecl :: Show a => Exts.Decl a -> SimpDecl a
 hsDeclToSimpDecl decl = case decl of

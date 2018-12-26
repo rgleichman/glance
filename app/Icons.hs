@@ -661,7 +661,7 @@ flatLambda paramNames (TransformParams name _ reflect angle)
   portIcons
     = zipWith (makeLabelledPort name reflect angle) paramNames argPortsConst
   middle = alignL (hsep 0.5 lambdaParts)
-  topAndBottomLineWidth = width middle - circleRadius
+  topAndBottomLineWidth = width middle - (circleRadius + defaultLineWidth)
   topAndBottomLine
     = alignL
       $ lwG defaultLineWidth

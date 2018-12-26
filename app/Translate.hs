@@ -28,8 +28,9 @@ import Language.Haskell.Exts(
 import GraphAlgorithms(collapseNodes)
 import Icons(inputPort, resultPort, argumentPorts, caseRhsPorts,
              casePatternPorts)
-import SimplifySyntax(qOpToExp, qNameToString, nameToString, customParseDecl
-                     , SimpDecl(..))
+import SimplifySyntax(stringToSimpDecl, SimpExp(..), SimpPat(..), qOpToExp
+                     , qNameToString, nameToString, customParseDecl
+                     , SimpDecl(..), hsDeclToSimpDecl)
 import TranslateCore(
   Reference, SyntaxGraph(..), EvalContext, GraphAndRef(..), SgSink(..),
   syntaxGraphFromNodes, syntaxGraphFromNodesEdges, getUniqueName,
@@ -84,6 +85,20 @@ bindOrAltHelper c pat rhs maybeWhereBinds = do
     rhsContext = namesInPattern patGraphAndRef <> c
   rhsGraphAndRef <- rhsWithBinds maybeWhereBinds rhs rhsContext
   pure (patGraphAndRef, rhsGraphAndRef)
+
+-- TODO Find a better name for bindOrAltHelper
+bindOrAltHelper' :: Show l =>
+  EvalContext
+  -> SimpPat l
+  -> SimpExp l
+  -> State IDState ((GraphAndRef, Maybe String), GraphAndRef)
+bindOrAltHelper' c pat e = do
+  patGraphAndRef <- evalPattern' pat
+  let
+    rhsContext = namesInPattern patGraphAndRef <> c
+  rhsGraphAndRef <- evalExp' rhsContext e
+  pure (patGraphAndRef, rhsGraphAndRef)
+
 
 patternName :: (GraphAndRef, Maybe String) -> String
 patternName (GraphAndRef _ ref, mStr) = fromMaybe
@@ -264,6 +279,10 @@ evalPattern p = case p of
   PWildCard _ -> makePatternResult $ makeBox "_"
   _ -> error $ "evalPattern: No pattern in case for " ++ show p
   -- TODO: Other cases
+
+evalPattern' :: Show l => SimpPat l -> State IDState (GraphAndRef, Maybe String)
+evalPattern' p = case p of
+  SpVar _ n -> pure (GraphAndRef mempty (Left $ nameToString n), Nothing)
 
 -- END evalPattern
 
@@ -776,13 +795,65 @@ generalEvalLambda context patterns rhsEvalFun = do
       Right patPort -> Left $ makeSimpleEdge (lamPort, patPort)
       Left str -> Right $ SgBind str (Right lamPort)
 
+-- TODO Refactor evalLambda
+evalLambda' :: Show l
+  => l
+  -> EvalContext
+  -> [SimpPat l]
+  -> SimpExp l
+  -> State IDState (SyntaxGraph, NameAndPort)
+evalLambda' _ context patterns expr = do
+  lambdaName <- getUniqueName
+  patternValsWithAsNames <- mapM evalPattern' patterns
+  let
+    patternVals = fmap fst patternValsWithAsNames
+    patternStrings = concatMap namesInPattern patternValsWithAsNames
+    rhsContext = patternStrings <> context
+  GraphAndRef rhsRawGraph rhsRef <- evalExp' rhsContext expr
+  let
+    paramNames = fmap patternName patternValsWithAsNames
+    enclosedNodeNames = snnName <$> sgNodes combinedGraph
+    lambdaNode = FunctionDefNode paramNames enclosedNodeNames
+    lambdaPorts = map (nameAndPort lambdaName) $ argumentPorts lambdaNode
+    patternGraph = mconcat $ fmap graphAndRefToGraph patternVals
+
+    (patternEdges, newBinds) =
+      partitionEithers $ zipWith makePatternEdges patternVals lambdaPorts
+
+    icons = [SgNamedNode lambdaName lambdaNode]
+    returnPort = nameAndPort lambdaName (inputPort lambdaNode)
+    (newEdges, newSinks) = case rhsRef of
+      Left s -> (patternEdges, [SgSink s returnPort])
+      Right rhsPort ->
+        (makeSimpleEdge (rhsPort, returnPort) : patternEdges, mempty)
+    finalGraph = SyntaxGraph icons newEdges newSinks newBinds mempty
+
+    asBindGraph = mconcat $ zipWith
+                  asBindGraphZipper
+                  (fmap snd patternValsWithAsNames)
+                  lambdaPorts
+    combinedGraph = deleteBindings . makeEdges
+                    $ (asBindGraph <> rhsRawGraph <> patternGraph <> finalGraph)
+
+  pure (combinedGraph, nameAndPort lambdaName (resultPort lambdaNode))
+  where
+    -- TODO Like evalPatBind, this edge should have an indicator that it is the
+    -- input to a pattern.
+    -- makePatternEdges creates the edges between the patterns and the parameter
+    -- ports.
+    makePatternEdges :: GraphAndRef -> NameAndPort -> Either Edge SgBind
+    makePatternEdges (GraphAndRef _ ref) lamPort = case ref of
+      Right patPort -> Left $ makeSimpleEdge (lamPort, patPort)
+      Left str -> Right $ SgBind str (Right lamPort)
+
 -- END generalEvalLambda
 
 evalLambda :: Show l =>
   EvalContext -> [Pat l] -> Exp l -> State IDState (SyntaxGraph, NameAndPort)
 evalLambda c patterns e = generalEvalLambda c patterns (`evalExp` e)
 
-evalExp :: Show l => EvalContext  -> Exp l -> State IDState GraphAndRef
+
+evalExp :: Show l => EvalContext -> Exp l -> State IDState GraphAndRef
 evalExp c x = case x of
   Var _ n -> evalQName n c
   Con _ n -> evalQName n c
@@ -813,6 +884,13 @@ evalExp c x = case x of
   ExpTypeSig _ e _ -> evalExp c e
   -- TODO: Add other cases
   _ -> error $ "evalExp: No pattern in case for " ++ show x
+
+evalExp' :: Show l => EvalContext -> SimpExp l -> State IDState GraphAndRef
+evalExp' c x = case x of
+  SeName _ s -> strToGraphRef c s
+  SeLit _ lit -> grNamePortToGrRef <$> evalLit lit
+  SeLambda l patterns e -> grNamePortToGrRef <$> evalLambda' l c patterns e
+  _ -> error ("evalExp' todo: " <> show x)
 
 -- BEGIN evalDecl
 
@@ -882,6 +960,21 @@ evalPatBind c (PatBind _ pat rhs maybeWhereBinds) = do
   pure . makeEdges $ (gr <> rhsGraph <> patGraph)
 evalPatBind _ decl = error $ "Unsupported syntax in evalPatBind: " <> show decl
 
+evalPatBind' :: Show l =>
+  l -> EvalContext -> SimpPat l -> SimpExp l -> State IDState SyntaxGraph
+evalPatBind' _ c pat e = do
+  ((GraphAndRef patGraph patRef, mPatAsName), GraphAndRef rhsGraph rhsRef) <-
+    bindOrAltHelper' c pat e
+  let
+    (newEdges, newSinks, bindings) = case patRef of
+      (Left s) -> (mempty, mempty, [SgBind s rhsRef])
+      (Right patPort) -> case rhsRef of
+        (Left rhsStr) -> (mempty, [SgSink rhsStr patPort], mempty)
+        (Right rhsPort) -> ([makeSimpleEdge (rhsPort, patPort)], mempty, mempty)
+    asBindGraph = makeAsBindGraph rhsRef [mPatAsName]
+    gr = asBindGraph <> SyntaxGraph mempty newEdges newSinks bindings mempty
+  pure . makeEdges $ (gr <> rhsGraph <> patGraph)
+
 -- Pretty printing the entire type sig results in extra whitespace in the middle
 -- TODO May want to trim whitespace from (prettyPrint typeForNames)
 evalTypeSig :: Show l => Decl l -> State IDState (SyntaxGraph, NameAndPort)
@@ -907,8 +1000,7 @@ evalDecl c d = case d of
 
 evalDecl' :: Show l => EvalContext -> SimpDecl l -> State IDState SyntaxGraph
 evalDecl' c d = case d of
-  SdPatBind l pat exp -> evalPatBind' l pat exp
-  SdFunBind _ _ _ _ -> undefined -- TODO
+  SdPatBind l pat e -> evalPatBind' l c pat e
   -- TypeSig _ _ _ -> -- TODO
 
 -- END evalDecl
@@ -941,15 +1033,22 @@ translateDeclToSyntaxGraph' d = graph where
   graph = evalState evaluatedDecl initialIdState
 
 -- | Convert a single function declaration into a SyntaxGraph
+translateStringToSyntaxGraph' :: String -> SyntaxGraph
+translateStringToSyntaxGraph' = translateDeclToSyntaxGraph . customParseDecl
+
 translateStringToSyntaxGraph :: String -> SyntaxGraph
-translateStringToSyntaxGraph = translateDeclToSyntaxGraph . customParseDecl
+translateStringToSyntaxGraph = translateDeclToSyntaxGraph' . stringToSimpDecl
 
 syntaxGraphToCollapsedGraph :: SyntaxGraph -> IngSyntaxGraph FGR.Gr
 syntaxGraphToCollapsedGraph = collapseNodes . syntaxGraphToFglGraph
 
+translateDeclToCollapsedGraph' :: Show l => Decl l -> IngSyntaxGraph FGR.Gr
+translateDeclToCollapsedGraph'
+  = syntaxGraphToCollapsedGraph . translateDeclToSyntaxGraph
+
 translateDeclToCollapsedGraph :: Show l => Decl l -> IngSyntaxGraph FGR.Gr
 translateDeclToCollapsedGraph
-  = syntaxGraphToCollapsedGraph . translateDeclToSyntaxGraph
+  = syntaxGraphToCollapsedGraph . translateDeclToSyntaxGraph' . hsDeclToSimpDecl
 
 -- Profiling: At one point, this was about 1.5% of total time.
 translateStringToCollapsedGraphAndDecl ::
