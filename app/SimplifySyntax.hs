@@ -206,8 +206,18 @@ ifToGuard l e1 e2 e3
   where
     otherwiseExp = SeName l "otherwise"
 
+simplifyExp :: SimpExp l -> SimpExp l
+simplifyExp e = case e of
+  SeApp l2 (SeApp l1 (SeApp _ (SeName _ ".") f1) f2) arg
+    -> SeApp l1 f1 $ SeApp l2 f2 arg
+  SeApp l (SeApp _ (SeName _ "$") exp1) exp2
+    -> SeApp l exp1 exp2
+  SeApp l1 (SeName l2 "<$>") arg
+    -> SeApp l1 (SeName l2 "fmap") arg
+  x -> x
+
 hsExpToSimpExp :: Show a => Exts.Exp a -> SimpExp a
-hsExpToSimpExp x = case x of
+hsExpToSimpExp x = simplifyExp $ case x of
   Exts.Var l n -> SeName l (qNameToString n)
   Exts.Con l n -> SeName l (qNameToString n)
   Exts.Lit l n -> SeLit l n

@@ -340,6 +340,18 @@ evalFunExpAndArgs c flavor (funExp, argExps) = do
   pure
     $ makeApplyGraph (length argExps) flavor False applyIconName funVal argVals
 
+evalFunExpAndArgs' :: Show l =>
+  EvalContext
+  -> LikeApplyFlavor
+  -> (SimpExp l, [SimpExp l])
+  -> State IDState (SyntaxGraph, NameAndPort)
+evalFunExpAndArgs' c flavor (funExp, argExps) = do
+  funVal <- evalExp' c funExp
+  argVals <- mapM (evalExp' c) argExps
+  applyIconName <- getUniqueName
+  pure
+    $ makeApplyGraph (length argExps) flavor False applyIconName funVal argVals
+
 -- END apply and compose helper functions
 
 -- BEGIN evalInfixApp
@@ -359,11 +371,32 @@ evalFunctionComposition c functions = do
     (GraphAndRef mempty neverUsedPort)
     evaluatedFunctions
 
+evalFunctionComposition' :: Show l =>
+  EvalContext -> [SimpExp l] -> State IDState (SyntaxGraph, NameAndPort)
+evalFunctionComposition' c functions = do
+  let reversedFunctios = reverse functions
+  evaluatedFunctions <- mapM (evalExp' c) reversedFunctios
+  neverUsedPort <- Left <$> getUniqueString "unusedArgument"
+  applyIconName <- getUniqueName
+  pure $ makeApplyGraph
+    (length evaluatedFunctions)
+    ComposeNodeFlavor
+    False
+    applyIconName
+    (GraphAndRef mempty neverUsedPort)
+    evaluatedFunctions
+
 -- | Turn (a . b . c) into [a, b, c]
 compositionToList :: Exp l -> [Exp l]
 compositionToList e = case removeParen e of
   (InfixApp _ exp1  (QVarOp _ (UnQual _ (Symbol _ "."))) exp2)
     -> exp1 : compositionToList exp2
+  x -> [x]
+
+compositionToList' :: SimpExp l -> [SimpExp l]
+compositionToList' e = case e of
+  (SeApp _ (SeApp _ (SeName  _ ".") f1) f2)
+    -> f1 : compositionToList' f2
   x -> [x]
 
 -- | In the general case, infix is converted to prefix.
@@ -415,12 +448,38 @@ applyComposeScoreHelper exp1 exp2 = (appScore, compScore) where
 
   compScore = max leftComp rightComp
 
+-- | Given two expressions f and x, where f is applied to x,
+-- return the nesting depth if (f x) is rendered with
+-- the (normal apply icon, compose apply icon)
+applyComposeScoreHelper' :: SimpExp l -> SimpExp l -> (Int, Int)
+applyComposeScoreHelper' exp1 exp2 = (appScore, compScore) where
+  (e1App, e1Comp) = applyComposeScore' exp1
+  (e2App, e2Comp) = applyComposeScore' exp2
+
+  leftApp = min e1App (1 + e1Comp)
+  rightApp = 1 + min e2App e2Comp
+
+  appScore = max leftApp rightApp
+
+  leftComp = 1 + min e1App e1Comp
+  rightComp = min (1 + e2App) e2Comp
+
+  compScore = max leftComp rightComp
+
 -- TODO Consider putting this logic in a separate "simplifyExpression" function.
 -- | Returns the amount of nesting if the App is converted to
 -- (applyNode, composeNode)
 applyComposeScore :: Exp l -> (Int, Int)
 applyComposeScore e = case simplifyExp e of
   App _ exp1 exp2 -> applyComposeScoreHelper exp1 exp2
+  _ -> (0, 0)
+
+-- TODO Consider putting this logic in a separate "simplifyExpression" function.
+-- | Returns the amount of nesting if the App is converted to
+-- (applyNode, composeNode)
+applyComposeScore' :: SimpExp l -> (Int, Int)
+applyComposeScore' e = case e of
+  SeApp _ exp1 exp2 -> applyComposeScoreHelper' exp1 exp2
   _ -> (0, 0)
 
 -- Todo add test for this function
@@ -433,6 +492,16 @@ appExpToFuncArgs e = case simplifyExp e of
       (funExp, args) = appExpToFuncArgs exp1
   x -> (x, [])
 
+-- Todo add test for this function
+-- | Given an App expression, return
+-- (function, list of arguments)
+appExpToFuncArgs' :: SimpExp l -> (SimpExp l, [SimpExp l])
+appExpToFuncArgs' e = case e of
+  SeApp _ exp1 exp2 -> (funExp, args <> [exp2])
+    where
+      (funExp, args) = appExpToFuncArgs' exp1
+  x -> (x, [])
+
 -- | Given and App expression, return
 -- (argument, list composed functions)
 appExpToArgFuncs :: Exp l -> (Exp l, [Exp l])
@@ -440,6 +509,15 @@ appExpToArgFuncs e = case simplifyExp e of
   App _ exp1 exp2 -> (argExp, funcs <> [exp1])
     where
       (argExp, funcs) = appExpToArgFuncs exp2
+  simpleExp -> (simpleExp, [])
+
+-- | Given and App expression, return
+-- (argument, list composed functions)
+appExpToArgFuncs' :: SimpExp l -> (SimpExp l, [SimpExp l])
+appExpToArgFuncs' e = case e of
+  SeApp _ exp1 exp2 -> (argExp, funcs <> [exp1])
+    where
+      (argExp, funcs) = appExpToArgFuncs' exp2
   simpleExp -> (simpleExp, [])
 
 removeCompose :: l -> Exp l -> Exp l -> Exp l
@@ -457,6 +535,20 @@ evalApp l c f e = if appScore <= compScore
   where
     noComposeExp = removeCompose l f e
     (appScore, compScore) = applyComposeScore noComposeExp
+
+-- TODO Refactor this and all sub-expressions
+evalApp' :: Show l =>
+  EvalContext -> SimpExp l
+  -> State IDState (SyntaxGraph, NameAndPort)
+evalApp' c expr = case expr of
+  -- TODO This pattern for "." appears at least twice in this file. Refactor?
+  (SeApp _ (SeApp _ (SeName  _ ".") _) _)
+    -> evalFunctionComposition' c (compositionToList' expr)
+  _ -> if appScore <= compScore
+    then evalFunExpAndArgs' c ApplyNodeFlavor (appExpToFuncArgs' expr)
+    else evalFunExpAndArgs' c ComposeNodeFlavor (appExpToArgFuncs' expr)
+    where
+      (appScore, compScore) = applyComposeScore' expr
 
 -- END evaluateAppExpression
 
@@ -890,6 +982,7 @@ evalExp' c x = case x of
   SeName _ s -> strToGraphRef c s
   SeLit _ lit -> grNamePortToGrRef <$> evalLit lit
   SeLambda l patterns e -> grNamePortToGrRef <$> evalLambda' l c patterns e
+  SeApp l fun arg -> grNamePortToGrRef <$> evalApp' c x
   _ -> error ("evalExp' todo: " <> show x)
 
 -- BEGIN evalDecl
