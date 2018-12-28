@@ -28,7 +28,8 @@ import Language.Haskell.Exts(
 import GraphAlgorithms(collapseNodes)
 import Icons(inputPort, resultPort, argumentPorts, caseRhsPorts,
              casePatternPorts)
-import SimplifySyntax(stringToSimpDecl, SimpExp(..), SimpPat(..), qOpToExp
+import SimplifySyntax(SimpAlt(..), stringToSimpDecl, SimpExp(..), SimpPat(..)
+                     , qOpToExp
                      , qNameToString, nameToString, customParseDecl
                      , SimpDecl(..), hsDeclToSimpDecl)
 import TranslateCore(
@@ -220,6 +221,20 @@ evalPApp name patterns = case patterns of
     pure $ makeNestedPatternGraph patName constructorName evaledPatterns
   where
     constructorName = qNameToString name
+
+evalPApp' :: Show l =>
+  QName l
+  -> [SimpPat l]
+  -> State IDState (SyntaxGraph, NameAndPort)
+evalPApp' name patterns = case patterns of
+  [] -> makeBox constructorName
+  _ ->  do
+    patName <- getUniqueName
+    evaledPatterns <- mapM evalPattern' patterns
+    pure $ makeNestedPatternGraph patName constructorName evaledPatterns
+  where
+    constructorName = qNameToString name
+
 -- END evalPApp
 
 -- BEGIN evalPLit
@@ -283,6 +298,9 @@ evalPattern p = case p of
 evalPattern' :: Show l => SimpPat l -> State IDState (GraphAndRef, Maybe String)
 evalPattern' p = case p of
   SpVar _ n -> pure (GraphAndRef mempty (Left $ nameToString n), Nothing)
+  SpLit _ sign lit -> makePatternResult $ evalPLit sign lit
+  SpApp _ name patterns -> makePatternResult $ evalPApp' name patterns
+  -- _ -> error ("evalPattern' todo: " <> show p)
 
 -- END evalPattern
 
@@ -579,6 +597,11 @@ getBoundVarName (TypeSig _ _ _) = []
 getBoundVarName decl
   = error $ "getBoundVarName: No pattern in case for " ++ show decl
 
+getBoundVarName' :: Show l => SimpDecl l -> [String]
+getBoundVarName' d = case d of
+  SdPatBind l pat _ -> namesInPattern
+                     $ evalState (evalPattern' pat) initialIdState
+
 evalBinds :: Show l =>
   EvalContext -> Binds l -> State IDState (SyntaxGraph, EvalContext)
 evalBinds c (BDecls _ decls) =
@@ -588,6 +611,15 @@ evalBinds c (BDecls _ decls) =
   in
     (,augmentedContext) . mconcat <$> mapM (evalDecl augmentedContext) decls
 evalBinds _ binds = error $ "Unsupported syntax in evalBinds: " <> show binds
+
+evalDecls :: Show l =>
+  EvalContext -> [SimpDecl l] -> State IDState (SyntaxGraph, EvalContext)
+evalDecls c decls =
+  let
+    boundNames = concatMap getBoundVarName' decls
+    augmentedContext = boundNames <> c
+  in
+    (,augmentedContext) . mconcat <$> mapM (evalDecl' augmentedContext) decls  
 
 evalGeneralLet :: Show l =>
   (EvalContext -> State IDState GraphAndRef)
@@ -602,6 +634,20 @@ evalGeneralLet expOrRhsEvaler c bs = do
     newGraph = deleteBindings . makeEdges $ expGraph <> bindGraph
     bindings = sgBinds bindGraph
   pure $ GraphAndRef newGraph (lookupReference bindings expResult)
+
+evalLet' :: Show l =>
+  EvalContext
+  -> [SimpDecl l]
+  -> SimpExp l
+  -> State IDState GraphAndRef
+evalLet' c decls expr = do
+  (bindGraph, bindContext) <- evalDecls c decls
+  expVal <- evalExp' bindContext expr
+  let
+    GraphAndRef expGraph expResult = expVal
+    newGraph = deleteBindings . makeEdges $ expGraph <> bindGraph
+    bindings = sgBinds bindGraph
+  pure $ GraphAndRef newGraph (lookupReference bindings expResult)  
 
 -- END evalGeneralLet
 
@@ -663,6 +709,31 @@ evalPatAndRhs :: Show l =>
 evalPatAndRhs c pat rhs maybeWhereBinds = do
   ((GraphAndRef patGraph patRef, mPatAsName), GraphAndRef rhsGraph rhsRef) <-
     bindOrAltHelper c pat rhs maybeWhereBinds
+  let
+    grWithEdges = makeEdges (rhsGraph <> patGraph)
+    lookedUpRhsRef = lookupReference (sgBinds grWithEdges) rhsRef
+    -- The pattern and rhs are conneted if makeEdges added extra edges, or if
+    -- the rhsRef refers to a source in the pattern.
+    patRhsAreConnected
+      = (rhsRef /= lookedUpRhsRef)
+        || ( length (sgEdges grWithEdges)
+             >
+             (length (sgEdges rhsGraph) + length (sgEdges patGraph)))
+  pure (patRhsAreConnected
+       , deleteBindings grWithEdges
+       , patRef
+       , lookedUpRhsRef
+       , mPatAsName)
+
+-- TODO patRhsAreConnected is sometimes incorrectly true if the pat is just a
+-- name
+evalAlt' :: Show l =>
+  EvalContext
+  -> SimpAlt l
+  -> State IDState (Bool, SyntaxGraph, Reference, Reference, Maybe String)
+evalAlt' c (SimpAlt pat rhs) = do
+  ((GraphAndRef patGraph patRef, mPatAsName), GraphAndRef rhsGraph rhsRef) <-
+    bindOrAltHelper' c pat rhs
   let
     grWithEdges = makeEdges (rhsGraph <> patGraph)
     lookedUpRhsRef = lookupReference (sgBinds grWithEdges) rhsRef
@@ -750,6 +821,23 @@ evalCase c e alts =
     evalExp c e
     <*>
     mapM (evalAlt c) alts
+
+evalCase' :: Show l =>
+  EvalContext -> SimpExp l -> [SimpAlt l]
+  -> State IDState (SyntaxGraph, NameAndPort)
+evalCase' c e alts =
+  let
+    numAlts = length alts
+  in
+    evalCaseHelper (length alts)
+    <$>
+    getUniqueName
+    <*>
+    replicateM numAlts getUniqueName
+    <*>
+    evalExp' c e
+    <*>
+    mapM (evalAlt' c) alts
 
 -- END evalCase
 
@@ -981,9 +1069,11 @@ evalExp' :: Show l => EvalContext -> SimpExp l -> State IDState GraphAndRef
 evalExp' c x = case x of
   SeName _ s -> strToGraphRef c s
   SeLit _ lit -> grNamePortToGrRef <$> evalLit lit
+  SeApp _ _ _ -> grNamePortToGrRef <$> evalApp' c x  
   SeLambda l patterns e -> grNamePortToGrRef <$> evalLambda' l c patterns e
-  SeApp l fun arg -> grNamePortToGrRef <$> evalApp' c x
-  _ -> error ("evalExp' todo: " <> show x)
+  SeLet _ decls expr -> evalLet' c decls expr
+  SeCase _ expr alts -> grNamePortToGrRef <$> evalCase' c expr alts
+  -- _ -> error ("evalExp' todo: " <> show x)  
 
 -- BEGIN evalDecl
 
