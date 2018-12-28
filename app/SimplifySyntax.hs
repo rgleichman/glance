@@ -208,8 +208,9 @@ ifToGuard l e1 e2 e3
 
 simplifyExp :: SimpExp l -> SimpExp l
 simplifyExp e = case e of
+  -- Reduce applications of function compositions (e.g. (f . g) x -> f (g x))
   SeApp l2 (SeApp l1 (SeApp _ (SeName _ ".") f1) f2) arg
-    -> SeApp l1 f1 $ SeApp l2 f2 arg
+    -> SeApp l1 f1 $ simplifyExp (SeApp l2 f2 arg)
   SeApp l (SeApp _ (SeName _ "$") exp1) exp2
     -> SeApp l exp1 exp2
   SeApp l1 (SeName l2 "<$>") arg
