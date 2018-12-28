@@ -31,7 +31,7 @@ import Icons(inputPort, resultPort, argumentPorts, caseRhsPorts,
 import SimplifySyntax(SimpAlt(..), stringToSimpDecl, SimpExp(..), SimpPat(..)
                      , qOpToExp
                      , qNameToString, nameToString, customParseDecl
-                     , SimpDecl(..), hsDeclToSimpDecl)
+                     , SimpDecl(..), hsDeclToSimpDecl, SelectorAndVal(..))
 import TranslateCore(
   Reference, SyntaxGraph(..), EvalContext, GraphAndRef(..), SgSink(..),
   syntaxGraphFromNodes, syntaxGraphFromNodesEdges, getUniqueName,
@@ -74,18 +74,18 @@ makeAsBindGraph ref asNames
 grNamePortToGrRef :: (SyntaxGraph, NameAndPort) -> GraphAndRef
 grNamePortToGrRef (graph, np) = GraphAndRef graph (Right np)
 
-bindOrAltHelper :: Show l =>
-  EvalContext
-  -> Pat l
-  -> Rhs l
-  -> Maybe (Binds l)
-  -> State IDState ((GraphAndRef, Maybe String), GraphAndRef)
-bindOrAltHelper c pat rhs maybeWhereBinds = do
-  patGraphAndRef <- evalPattern pat
-  let
-    rhsContext = namesInPattern patGraphAndRef <> c
-  rhsGraphAndRef <- rhsWithBinds maybeWhereBinds rhs rhsContext
-  pure (patGraphAndRef, rhsGraphAndRef)
+-- bindOrAltHelper :: Show l =>
+--   EvalContext
+--   -> Pat l
+--   -> Rhs l
+--   -> Maybe (Binds l)
+--   -> State IDState ((GraphAndRef, Maybe String), GraphAndRef)
+-- bindOrAltHelper c pat rhs maybeWhereBinds = do
+--   patGraphAndRef <- evalPattern pat
+--   let
+--     rhsContext = namesInPattern patGraphAndRef <> c
+--   rhsGraphAndRef <- rhsWithBinds maybeWhereBinds rhs rhsContext
+--   pure (patGraphAndRef, rhsGraphAndRef)
 
 -- TODO Find a better name for bindOrAltHelper
 bindOrAltHelper' :: Show l =>
@@ -619,21 +619,21 @@ evalDecls c decls =
     boundNames = concatMap getBoundVarName' decls
     augmentedContext = boundNames <> c
   in
-    (,augmentedContext) . mconcat <$> mapM (evalDecl' augmentedContext) decls  
+    (,augmentedContext) . mconcat <$> mapM (evalDecl' augmentedContext) decls
 
-evalGeneralLet :: Show l =>
-  (EvalContext -> State IDState GraphAndRef)
-  -> EvalContext
-  -> Binds l
-  -> State IDState GraphAndRef
-evalGeneralLet expOrRhsEvaler c bs = do
-  (bindGraph, bindContext) <- evalBinds c bs
-  expVal <- expOrRhsEvaler bindContext
-  let
-    GraphAndRef expGraph expResult = expVal
-    newGraph = deleteBindings . makeEdges $ expGraph <> bindGraph
-    bindings = sgBinds bindGraph
-  pure $ GraphAndRef newGraph (lookupReference bindings expResult)
+-- evalGeneralLet :: Show l =>
+--   (EvalContext -> State IDState GraphAndRef)
+--   -> EvalContext
+--   -> Binds l
+--   -> State IDState GraphAndRef
+-- evalGeneralLet expOrRhsEvaler c bs = do
+--   (bindGraph, bindContext) <- evalBinds c bs
+--   expVal <- expOrRhsEvaler bindContext
+--   let
+--     GraphAndRef expGraph expResult = expVal
+--     newGraph = deleteBindings . makeEdges $ expGraph <> bindGraph
+--     bindings = sgBinds bindGraph
+--   pure $ GraphAndRef newGraph (lookupReference bindings expResult)
 
 evalLet' :: Show l =>
   EvalContext
@@ -647,34 +647,21 @@ evalLet' c decls expr = do
     GraphAndRef expGraph expResult = expVal
     newGraph = deleteBindings . makeEdges $ expGraph <> bindGraph
     bindings = sgBinds bindGraph
-  pure $ GraphAndRef newGraph (lookupReference bindings expResult)  
+  pure $ GraphAndRef newGraph (lookupReference bindings expResult)
 
 -- END evalGeneralLet
 
-evalLet :: Show l => EvalContext -> Binds l -> Exp l-> State IDState GraphAndRef
-evalLet context binds e = evalGeneralLet (`evalExp` e) context binds
+evalSelectorAndVal :: Show l =>
+  EvalContext -> SelectorAndVal l -> State IDState (GraphAndRef, GraphAndRef)
+evalSelectorAndVal c (SelectorAndVal {svSelector=sel, svVal=val})
+  = (,) <$> evalExp' c sel <*> evalExp' c val
 
--- BEGIN rhsWithBinds
-
-evalStmt :: Show l => EvalContext -> Stmt l -> State IDState GraphAndRef
-evalStmt c (Qualifier _ e) = evalExp c e
-evalStmt _ q = error $ "Unsupported syntax in evalStmt: " <> show q
-
-evalStmts :: Show l => EvalContext -> [Stmt l] -> State IDState GraphAndRef
-evalStmts c [stmt] = evalStmt c stmt
-evalStmts _ stmts = error $ "Unsupported syntax in evalStmts: " <> show stmts
-
-evalGuardedRhs :: Show l =>
-  EvalContext -> GuardedRhs l -> State IDState (GraphAndRef, GraphAndRef)
-evalGuardedRhs c (GuardedRhs _ stmts e)
-  = (,) <$> evalStmts c stmts <*> evalExp c e
-
-evalGuardedRhss :: Show l =>
-  EvalContext -> [GuardedRhs l] -> State IDState (SyntaxGraph, NameAndPort)
-evalGuardedRhss c rhss = let
-  evaledRhss = unzip <$> mapM (evalGuardedRhs c) rhss
+evalGuard :: Show l =>
+  EvalContext -> [SelectorAndVal l] -> State IDState (SyntaxGraph, NameAndPort)
+evalGuard c selectorsAndVals = let
+  evaledRhss = unzip <$> mapM (evalSelectorAndVal c) selectorsAndVals
   in
-  makeGuardGraph (length rhss)
+  makeGuardGraph (length selectorsAndVals)
   <$>
   getUniqueName
   <*>
@@ -682,48 +669,34 @@ evalGuardedRhss c rhss = let
   <*>
   fmap snd evaledRhss
 
--- | First argument is the right hand side.
--- The second arugement is a list of strings that are bound in the environment.
-evalRhs :: Show l => EvalContext -> Rhs l -> State IDState GraphAndRef
-evalRhs c (UnGuardedRhs _ e) = evalExp c e
-evalRhs c (GuardedRhss _ rhss) = grNamePortToGrRef <$> evalGuardedRhss c rhss
-
-rhsWithBinds :: Show l =>
-  Maybe (Binds l) -> Rhs l -> EvalContext -> State IDState GraphAndRef
-rhsWithBinds maybeWhereBinds rhs rhsContext = case maybeWhereBinds of
-  Nothing -> evalRhs rhsContext rhs
-  Just b -> evalGeneralLet (`evalRhs` rhs) rhsContext b
-
--- END rhsWithBinds
-
 -- BEGIN evalCase
 
 -- TODO patRhsAreConnected is sometimes incorrectly true if the pat is just a
 -- name
-evalPatAndRhs :: Show l =>
-  EvalContext
-  -> Pat l
-  -> Rhs l
-  -> Maybe (Binds l)
-  -> State IDState (Bool, SyntaxGraph, Reference, Reference, Maybe String)
-evalPatAndRhs c pat rhs maybeWhereBinds = do
-  ((GraphAndRef patGraph patRef, mPatAsName), GraphAndRef rhsGraph rhsRef) <-
-    bindOrAltHelper c pat rhs maybeWhereBinds
-  let
-    grWithEdges = makeEdges (rhsGraph <> patGraph)
-    lookedUpRhsRef = lookupReference (sgBinds grWithEdges) rhsRef
-    -- The pattern and rhs are conneted if makeEdges added extra edges, or if
-    -- the rhsRef refers to a source in the pattern.
-    patRhsAreConnected
-      = (rhsRef /= lookedUpRhsRef)
-        || ( length (sgEdges grWithEdges)
-             >
-             (length (sgEdges rhsGraph) + length (sgEdges patGraph)))
-  pure (patRhsAreConnected
-       , deleteBindings grWithEdges
-       , patRef
-       , lookedUpRhsRef
-       , mPatAsName)
+-- evalPatAndRhs :: Show l =>
+--   EvalContext
+--   -> Pat l
+--   -> Rhs l
+--   -> Maybe (Binds l)
+--   -> State IDState (Bool, SyntaxGraph, Reference, Reference, Maybe String)
+-- evalPatAndRhs c pat rhs maybeWhereBinds = do
+--   ((GraphAndRef patGraph patRef, mPatAsName), GraphAndRef rhsGraph rhsRef) <-
+--     bindOrAltHelper c pat rhs maybeWhereBinds
+--   let
+--     grWithEdges = makeEdges (rhsGraph <> patGraph)
+--     lookedUpRhsRef = lookupReference (sgBinds grWithEdges) rhsRef
+--     -- The pattern and rhs are conneted if makeEdges added extra edges, or if
+--     -- the rhsRef refers to a source in the pattern.
+--     patRhsAreConnected
+--       = (rhsRef /= lookedUpRhsRef)
+--         || ( length (sgEdges grWithEdges)
+--              >
+--              (length (sgEdges rhsGraph) + length (sgEdges patGraph)))
+--   pure (patRhsAreConnected
+--        , deleteBindings grWithEdges
+--        , patRef
+--        , lookedUpRhsRef
+--        , mPatAsName)
 
 -- TODO patRhsAreConnected is sometimes incorrectly true if the pat is just a
 -- name
@@ -751,11 +724,11 @@ evalAlt' c (SimpAlt pat rhs) = do
        , mPatAsName)
 
 -- returns (combined graph, pattern reference, rhs reference)
-evalAlt :: Show l =>
-  EvalContext
-  -> Exts.Alt l
-  -> State IDState (Bool, SyntaxGraph, Reference, Reference, Maybe String)
-evalAlt c (Exts.Alt _ pat rhs maybeBinds) = evalPatAndRhs c pat rhs maybeBinds
+-- evalAlt :: Show l =>
+--   EvalContext
+--   -> Exts.Alt l
+--   -> State IDState (Bool, SyntaxGraph, Reference, Reference, Maybe String)
+-- evalAlt c (Exts.Alt _ pat rhs maybeBinds) = evalPatAndRhs c pat rhs maybeBinds
 
 evalCaseHelper ::
   Int
@@ -805,22 +778,6 @@ evalCaseHelper numAlts caseIconName resultIconNames
                                                       , combindedAltGraph]
     result = (finalGraph, nameAndPort caseIconName (resultPort caseNode))
 
-
-evalCase :: Show l =>
-  EvalContext -> Exp l -> [Alt l] -> State IDState (SyntaxGraph, NameAndPort)
-evalCase c e alts =
-  let
-    numAlts = length alts
-  in
-    evalCaseHelper (length alts)
-    <$>
-    getUniqueName
-    <*>
-    replicateM numAlts getUniqueName
-    <*>
-    evalExp c e
-    <*>
-    mapM (evalAlt c) alts
 
 evalCase' :: Show l =>
   EvalContext -> SimpExp l -> [SimpAlt l]
@@ -926,54 +883,54 @@ evalRecConstr c qName _ = evalQName qName c
 asBindGraphZipper :: Maybe String -> NameAndPort -> SyntaxGraph
 asBindGraphZipper asName nameNPort = makeAsBindGraph (Right nameNPort) [asName]
 
-generalEvalLambda :: Show l
-  => EvalContext
-  -> [Pat l]
-  -> (EvalContext -> State IDState GraphAndRef)
-  -> State IDState (SyntaxGraph, NameAndPort)
-generalEvalLambda context patterns rhsEvalFun = do
-  lambdaName <- getUniqueName
-  patternValsWithAsNames <- mapM evalPattern patterns
-  let
-    patternVals = fmap fst patternValsWithAsNames
-    patternStrings = concatMap namesInPattern patternValsWithAsNames
-    rhsContext = patternStrings <> context
-  GraphAndRef rhsRawGraph rhsRef <- rhsEvalFun rhsContext
-  let
-    paramNames = fmap patternName patternValsWithAsNames
-    enclosedNodeNames = snnName <$> sgNodes combinedGraph
-    lambdaNode = FunctionDefNode paramNames enclosedNodeNames
-    lambdaPorts = map (nameAndPort lambdaName) $ argumentPorts lambdaNode
-    patternGraph = mconcat $ fmap graphAndRefToGraph patternVals
+-- generalEvalLambda :: Show l
+--   => EvalContext
+--   -> [Pat l]
+--   -> (EvalContext -> State IDState GraphAndRef)
+--   -> State IDState (SyntaxGraph, NameAndPort)
+-- generalEvalLambda context patterns rhsEvalFun = do
+--   lambdaName <- getUniqueName
+--   patternValsWithAsNames <- mapM evalPattern patterns
+--   let
+--     patternVals = fmap fst patternValsWithAsNames
+--     patternStrings = concatMap namesInPattern patternValsWithAsNames
+--     rhsContext = patternStrings <> context
+--   GraphAndRef rhsRawGraph rhsRef <- rhsEvalFun rhsContext
+--   let
+--     paramNames = fmap patternName patternValsWithAsNames
+--     enclosedNodeNames = snnName <$> sgNodes combinedGraph
+--     lambdaNode = FunctionDefNode paramNames enclosedNodeNames
+--     lambdaPorts = map (nameAndPort lambdaName) $ argumentPorts lambdaNode
+--     patternGraph = mconcat $ fmap graphAndRefToGraph patternVals
 
-    (patternEdges, newBinds) =
-      partitionEithers $ zipWith makePatternEdges patternVals lambdaPorts
+--     (patternEdges, newBinds) =
+--       partitionEithers $ zipWith makePatternEdges patternVals lambdaPorts
 
-    icons = [SgNamedNode lambdaName lambdaNode]
-    returnPort = nameAndPort lambdaName (inputPort lambdaNode)
-    (newEdges, newSinks) = case rhsRef of
-      Left s -> (patternEdges, [SgSink s returnPort])
-      Right rhsPort ->
-        (makeSimpleEdge (rhsPort, returnPort) : patternEdges, mempty)
-    finalGraph = SyntaxGraph icons newEdges newSinks newBinds mempty
+--     icons = [SgNamedNode lambdaName lambdaNode]
+--     returnPort = nameAndPort lambdaName (inputPort lambdaNode)
+--     (newEdges, newSinks) = case rhsRef of
+--       Left s -> (patternEdges, [SgSink s returnPort])
+--       Right rhsPort ->
+--         (makeSimpleEdge (rhsPort, returnPort) : patternEdges, mempty)
+--     finalGraph = SyntaxGraph icons newEdges newSinks newBinds mempty
 
-    asBindGraph = mconcat $ zipWith
-                  asBindGraphZipper
-                  (fmap snd patternValsWithAsNames)
-                  lambdaPorts
-    combinedGraph = deleteBindings . makeEdges
-                    $ (asBindGraph <> rhsRawGraph <> patternGraph <> finalGraph)
+--     asBindGraph = mconcat $ zipWith
+--                   asBindGraphZipper
+--                   (fmap snd patternValsWithAsNames)
+--                   lambdaPorts
+--     combinedGraph = deleteBindings . makeEdges
+--                     $ (asBindGraph <> rhsRawGraph <> patternGraph <> finalGraph)
 
-  pure (combinedGraph, nameAndPort lambdaName (resultPort lambdaNode))
-  where
-    -- TODO Like evalPatBind, this edge should have an indicator that it is the
-    -- input to a pattern.
-    -- makePatternEdges creates the edges between the patterns and the parameter
-    -- ports.
-    makePatternEdges :: GraphAndRef -> NameAndPort -> Either Edge SgBind
-    makePatternEdges (GraphAndRef _ ref) lamPort = case ref of
-      Right patPort -> Left $ makeSimpleEdge (lamPort, patPort)
-      Left str -> Right $ SgBind str (Right lamPort)
+--   pure (combinedGraph, nameAndPort lambdaName (resultPort lambdaNode))
+--   where
+--     -- TODO Like evalPatBind, this edge should have an indicator that it is the
+--     -- input to a pattern.
+--     -- makePatternEdges creates the edges between the patterns and the parameter
+--     -- ports.
+--     makePatternEdges :: GraphAndRef -> NameAndPort -> Either Edge SgBind
+--     makePatternEdges (GraphAndRef _ ref) lamPort = case ref of
+--       Right patPort -> Left $ makeSimpleEdge (lamPort, patPort)
+--       Left str -> Right $ SgBind str (Right lamPort)
 
 -- TODO Refactor evalLambda
 evalLambda' :: Show l
@@ -1028,9 +985,9 @@ evalLambda' _ context patterns expr = do
 
 -- END generalEvalLambda
 
-evalLambda :: Show l =>
-  EvalContext -> [Pat l] -> Exp l -> State IDState (SyntaxGraph, NameAndPort)
-evalLambda c patterns e = generalEvalLambda c patterns (`evalExp` e)
+-- evalLambda :: Show l =>
+--   EvalContext -> [Pat l] -> Exp l -> State IDState (SyntaxGraph, NameAndPort)
+-- evalLambda c patterns e = generalEvalLambda c patterns (`evalExp` e)
 
 
 evalExp :: Show l => EvalContext -> Exp l -> State IDState GraphAndRef
@@ -1041,10 +998,10 @@ evalExp c x = case x of
   InfixApp l e1 op e2 -> evalInfixApp l c e1 op e2
   App l f arg -> grNamePortToGrRef <$> evalApp l c f arg
   NegApp l e -> evalExp c (App l (makeVarExp l "negate") e)
-  Lambda _ patterns e -> grNamePortToGrRef <$> evalLambda c patterns e
-  Let _ bs e -> evalLet c bs e
+  -- Lambda _ patterns e -> grNamePortToGrRef <$> evalLambda c patterns e
+  -- Let _ bs e -> evalLet c bs e
   If _ e1 e2 e3 -> grNamePortToGrRef <$> evalIf c e1 e2 e3
-  Case _ e alts -> grNamePortToGrRef <$> evalCase c e alts
+  -- Case _ e alts -> grNamePortToGrRef <$> evalCase c e alts
   Do _ stmts -> evalExp c (desugarDo stmts)
   -- TODO special tuple symbol
   Tuple _ _ exps -> grNamePortToGrRef <$> evalTuple c exps
@@ -1069,11 +1026,12 @@ evalExp' :: Show l => EvalContext -> SimpExp l -> State IDState GraphAndRef
 evalExp' c x = case x of
   SeName _ s -> strToGraphRef c s
   SeLit _ lit -> grNamePortToGrRef <$> evalLit lit
-  SeApp _ _ _ -> grNamePortToGrRef <$> evalApp' c x  
+  SeApp _ _ _ -> grNamePortToGrRef <$> evalApp' c x
   SeLambda l patterns e -> grNamePortToGrRef <$> evalLambda' l c patterns e
   SeLet _ decls expr -> evalLet' c decls expr
   SeCase _ expr alts -> grNamePortToGrRef <$> evalCase' c expr alts
-  -- _ -> error ("evalExp' todo: " <> show x)  
+  SeGuard _ selectorsAndVals -> grNamePortToGrRef <$> evalGuard c selectorsAndVals
+  _ -> error ("evalExp' todo: " <> show x)
 
 -- BEGIN evalDecl
 
@@ -1108,40 +1066,25 @@ matchesToCase firstMatch@(Match srcLoc funName pats _ _) restOfMatches = match
 matchesToCase firstMatch _
   = error $ "Unsupported syntax in matchesToCase: " <> show firstMatch
 
-evalMatch :: Show l => EvalContext -> Match l -> State IDState SyntaxGraph
-evalMatch c (Match _ name patterns rhs maybeWhereBinds) = do
-  let
-    matchFunNameString = nameToString name
-    newContext = matchFunNameString : c
-  (lambdaGraph, lambdaPort) <-
-    generalEvalLambda newContext patterns (rhsWithBinds maybeWhereBinds rhs)
-  let
-    newBinding
-      = bindsToSyntaxGraph [SgBind matchFunNameString (Right lambdaPort)]
-  pure $ makeEdges (newBinding <> lambdaGraph)
-evalMatch _ match = error $ "Unsupported syntax in evalMatch: " <> show match
+-- evalMatch :: Show l => EvalContext -> Match l -> State IDState SyntaxGraph
+-- evalMatch c (Match _ name patterns rhs maybeWhereBinds) = do
+--   let
+--     matchFunNameString = nameToString name
+--     newContext = matchFunNameString : c
+--   (lambdaGraph, lambdaPort) <-
+--     generalEvalLambda newContext patterns (rhsWithBinds maybeWhereBinds rhs)
+--   let
+--     newBinding
+--       = bindsToSyntaxGraph [SgBind matchFunNameString (Right lambdaPort)]
+--   pure $ makeEdges (newBinding <> lambdaGraph)
+-- evalMatch _ match = error $ "Unsupported syntax in evalMatch: " <> show match
 
-evalMatches :: Show l => EvalContext -> [Match l] -> State IDState SyntaxGraph
-evalMatches _ [] = pure mempty
-evalMatches c (firstMatch:restOfMatches)
-  = evalMatch c $ matchesToCase firstMatch restOfMatches
+-- evalMatches :: Show l => EvalContext -> [Match l] -> State IDState SyntaxGraph
+-- evalMatches _ [] = pure mempty
+-- evalMatches c (firstMatch:restOfMatches)
+--   = evalMatch c $ matchesToCase firstMatch restOfMatches
 
 -- END evalMatches
-
-evalPatBind :: Show l => EvalContext -> Decl l -> State IDState SyntaxGraph
-evalPatBind c (PatBind _ pat rhs maybeWhereBinds) = do
-  ((GraphAndRef patGraph patRef, mPatAsName), GraphAndRef rhsGraph rhsRef) <-
-    bindOrAltHelper c pat rhs maybeWhereBinds
-  let
-    (newEdges, newSinks, bindings) = case patRef of
-      (Left s) -> (mempty, mempty, [SgBind s rhsRef])
-      (Right patPort) -> case rhsRef of
-        (Left rhsStr) -> (mempty, [SgSink rhsStr patPort], mempty)
-        (Right rhsPort) -> ([makeSimpleEdge (rhsPort, patPort)], mempty, mempty)
-    asBindGraph = makeAsBindGraph rhsRef [mPatAsName]
-    gr = asBindGraph <> SyntaxGraph mempty newEdges newSinks bindings mempty
-  pure . makeEdges $ (gr <> rhsGraph <> patGraph)
-evalPatBind _ decl = error $ "Unsupported syntax in evalPatBind: " <> show decl
 
 evalPatBind' :: Show l =>
   l -> EvalContext -> SimpPat l -> SimpExp l -> State IDState SyntaxGraph
@@ -1175,8 +1118,8 @@ evalTypeSig decl
 
 evalDecl :: Show l => EvalContext -> Decl l -> State IDState SyntaxGraph
 evalDecl c d = case d of
-    PatBind _ _ _ _ -> evalPatBind c d
-    FunBind _ matches -> evalMatches c matches
+  -- PatBind _ _ _ _ -> evalPatBind c d
+  -- FunBind _ matches -> evalMatches c matches
     TypeSig _ _ _ -> fst <$> evalTypeSig d
     --TODO: Add other cases here
     _ -> pure mempty
