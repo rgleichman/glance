@@ -54,6 +54,7 @@ data SimpPat l =
   | SpLit l (Exts.Sign l) (Exts.Literal l)
   | SpApp l (Exts.QName l) [SimpPat l]
   | SpAsPat l (Exts.Name l) (SimpPat l)
+  | SpWildCard l
   deriving (Show, Eq)
 
 -- Helper functions
@@ -106,6 +107,7 @@ hsPatToSimpPat p = case p of
   Exts.PApp l name patts -> SpApp l name (fmap hsPatToSimpPat patts)
   Exts.PParen _ pat -> hsPatToSimpPat pat
   Exts.PAsPat l name pat -> SpAsPat l name (hsPatToSimpPat pat)
+  Exts.PWildCard l -> SpWildCard l
   -- TODO PTuple, PList, PWildCard
   _ -> error $  "Unsupported syntax in hsPatToSimpPat: " <> show p
 
