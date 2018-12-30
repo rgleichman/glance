@@ -14,7 +14,7 @@ module SimplifySyntax (
 
 import qualified Language.Haskell.Exts as Exts
 
-import TranslateCore(nTupleString)
+import TranslateCore(nTupleString, nListString)
 -- A simplified Haskell syntax tree
 
 -- rhs is now SimpExp
@@ -59,8 +59,11 @@ data SimpPat l =
 
 -- Helper functions
 
+strToQName :: l -> String -> Exts.QName l
+strToQName l = Exts.UnQual l . Exts.Ident l
+
 makeVarExp :: l -> String -> Exts.Exp l
-makeVarExp l  = Exts.Var l . Exts.UnQual l . Exts.Ident l
+makeVarExp l = Exts.Var l . strToQName l
 
 qOpToExp :: Exts.QOp l -> Exts.Exp l
 qOpToExp (Exts.QVarOp l n) = Exts.Var l n
@@ -86,29 +89,23 @@ qNameToString q = error $ "Unsupported syntax in qNameToSrting: " <> show q
 
 --
 
-infixAppToSeApp :: Show a =>
-  a -> Exts.Exp a -> Exts.QOp a -> Exts.Exp a -> SimpExp a
-infixAppToSeApp l e1 op e2 = case op of
-  Exts.QVarOp _ (Exts.UnQual _ (Exts.Symbol _ sym)) -> case sym of
-    "$" -> hsExpToSimpExp (Exts.App l e1 e2)
-    -- TODO
-    -- "." -> grNamePortToGrRef
-    --        <$> evalFunctionComposition c (e1 : compositionToList e2)
-    _ -> defaultCase
-  _ -> defaultCase
-  where
-    defaultCase = hsExpToSimpExp $ Exts.App l (Exts.App l (qOpToExp op) e1) e2
-
 hsPatToSimpPat :: Show a => Exts.Pat a -> SimpPat a
 hsPatToSimpPat p = case p of
   Exts.PVar l n -> SpVar l n
   Exts.PLit l sign lit -> SpLit l sign lit
   Exts.PInfixApp l p1 qName p2 -> hsPatToSimpPat (Exts.PApp l qName [p1, p2])
   Exts.PApp l name patts -> SpApp l name (fmap hsPatToSimpPat patts)
+  Exts.PTuple l _ patts -> SpApp
+                           l
+                           ((strToQName l . nTupleString . length) patts)
+                           (fmap hsPatToSimpPat patts)
   Exts.PParen _ pat -> hsPatToSimpPat pat
   Exts.PAsPat l name pat -> SpAsPat l name (hsPatToSimpPat pat)
   Exts.PWildCard l -> SpWildCard l
-  -- TODO PTuple, PList, PWildCard
+  Exts.PList l patts -> SpApp
+                        l
+                        ((strToQName l . nListString . length) patts)
+                        (fmap hsPatToSimpPat patts)
   _ -> error $  "Unsupported syntax in hsPatToSimpPat: " <> show p
 
 whereToLet :: Show a => a -> Exts.Rhs a -> Maybe (Exts.Binds a) -> SimpExp a
@@ -224,7 +221,8 @@ hsExpToSimpExp x = simplifyExp $ case x of
   Exts.Var l n -> SeName l (qNameToString n)
   Exts.Con l n -> SeName l (qNameToString n)
   Exts.Lit l n -> SeLit l n
-  Exts.InfixApp l e1 op e2 -> infixAppToSeApp l e1 op e2
+  Exts.InfixApp l e1 op e2 ->
+    hsExpToSimpExp $ Exts.App l (Exts.App l (qOpToExp op) e1) e2
   Exts.App l f arg -> SeApp l (hsExpToSimpExp f) (hsExpToSimpExp arg)
   Exts.Lambda l patterns e
     -> SeLambda l (fmap hsPatToSimpPat patterns) (hsExpToSimpExp e)
