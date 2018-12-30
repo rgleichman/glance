@@ -12,6 +12,8 @@ module SimplifySyntax (
   , hsDeclToSimpDecl
   ) where
 
+import Data.List(foldl')
+
 import qualified Language.Haskell.Exts as Exts
 
 import TranslateCore(nTupleString, nListString)
@@ -216,6 +218,9 @@ simplifyExp e = case e of
     -> SeApp l1 (SeName l2 "fmap") arg
   x -> x
 
+deListifyApp :: Show l => l -> Exts.Exp l -> [Exts.Exp l] -> Exts.Exp l
+deListifyApp l = foldl' (Exts.App l)
+
 hsExpToSimpExp :: Show a => Exts.Exp a -> SimpExp a
 hsExpToSimpExp x = simplifyExp $ case x of
   Exts.Var l n -> SeName l (qNameToString n)
@@ -231,6 +236,14 @@ hsExpToSimpExp x = simplifyExp $ case x of
     -> ifToGuard l (hsExpToSimpExp e1) (hsExpToSimpExp e2) (hsExpToSimpExp e3)
   Exts.Case l e alts -> SeCase l (hsExpToSimpExp e) (fmap hsAltToSimpAlt alts)
   Exts.Paren _ e -> hsExpToSimpExp e
+  Exts.List l exprs -> hsExpToSimpExp $ deListifyApp
+                       l
+                       (makeVarExp l $ nListString $ length exprs)
+                       exprs
+  Exts.Tuple l _ exprs -> hsExpToSimpExp $ deListifyApp
+                       l
+                       (makeVarExp l $ nTupleString $ length exprs)
+                       exprs
   _ -> error $ "Unsupported syntax in hsExpToSimpExp: " ++ show x
 
 -- Parsing

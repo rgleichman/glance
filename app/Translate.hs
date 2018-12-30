@@ -245,27 +245,6 @@ makePatternResult :: Functor f =>
 makePatternResult
   = fmap (\(graph, namePort) -> (GraphAndRef graph (Right namePort), Nothing))
 
-evalPattern :: Show l => Pat l -> State IDState (GraphAndRef, Maybe String)
-evalPattern p = case p of
-  PVar _ n -> pure (GraphAndRef mempty (Left $ nameToString n), Nothing)
-  PLit _ s l -> makePatternResult $ evalPLit s l
-  PInfixApp l p1 qName p2 -> evalPattern (PApp l qName [p1, p2])
-  -- PApp _ name patterns -> makePatternResult $ evalPApp name patterns
-  -- TODO special tuple handling.
-  -- PTuple l _ patterns ->
-  --   makePatternResult $ evalPApp
-  --               (Exts.UnQual l . Ident l . nTupleString . length $ patterns)
-  --               patterns
-  -- PList l patterns ->
-  --   makePatternResult $ evalPApp
-  --               (Exts.UnQual l . Ident l . nListString . length $ patterns)
-  --               patterns
-  PParen _ pat -> evalPattern pat
-  -- PAsPat _ n subPat -> evalPAsPat n subPat
-  PWildCard _ -> makePatternResult $ makeBox "_"
-  _ -> error $ "evalPattern: No pattern in case for " ++ show p
-  -- TODO: Other cases
-
 evalPattern' :: Show l => SimpPat l -> State IDState (GraphAndRef, Maybe String)
 evalPattern' p = case p of
   SpVar _ n -> pure (GraphAndRef mempty (Left $ nameToString n), Nothing)
@@ -427,8 +406,8 @@ evalApp' c expr = case expr of
 
 getBoundVarName :: Show l => Decl l -> [String]
 -- TODO Should evalState be used here?
-getBoundVarName (PatBind _ pat _ _)
-  = namesInPattern $ evalState (evalPattern pat) initialIdState
+-- getBoundVarName (PatBind _ pat _ _)
+--   = namesInPattern $ evalState (evalPattern pat) initialIdState
 getBoundVarName (FunBind _ (Match _ name _ _ _:_)) = [nameToString name]
 -- TODO: Other cases
 getBoundVarName (TypeSig _ _ _) = []
