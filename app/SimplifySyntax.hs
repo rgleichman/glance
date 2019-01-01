@@ -13,10 +13,18 @@ module SimplifySyntax (
   ) where
 
 import Data.List(foldl')
+import Data.Maybe(catMaybes, isJust)
 
 import qualified Language.Haskell.Exts as Exts
 
-import TranslateCore(nTupleString, nListString)
+import TranslateCore(nTupleSectionString, nTupleString, nListString)
+
+-- TODO use a data constructor for the special case instead of using string
+-- matching for tempvars.
+-- There is a special case in Icons.hs/makeLabelledPort to exclude " tempvar"
+tempVarPrefix :: String
+tempVarPrefix = " tempvar"
+
 -- A simplified Haskell syntax tree
 
 -- rhs is now SimpExp
@@ -66,6 +74,9 @@ strToQName l = Exts.UnQual l . Exts.Ident l
 
 makeVarExp :: l -> String -> Exts.Exp l
 makeVarExp l = Exts.Var l . strToQName l
+
+makePatVar :: l -> String -> Exts.Pat l
+makePatVar l = Exts.PVar l . Exts.Ident l
 
 qOpToExp :: Exts.QOp l -> Exts.Exp l
 qOpToExp (Exts.QVarOp l n) = Exts.Var l n
@@ -144,10 +155,8 @@ matchesToCase match [] = match
 matchesToCase firstMatch@(Exts.Match srcLoc funName pats _ _) restOfMatches = match
   where
     -- There is a special case in Icons.hs/makeLabelledPort to exclude " tempvar"
-    -- TODO use a data constructor for the special case instead of using string
-    -- matching for tempvars.
-    tempStrings = fmap (\x -> " tempvar" ++ show x) [0..(length pats - 1)]
-    tempPats = fmap (Exts.PVar srcLoc . Exts.Ident srcLoc) tempStrings
+    tempStrings = fmap (\x -> tempVarPrefix ++ show x) [0..(length pats - 1)]
+    tempPats = fmap (makePatVar srcLoc) tempStrings
     tempVars = fmap (makeVarExp srcLoc) tempStrings
     tuple = Exts.Tuple srcLoc Exts.Boxed tempVars
     caseExp = case tempVars of
@@ -221,6 +230,25 @@ simplifyExp e = case e of
 deListifyApp :: Show l => l -> Exts.Exp l -> [Exts.Exp l] -> Exts.Exp l
 deListifyApp l = foldl' (Exts.App l)
 
+rewriteTupleSection :: Show l => l -> [Maybe (Exts.Exp l)] -> Exts.Exp l
+rewriteTupleSection l mExprs = deListifyApp
+                               l
+                               (makeVarExp l $ nTupleSectionString expIsJustList)
+                               exprs
+  where
+    exprs = catMaybes mExprs
+    expIsJustList = fmap isJust mExprs
+
+-- Rewrite a right section as a lambda.
+-- TODO Simplify this type of lambda to use unused ports.
+rewriteRightSection :: Show l => l -> Exts.QOp l -> Exts.Exp l -> Exts.Exp l
+rewriteRightSection l op expr = Exts.Lambda l [tempPat] appExpr
+  where
+    tempStr = tempVarPrefix <> "0"
+    tempPat = makePatVar l tempStr
+    tempVar = makeVarExp l tempStr
+    appExpr = Exts.App l (Exts.App l (qOpToExp op) tempVar) expr
+
 hsExpToSimpExp :: Show a => Exts.Exp a -> SimpExp a
 hsExpToSimpExp x = simplifyExp $ case x of
   Exts.Var l n -> SeName l (qNameToString n)
@@ -244,6 +272,9 @@ hsExpToSimpExp x = simplifyExp $ case x of
                        l
                        (makeVarExp l $ nTupleString $ length exprs)
                        exprs
+  Exts.TupleSection l _ mExprs -> hsExpToSimpExp $ rewriteTupleSection l mExprs
+  Exts.LeftSection l expr op -> hsExpToSimpExp $ Exts.App l (qOpToExp op) expr
+  Exts.RightSection l op expr -> hsExpToSimpExp $ rewriteRightSection l op expr
   _ -> error $ "Unsupported syntax in hsExpToSimpExp: " ++ show x
 
 -- Parsing
