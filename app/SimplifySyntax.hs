@@ -266,6 +266,11 @@ desugarDo (Exts.Generator l pat e : stmts) =
 desugarDo (Exts.LetStmt l binds : stmts) = Exts.Let l binds (desugarDo stmts)
 desugarDo stmts = error $ "Unsupported syntax in degugarDo: " <> show stmts
 
+desugarEnums :: Show l => l -> String -> [Exts.Exp l] -> SimpExp l
+desugarEnums l funcName exprs = hsExpToSimpExp $ deListifyApp l
+                                (makeVarExp l funcName)
+                                exprs
+
 hsExpToSimpExp :: Show a => Exts.Exp a -> SimpExp a
 hsExpToSimpExp x = simplifyExp $ case x of
   Exts.Var l n -> SeName l (qNameToString n)
@@ -274,6 +279,7 @@ hsExpToSimpExp x = simplifyExp $ case x of
   Exts.InfixApp l e1 op e2 ->
     hsExpToSimpExp $ Exts.App l (Exts.App l (qOpToExp op) e1) e2
   Exts.App l f arg -> SeApp l (hsExpToSimpExp f) (hsExpToSimpExp arg)
+  Exts.NegApp l e -> hsExpToSimpExp $ Exts.App l (makeVarExp l "negate") e
   Exts.Lambda l patterns e
     -> SeLambda l (fmap hsPatToSimpPat patterns) (hsExpToSimpExp e)
   Exts.Let l bs e -> SeLet l (hsBindsToDecls bs) (hsExpToSimpExp e)
@@ -293,6 +299,10 @@ hsExpToSimpExp x = simplifyExp $ case x of
   Exts.LeftSection l expr op -> hsExpToSimpExp $ Exts.App l (qOpToExp op) expr
   Exts.RightSection l op expr -> hsExpToSimpExp $ rewriteRightSection l op expr
   Exts.Do _ stmts -> hsExpToSimpExp $ desugarDo stmts
+  Exts.EnumFrom l e -> desugarEnums l "enumFrom" [e]
+  Exts.EnumFromTo l e1 e2 -> desugarEnums l "enumFromTo" [e1, e2]
+  Exts.EnumFromThen l e1 e2 -> desugarEnums l "enumFromThen" [e1, e2]
+  Exts.EnumFromThenTo l e1 e2 e3 -> desugarEnums l "enumFromThenTo" [e1, e2, e3]
   _ -> error $ "Unsupported syntax in hsExpToSimpExp: " ++ show x
 
 -- Parsing
