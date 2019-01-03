@@ -57,6 +57,7 @@ data SimpAlt l = SimpAlt {
 data SimpDecl l =
   -- These don't have decl lists, since only lets have decl lists
   SdPatBind l (SimpPat l) (SimpExp l)
+  | SdTypeSig l [Exts.Name l] (Exts.Type l)
   deriving (Show, Eq)
 
 data SimpPat l =
@@ -179,6 +180,7 @@ matchesToFunBind l matches = case matches of
 
 hsDeclToSimpDecl :: Show a => Exts.Decl a -> SimpDecl a
 hsDeclToSimpDecl decl = case decl of
+  Exts.TypeSig l names typeForNames -> SdTypeSig l names typeForNames
   Exts.FunBind l matches -> matchesToFunBind l matches
   Exts.PatBind l pat rhs maybeBinds -> SdPatBind l (hsPatToSimpPat pat) expr
     where

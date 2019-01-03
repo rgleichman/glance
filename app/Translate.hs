@@ -622,6 +622,21 @@ evalTypeSig (TypeSig _ names typeForNames) = makeBox
 evalTypeSig decl
   = error $ "Unsupported syntax in evalTypeSig: " <> show decl
 
+-- Pretty printing the entire type sig results in extra whitespace in the middle
+-- TODO May want to trim whitespace from (prettyPrint typeForNames)
+evalTypeSig' :: Show l =>
+  [Exts.Name l] -> Exts.Type l
+  -> State IDState (SyntaxGraph, NameAndPort)
+evalTypeSig' names typeForNames = makeBox
+  (intercalate "," (fmap prettyPrintWithoutNewlines names)
+   ++ " :: "
+   ++ prettyPrintWithoutNewlines typeForNames)
+  where
+    -- TODO Make custom version of prettyPrint for type signitures.
+    -- Use (unwords . words) to convert consecutive whitspace characters to one
+    -- space.
+    prettyPrintWithoutNewlines = unwords . words . prettyPrint
+
 evalDecl :: Show l => EvalContext -> Decl l -> State IDState SyntaxGraph
 evalDecl c d = case d of
   -- PatBind _ _ _ _ -> evalPatBind c d
@@ -633,7 +648,7 @@ evalDecl c d = case d of
 evalDecl' :: Show l => EvalContext -> SimpDecl l -> State IDState SyntaxGraph
 evalDecl' c d = case d of
   SdPatBind l pat e -> evalPatBind' l c pat e
-  -- TypeSig _ _ _ -> -- TODO
+  SdTypeSig _ names typeForNames -> fst <$> evalTypeSig' names typeForNames
 
 -- END evalDecl
 
