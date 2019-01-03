@@ -1,14 +1,30 @@
 module SimplifySyntax (
-  stringToSimpDecl
+  SimpExp(..)
+  , SelectorAndVal(..)
+  , SimpAlt(..)
+  , SimpDecl(..)
+  , SimpPat(..)
+  , stringToSimpDecl
   , qOpToExp
   , qNameToString
   , nameToString
   , customParseDecl
+  , hsDeclToSimpDecl
   ) where
+
+import Data.List(foldl')
+import Data.Maybe(catMaybes, isJust)
 
 import qualified Language.Haskell.Exts as Exts
 
-import TranslateCore(nTupleString)
+import TranslateCore(nTupleSectionString, nTupleString, nListString)
+
+-- TODO use a data constructor for the special case instead of using string
+-- matching for tempvars.
+-- There is a special case in Icons.hs/makeLabelledPort to exclude " tempvar"
+tempVarPrefix :: String
+tempVarPrefix = " tempvar"
+
 -- A simplified Haskell syntax tree
 
 -- rhs is now SimpExp
@@ -40,8 +56,8 @@ data SimpAlt l = SimpAlt {
 
 data SimpDecl l =
   -- These don't have decl lists, since only lets have decl lists
-  SdFunBind l (Exts.Name l) [SimpPat l] (SimpExp l)
-  | SdPatBind l (SimpPat l) (SimpExp l)
+  SdPatBind l (SimpPat l) (SimpExp l)
+  | SdTypeSig l [Exts.Name l] (Exts.Type l)
   deriving (Show, Eq)
 
 data SimpPat l =
@@ -49,12 +65,22 @@ data SimpPat l =
   | SpLit l (Exts.Sign l) (Exts.Literal l)
   | SpApp l (Exts.QName l) [SimpPat l]
   | SpAsPat l (Exts.Name l) (SimpPat l)
+  | SpWildCard l
   deriving (Show, Eq)
 
 -- Helper functions
 
+strToQName :: l -> String -> Exts.QName l
+strToQName l = Exts.UnQual l . Exts.Ident l
+
 makeVarExp :: l -> String -> Exts.Exp l
-makeVarExp l  = Exts.Var l . Exts.UnQual l . Exts.Ident l
+makeVarExp l = Exts.Var l . strToQName l
+
+makePatVar :: l -> String -> Exts.Pat l
+makePatVar l = Exts.PVar l . Exts.Ident l
+
+makeQVarOp :: l -> String -> Exts.QOp l
+makeQVarOp l = Exts.QVarOp l . Exts.UnQual l . Exts.Ident l
 
 qOpToExp :: Exts.QOp l -> Exts.Exp l
 qOpToExp (Exts.QVarOp l n) = Exts.Var l n
@@ -80,28 +106,23 @@ qNameToString q = error $ "Unsupported syntax in qNameToSrting: " <> show q
 
 --
 
-infixAppToSeApp :: Show a =>
-  a -> Exts.Exp a -> Exts.QOp a -> Exts.Exp a -> SimpExp a
-infixAppToSeApp l e1 op e2 = case op of
-  Exts.QVarOp _ (Exts.UnQual _ (Exts.Symbol _ sym)) -> case sym of
-    "$" -> hsExpToSimpExp (Exts.App l e1 e2)
-    -- TODO
-    -- "." -> grNamePortToGrRef
-    --        <$> evalFunctionComposition c (e1 : compositionToList e2)
-    _ -> defaultCase
-  _ -> defaultCase
-  where
-    defaultCase = hsExpToSimpExp $ Exts.App l (Exts.App l (qOpToExp op) e1) e2
-
 hsPatToSimpPat :: Show a => Exts.Pat a -> SimpPat a
 hsPatToSimpPat p = case p of
   Exts.PVar l n -> SpVar l n
   Exts.PLit l sign lit -> SpLit l sign lit
   Exts.PInfixApp l p1 qName p2 -> hsPatToSimpPat (Exts.PApp l qName [p1, p2])
   Exts.PApp l name patts -> SpApp l name (fmap hsPatToSimpPat patts)
+  Exts.PTuple l _ patts -> SpApp
+                           l
+                           ((strToQName l . nTupleString . length) patts)
+                           (fmap hsPatToSimpPat patts)
   Exts.PParen _ pat -> hsPatToSimpPat pat
   Exts.PAsPat l name pat -> SpAsPat l name (hsPatToSimpPat pat)
-  -- TODO PTuple, PList, PWildCard
+  Exts.PWildCard l -> SpWildCard l
+  Exts.PList l patts -> SpApp
+                        l
+                        ((strToQName l . nListString . length) patts)
+                        (fmap hsPatToSimpPat patts)
   _ -> error $  "Unsupported syntax in hsPatToSimpPat: " <> show p
 
 whereToLet :: Show a => a -> Exts.Rhs a -> Maybe (Exts.Binds a) -> SimpExp a
@@ -112,21 +133,24 @@ whereToLet l rhs maybeBinds = val
       Nothing -> rhsExp
       Just binds -> SeLet l (hsBindsToDecls binds) rhsExp
 
-matchToFunBind :: Show a => Exts.Match a -> SimpDecl a
-matchToFunBind (Exts.Match l name patterns rhs maybeWhereBinds)
-  = SdFunBind
+matchToSimpDecl :: Show a => Exts.Match a -> SimpDecl a
+matchToSimpDecl (Exts.Match l name patterns rhs maybeWhereBinds)
+  = SdPatBind
     l
-    name
-    (fmap hsPatToSimpPat patterns)
-    (whereToLet l rhs maybeWhereBinds)
-matchToFunBind m = error $ "Unsupported syntax in matchToFunBind: " <> show m
+    (SpVar l name)
+    (SeLambda l
+     (fmap hsPatToSimpPat patterns)
+     (whereToLet l rhs maybeWhereBinds))
+matchToSimpDecl m = error $ "Unsupported syntax in matchToSimpDecl: " <> show m
 
 -- Only used by matchesToCase
 matchToAlt :: Show l => Exts.Match l -> Exts.Alt l
-matchToAlt (Exts.Match l _ mtaPats rhs binds) = Exts.Alt l altPattern rhs binds where
-  altPattern = case mtaPats of
-    [onePat] -> onePat
-    _ -> Exts.PTuple l Exts.Boxed mtaPats
+matchToAlt (Exts.Match l _ mtaPats rhs binds)
+  = Exts.Alt l altPattern rhs binds
+  where
+    altPattern = case mtaPats of
+      [onePat] -> onePat
+      _ -> Exts.PTuple l Exts.Boxed mtaPats
 matchToAlt match = error $ "Unsupported syntax in matchToAlt: " <> show match
 
 -- TODO Refactor matchesToCase
@@ -135,10 +159,8 @@ matchesToCase match [] = match
 matchesToCase firstMatch@(Exts.Match srcLoc funName pats _ _) restOfMatches = match
   where
     -- There is a special case in Icons.hs/makeLabelledPort to exclude " tempvar"
-    -- TODO use a data constructor for the special case instead of using string
-    -- matching for tempvars.
-    tempStrings = fmap (\x -> " tempvar" ++ show x) [0..(length pats - 1)]
-    tempPats = fmap (Exts.PVar srcLoc . Exts.Ident srcLoc) tempStrings
+    tempStrings = fmap (\x -> tempVarPrefix ++ show x) [0..(length pats - 1)]
+    tempPats = fmap (makePatVar srcLoc) tempStrings
     tempVars = fmap (makeVarExp srcLoc) tempStrings
     tuple = Exts.Tuple srcLoc Exts.Boxed tempVars
     caseExp = case tempVars of
@@ -154,10 +176,11 @@ matchesToCase firstMatch _
 matchesToFunBind :: Show a => a -> [Exts.Match a] -> SimpDecl a
 matchesToFunBind l matches = case matches of
   [] -> error $ "Empty matches in matchesToFunBind. Label is :" <> show l
-  (m : ms) -> matchToFunBind (matchesToCase m ms)
+  (m : ms) -> matchToSimpDecl (matchesToCase m ms)
 
 hsDeclToSimpDecl :: Show a => Exts.Decl a -> SimpDecl a
 hsDeclToSimpDecl decl = case decl of
+  Exts.TypeSig l names typeForNames -> SdTypeSig l names typeForNames
   Exts.FunBind l matches -> matchesToFunBind l matches
   Exts.PatBind l pat rhs maybeBinds -> SdPatBind l (hsPatToSimpPat pat) expr
     where
@@ -198,13 +221,65 @@ ifToGuard l e1 e2 e3
   where
     otherwiseExp = SeName l "otherwise"
 
+simplifyExp :: SimpExp l -> SimpExp l
+simplifyExp e = case e of
+  -- Reduce applications of function compositions (e.g. (f . g) x -> f (g x))
+  SeApp l2 (SeApp l1 (SeApp _ (SeName _ ".") f1) f2) arg
+    -> SeApp l1 f1 $ simplifyExp (SeApp l2 f2 arg)
+  SeApp l (SeApp _ (SeName _ "$") exp1) exp2
+    -> SeApp l exp1 exp2
+  SeApp l1 (SeName l2 "<$>") arg
+    -> SeApp l1 (SeName l2 "fmap") arg
+  x -> x
+
+deListifyApp :: Show l => l -> Exts.Exp l -> [Exts.Exp l] -> Exts.Exp l
+deListifyApp l = foldl' (Exts.App l)
+
+rewriteTupleSection :: Show l => l -> [Maybe (Exts.Exp l)] -> Exts.Exp l
+rewriteTupleSection l mExprs = deListifyApp
+                               l
+                               (makeVarExp l $ nTupleSectionString expIsJustList)
+                               exprs
+  where
+    exprs = catMaybes mExprs
+    expIsJustList = fmap isJust mExprs
+
+-- Rewrite a right section as a lambda.
+-- TODO Simplify this type of lambda to use unused ports.
+rewriteRightSection :: Show l => l -> Exts.QOp l -> Exts.Exp l -> Exts.Exp l
+rewriteRightSection l op expr = Exts.Lambda l [tempPat] appExpr
+  where
+    tempStr = tempVarPrefix <> "0"
+    tempPat = makePatVar l tempStr
+    tempVar = makeVarExp l tempStr
+    appExpr = Exts.App l (Exts.App l (qOpToExp op) tempVar) expr
+
+-- TODO refactor desugarDo
+desugarDo :: Show l => [Exts.Stmt l] -> Exts.Exp l
+desugarDo [Exts.Qualifier _ e] = e
+desugarDo (Exts.Qualifier l e : stmts)
+  = Exts.InfixApp l e thenOp (desugarDo stmts)
+  where
+    thenOp = makeQVarOp l ">>"
+desugarDo (Exts.Generator l pat e : stmts) =
+  Exts.InfixApp l e (makeQVarOp l ">>=") (Exts.Lambda l [pat] (desugarDo stmts))
+desugarDo (Exts.LetStmt l binds : stmts) = Exts.Let l binds (desugarDo stmts)
+desugarDo stmts = error $ "Unsupported syntax in degugarDo: " <> show stmts
+
+desugarEnums :: Show l => l -> String -> [Exts.Exp l] -> SimpExp l
+desugarEnums l funcName exprs = hsExpToSimpExp $ deListifyApp l
+                                (makeVarExp l funcName)
+                                exprs
+
 hsExpToSimpExp :: Show a => Exts.Exp a -> SimpExp a
-hsExpToSimpExp x = case x of
+hsExpToSimpExp x = simplifyExp $ case x of
   Exts.Var l n -> SeName l (qNameToString n)
   Exts.Con l n -> SeName l (qNameToString n)
   Exts.Lit l n -> SeLit l n
-  Exts.InfixApp l e1 op e2 -> infixAppToSeApp l e1 op e2
+  Exts.InfixApp l e1 op e2 ->
+    hsExpToSimpExp $ Exts.App l (Exts.App l (qOpToExp op) e1) e2
   Exts.App l f arg -> SeApp l (hsExpToSimpExp f) (hsExpToSimpExp arg)
+  Exts.NegApp l e -> hsExpToSimpExp $ Exts.App l (makeVarExp l "negate") e
   Exts.Lambda l patterns e
     -> SeLambda l (fmap hsPatToSimpPat patterns) (hsExpToSimpExp e)
   Exts.Let l bs e -> SeLet l (hsBindsToDecls bs) (hsExpToSimpExp e)
@@ -212,6 +287,22 @@ hsExpToSimpExp x = case x of
     -> ifToGuard l (hsExpToSimpExp e1) (hsExpToSimpExp e2) (hsExpToSimpExp e3)
   Exts.Case l e alts -> SeCase l (hsExpToSimpExp e) (fmap hsAltToSimpAlt alts)
   Exts.Paren _ e -> hsExpToSimpExp e
+  Exts.List l exprs -> hsExpToSimpExp $ deListifyApp
+                       l
+                       (makeVarExp l $ nListString $ length exprs)
+                       exprs
+  Exts.Tuple l _ exprs -> hsExpToSimpExp $ deListifyApp
+                       l
+                       (makeVarExp l $ nTupleString $ length exprs)
+                       exprs
+  Exts.TupleSection l _ mExprs -> hsExpToSimpExp $ rewriteTupleSection l mExprs
+  Exts.LeftSection l expr op -> hsExpToSimpExp $ Exts.App l (qOpToExp op) expr
+  Exts.RightSection l op expr -> hsExpToSimpExp $ rewriteRightSection l op expr
+  Exts.Do _ stmts -> hsExpToSimpExp $ desugarDo stmts
+  Exts.EnumFrom l e -> desugarEnums l "enumFrom" [e]
+  Exts.EnumFromTo l e1 e2 -> desugarEnums l "enumFromTo" [e1, e2]
+  Exts.EnumFromThen l e1 e2 -> desugarEnums l "enumFromThen" [e1, e2]
+  Exts.EnumFromThenTo l e1 e2 e3 -> desugarEnums l "enumFromThenTo" [e1, e2, e3]
   _ -> error $ "Unsupported syntax in hsExpToSimpExp: " ++ show x
 
 -- Parsing
