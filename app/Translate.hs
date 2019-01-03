@@ -633,15 +633,6 @@ evalEnums l c s exps
   = grNamePortToGrRef
     <$> evalFunExpAndArgs c ApplyNodeFlavor (makeVarExp l s, exps)
 
-desugarDo :: Show l => [Stmt l] -> Exp l
-desugarDo [Qualifier _ e] = e
-desugarDo (Qualifier l e : stmts) = InfixApp l e thenOp (desugarDo stmts)
-  where thenOp = makeQVarOp l ">>"
-desugarDo (Generator l pat e : stmts) =
-  InfixApp l e (makeQVarOp l ">>=") (Lambda l [pat] (desugarDo stmts))
-desugarDo (LetStmt l binds : stmts) = Let l binds (desugarDo stmts)
-desugarDo stmts = error $ "Unsupported syntax in degugarDo: " <> show stmts
-
 -- TODO: Finish evalRecConstr
 evalRecConstr :: Show l =>
   EvalContext -> QName l -> [Exts.FieldUpdate l] -> State IDState GraphAndRef
@@ -718,7 +709,7 @@ evalExp c x = case x of
   -- Let _ bs e -> evalLet c bs e
   -- If _ e1 e2 e3 -> grNamePortToGrRef <$> evalIf c e1 e2 e3
   -- Case _ e alts -> grNamePortToGrRef <$> evalCase c e alts
-  Do _ stmts -> evalExp c (desugarDo stmts)
+  -- Do _ stmts -> evalExp c (desugarDo stmts)
   -- TODO special tuple symbol
   Tuple _ _ exps -> grNamePortToGrRef <$> evalTuple c exps
   TupleSection _ _ mExps -> grNamePortToGrRef <$> evalTupleSection c mExps

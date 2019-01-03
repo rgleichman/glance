@@ -78,6 +78,9 @@ makeVarExp l = Exts.Var l . strToQName l
 makePatVar :: l -> String -> Exts.Pat l
 makePatVar l = Exts.PVar l . Exts.Ident l
 
+makeQVarOp :: l -> String -> Exts.QOp l
+makeQVarOp l = Exts.QVarOp l . Exts.UnQual l . Exts.Ident l
+
 qOpToExp :: Exts.QOp l -> Exts.Exp l
 qOpToExp (Exts.QVarOp l n) = Exts.Var l n
 qOpToExp (Exts.QConOp l n) = Exts.Con l n
@@ -249,6 +252,18 @@ rewriteRightSection l op expr = Exts.Lambda l [tempPat] appExpr
     tempVar = makeVarExp l tempStr
     appExpr = Exts.App l (Exts.App l (qOpToExp op) tempVar) expr
 
+-- TODO refactor desugarDo
+desugarDo :: Show l => [Exts.Stmt l] -> Exts.Exp l
+desugarDo [Exts.Qualifier _ e] = e
+desugarDo (Exts.Qualifier l e : stmts)
+  = Exts.InfixApp l e thenOp (desugarDo stmts)
+  where
+    thenOp = makeQVarOp l ">>"
+desugarDo (Exts.Generator l pat e : stmts) =
+  Exts.InfixApp l e (makeQVarOp l ">>=") (Exts.Lambda l [pat] (desugarDo stmts))
+desugarDo (Exts.LetStmt l binds : stmts) = Exts.Let l binds (desugarDo stmts)
+desugarDo stmts = error $ "Unsupported syntax in degugarDo: " <> show stmts
+
 hsExpToSimpExp :: Show a => Exts.Exp a -> SimpExp a
 hsExpToSimpExp x = simplifyExp $ case x of
   Exts.Var l n -> SeName l (qNameToString n)
@@ -275,6 +290,7 @@ hsExpToSimpExp x = simplifyExp $ case x of
   Exts.TupleSection l _ mExprs -> hsExpToSimpExp $ rewriteTupleSection l mExprs
   Exts.LeftSection l expr op -> hsExpToSimpExp $ Exts.App l (qOpToExp op) expr
   Exts.RightSection l op expr -> hsExpToSimpExp $ rewriteRightSection l op expr
+  Exts.Do _ stmts -> hsExpToSimpExp $ desugarDo stmts
   _ -> error $ "Unsupported syntax in hsExpToSimpExp: " ++ show x
 
 -- Parsing
