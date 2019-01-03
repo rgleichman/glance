@@ -37,6 +37,8 @@ composeTests = [
   "y = f . g",
   "y = f3 . f2 . f1",
   "y = f3 . f2 . f1 $ x",
+  -- TODO The nesting depth could be reduced if the composition is applied to
+  -- both f3 and f4 instead of just f3.
   "y = f1 $ f6 (f2 (f3 . f4)) (f5 x)"
   ]
 
@@ -95,8 +97,8 @@ doTests = [
 tupleTests :: [String]
 tupleTests = [
   "y = ()",
-  "(x, y) = (1,2)",
-  "(x, y, z) = (1,2,3)",
+  "y = (1,2)",
+  "y = (1,2,3)",
   "y = (,x) 2",
   "y = (x,) 2",
   "y = (,,x) 2",
@@ -112,11 +114,7 @@ listTests = [
   "y = []",
   "y = [1]",
   "y = [1,2]",
-  "y = [1,2,3]",
-  "[x] = 1",
-  "[x, y] = 2",
-  "[x, y, z] = 3"
-  -- TODO: Add this test "(x:y) = 3"
+  "y = [1,2,3]"
   ]
 
 caseTests :: [String]
@@ -142,6 +140,8 @@ guardTests = [
 
 patternTests :: [String]
 patternTests = [
+  "Foo 3 = 4",
+
   "Foo _ x = 3",
 
   "y (F x) = x",
@@ -156,7 +156,16 @@ patternTests = [
   "Foo (Bar x) (Baz y) = f 1 2 x y",
   "Foo x y = f 1 y x",
 
-  "t@(x,y) = (x,y)",
+  "t@(Foo x) = 3",
+
+  "(x, y) = 3",
+  "(x, y, z) = 3",
+
+  "[x] = 1",
+  "[x, y] = 2",
+  "[x, y, z] = 3",
+  -- TODO: Add this test "(x:y) = 3"
+
   "y = let {t@(_,_) = (3,4)} in t + 3",
 
   -- TODO There is no bind text box for n2
@@ -214,7 +223,9 @@ letTests = [
 operatorTests :: [String]
 operatorTests = [
   -- right section
-  "y = map (++ 1) 3"
+  "y = map (++ 1) 3",
+  -- left section
+  "y = (1 +) 2"
   ]
 
 otherTests :: [String]
@@ -239,21 +250,47 @@ otherTests = [
   "y = \" foo  bar   baz    \""
   ]
 
+simpleTests :: [String]
+simpleTests = [
+  "y = x"
+  , "y = 1"
+  , "f = \\x -> x"
+  , "f x = x"
+  , "f x = 1"
+  , "y = \"foo\""
+  , "y = f x"
+  -- TODO Fix y = f . g
+  , "y = f . g"
+  , "y = f . g . h"
+  , "y = f . g . h . i"
+  , "y = (f . g) x"
+  , "y = f (g x)"
+  , "y = f $ g x"
+  ]
+
+typeSigTests :: [String]
+typeSigTests = [
+  "f :: a"
+  , "f :: Int -> Bool"
+  ]
+
 testDecls :: [String]
 testDecls = mconcat [
-  composeTests
-  ,nestedTests
-  ,doTests
-  ,caseTests
-  ,lambdaTests
-  ,guardTests
-  ,patternTests
-  ,specialTests
-  ,tupleTests
-  ,listTests
-  ,letTests
-  ,operatorTests
-  ,otherTests
+  simpleTests
+  , composeTests
+  , nestedTests
+  , doTests
+  , caseTests
+  , lambdaTests
+  , guardTests
+  , patternTests
+  , specialTests
+  , tupleTests
+  , listTests
+  , letTests
+  , operatorTests
+  , otherTests
+  , typeSigTests
   ]
 
 
