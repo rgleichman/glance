@@ -381,6 +381,7 @@ getBoundVarName' d = case d of
   SdPatBind _ pat _ -> namesInPattern
                      -- TODO Should evalState be used here?
                      $ evalState (evalPattern' pat) initialIdState
+  SdTypeSig _ _ _ -> []
 
 evalDecls :: Show l =>
   EvalContext -> [SimpDecl l] -> State IDState (SyntaxGraph, EvalContext)
@@ -609,21 +610,6 @@ evalPatBind' _ c pat e = do
 
 -- Pretty printing the entire type sig results in extra whitespace in the middle
 -- TODO May want to trim whitespace from (prettyPrint typeForNames)
-evalTypeSig :: Show l => Decl l -> State IDState (SyntaxGraph, NameAndPort)
-evalTypeSig (TypeSig _ names typeForNames) = makeBox
-  (intercalate "," (fmap prettyPrintWithoutNewlines names)
-   ++ " :: "
-   ++ prettyPrintWithoutNewlines typeForNames)
-  where
-    -- TODO Make custom version of prettyPrint for type signitures.
-    -- Use (unwords . words) to convert consecutive whitspace characters to one
-    -- space.
-    prettyPrintWithoutNewlines = unwords . words . prettyPrint
-evalTypeSig decl
-  = error $ "Unsupported syntax in evalTypeSig: " <> show decl
-
--- Pretty printing the entire type sig results in extra whitespace in the middle
--- TODO May want to trim whitespace from (prettyPrint typeForNames)
 evalTypeSig' :: Show l =>
   [Exts.Name l] -> Exts.Type l
   -> State IDState (SyntaxGraph, NameAndPort)
@@ -636,14 +622,6 @@ evalTypeSig' names typeForNames = makeBox
     -- Use (unwords . words) to convert consecutive whitspace characters to one
     -- space.
     prettyPrintWithoutNewlines = unwords . words . prettyPrint
-
-evalDecl :: Show l => EvalContext -> Decl l -> State IDState SyntaxGraph
-evalDecl c d = case d of
-  -- PatBind _ _ _ _ -> evalPatBind c d
-  -- FunBind _ matches -> evalMatches c matches
-    TypeSig _ _ _ -> fst <$> evalTypeSig d
-    --TODO: Add other cases here
-    _ -> pure mempty
 
 evalDecl' :: Show l => EvalContext -> SimpDecl l -> State IDState SyntaxGraph
 evalDecl' c d = case d of
@@ -669,29 +647,17 @@ showTopLevelBinds gr = do
   newGraph <- mconcat <$> mapM addBind binds
   pure $ newGraph <> gr
 
-translateDeclToSyntaxGraph :: Show l => Decl l -> SyntaxGraph
-translateDeclToSyntaxGraph d = graph where
-  evaluatedDecl = evalDecl mempty d >>= showTopLevelBinds
-  graph = evalState evaluatedDecl initialIdState
-
 translateDeclToSyntaxGraph' :: Show l => SimpDecl l -> SyntaxGraph
 translateDeclToSyntaxGraph' d = graph where
   evaluatedDecl = evalDecl' mempty d >>= showTopLevelBinds
   graph = evalState evaluatedDecl initialIdState
 
 -- | Convert a single function declaration into a SyntaxGraph
-translateStringToSyntaxGraph' :: String -> SyntaxGraph
-translateStringToSyntaxGraph' = translateDeclToSyntaxGraph . customParseDecl
-
 translateStringToSyntaxGraph :: String -> SyntaxGraph
 translateStringToSyntaxGraph = translateDeclToSyntaxGraph' . stringToSimpDecl
 
 syntaxGraphToCollapsedGraph :: SyntaxGraph -> IngSyntaxGraph FGR.Gr
 syntaxGraphToCollapsedGraph = collapseNodes . syntaxGraphToFglGraph
-
-translateDeclToCollapsedGraph' :: Show l => Decl l -> IngSyntaxGraph FGR.Gr
-translateDeclToCollapsedGraph'
-  = syntaxGraphToCollapsedGraph . translateDeclToSyntaxGraph
 
 translateDeclToCollapsedGraph :: Show l => Decl l -> IngSyntaxGraph FGR.Gr
 translateDeclToCollapsedGraph
