@@ -5,7 +5,6 @@ module SimplifySyntax (
   , SimpDecl(..)
   , SimpPat(..)
   , stringToSimpDecl
-  , qOpToExp
   , qNameToString
   , nameToString
   , customParseDecl
@@ -79,9 +78,6 @@ makeVarExp l = Exts.Var l . strToQName l
 makePatVar :: l -> String -> Exts.Pat l
 makePatVar l = Exts.PVar l . Exts.Ident l
 
-makeQVarOp :: l -> String -> Exts.QOp l
-makeQVarOp l = Exts.QVarOp l . Exts.UnQual l . Exts.Ident l
-
 qOpToExp :: Exts.QOp l -> Exts.Exp l
 qOpToExp (Exts.QVarOp l n) = Exts.Var l n
 qOpToExp (Exts.QConOp l n) = Exts.Con l n
@@ -90,19 +86,20 @@ nameToString :: Exts.Name l -> String
 nameToString (Exts.Ident _ s) = s
 nameToString (Exts.Symbol _ s) = s
 
--- TODO refactor qNameToString
 qNameToString :: Show l => Exts.QName l -> String
-qNameToString (Exts.Qual _ (Exts.ModuleName _ modName) name)
-  = modName ++ "." ++ nameToString name
-qNameToString (Exts.UnQual _ name) = nameToString name
-qNameToString (Exts.Special _ (Exts.UnitCon _)) = "()"
-qNameToString (Exts.Special _ (Exts.ListCon _)) = "[]"
-qNameToString (Exts.Special _ (Exts.FunCon _)) = "(->)"
-qNameToString (Exts.Special _ (Exts.TupleCon _ _ n)) = nTupleString n
-qNameToString (Exts.Special _ (Exts.Cons _)) = "(:)"
--- unboxed singleton tuple constructor
-qNameToString (Exts.Special _ (Exts.UnboxedSingleCon _)) = "(# #)"
-qNameToString q = error $ "Unsupported syntax in qNameToSrting: " <> show q
+qNameToString qName = case qName of
+  Exts.Qual _ (Exts.ModuleName _ modName) name
+    -> modName ++ "." ++ nameToString name
+  Exts.UnQual _ name -> nameToString name
+  Exts.Special _ constructor -> case constructor of
+    Exts.UnitCon _ -> "()"
+    Exts.ListCon _ -> "[]"
+    Exts.FunCon _ -> "(->)"
+    Exts.TupleCon _ _ n -> nTupleString n
+    Exts.Cons _ -> "(:)"
+    -- unboxed singleton tuple constructor
+    Exts.UnboxedSingleCon _ -> "(# #)"
+    _ -> error $ "Unsupported syntax in qNameToSrting: " <> show qName
 
 --
 
@@ -185,7 +182,6 @@ hsDeclToSimpDecl decl = case decl of
   Exts.PatBind l pat rhs maybeBinds -> SdPatBind l (hsPatToSimpPat pat) expr
     where
       expr = whereToLet l rhs maybeBinds
-  -- TODO Exts.TypeSig
   _ -> error $ "Unsupported syntax in hsDeclToSimpDecl: " ++ show decl
 
 hsBindsToDecls :: Show a => Exts.Binds a -> [SimpDecl a]
@@ -254,17 +250,16 @@ rewriteRightSection l op expr = Exts.Lambda l [tempPat] appExpr
     tempVar = makeVarExp l tempStr
     appExpr = Exts.App l (Exts.App l (qOpToExp op) tempVar) expr
 
--- TODO refactor desugarDo
 desugarDo :: Show l => [Exts.Stmt l] -> Exts.Exp l
-desugarDo [Exts.Qualifier _ e] = e
-desugarDo (Exts.Qualifier l e : stmts)
-  = Exts.InfixApp l e thenOp (desugarDo stmts)
-  where
-    thenOp = makeQVarOp l ">>"
-desugarDo (Exts.Generator l pat e : stmts) =
-  Exts.InfixApp l e (makeQVarOp l ">>=") (Exts.Lambda l [pat] (desugarDo stmts))
-desugarDo (Exts.LetStmt l binds : stmts) = Exts.Let l binds (desugarDo stmts)
-desugarDo stmts = error $ "Unsupported syntax in degugarDo: " <> show stmts
+desugarDo stmts = case stmts of
+  [Exts.Qualifier _ e] -> e
+  (Exts.Qualifier l e : stmtsTail)
+    -> Exts.App l (Exts.App l (makeVarExp l ">>") e) (desugarDo stmtsTail)
+  (Exts.Generator l pat e : stmtsTail)
+    -> Exts.App l (Exts.App l (makeVarExp l ">>=") e)
+                  (Exts.Lambda l [pat] (desugarDo stmtsTail))
+  (Exts.LetStmt l binds : stmtsTail) -> Exts.Let l binds (desugarDo stmtsTail)
+  _ -> error $ "Unsupported syntax in degugarDo: " <> show stmts
 
 desugarEnums :: Show l => l -> String -> [Exts.Exp l] -> SimpExp l
 desugarEnums l funcName exprs = hsExpToSimpExp $ deListifyApp l

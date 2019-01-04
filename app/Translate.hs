@@ -3,8 +3,6 @@ module Translate(
   translateStringToSyntaxGraph,
   translateStringToCollapsedGraphAndDecl,
   translateModuleToCollapsedGraphs,
-  qOpToExp,
-  qNameToString,
   customParseDecl
 ) where
 
@@ -23,7 +21,6 @@ import GraphAlgorithms(collapseNodes)
 import Icons(inputPort, resultPort, argumentPorts, caseRhsPorts,
              casePatternPorts)
 import SimplifySyntax(SimpAlt(..), stringToSimpDecl, SimpExp(..), SimpPat(..)
-                     , qOpToExp
                      , qNameToString, nameToString, customParseDecl
                      , SimpDecl(..), hsDeclToSimpDecl, SelectorAndVal(..))
 import TranslateCore(Reference, SyntaxGraph(..), EvalContext, GraphAndRef(..)
