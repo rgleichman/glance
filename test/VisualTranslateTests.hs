@@ -274,6 +274,12 @@ typeSigTests = [
   , "f :: Int -> Bool"
   ]
 
+dataDeclTests :: [String]
+dataDeclTests = [
+  "data Foo"
+  , "data Foo = Foo Int"
+  ]
+
 testDecls :: [String]
 testDecls = mconcat [
   simpleTests
@@ -291,6 +297,7 @@ testDecls = mconcat [
   , operatorTests
   , otherTests
   , typeSigTests
+  , dataDeclTests
   ]
 
 

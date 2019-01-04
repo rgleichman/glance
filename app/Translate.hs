@@ -365,6 +365,7 @@ getBoundVarName d = case d of
                      -- TODO Should evalState be used here?
                      $ evalState (evalPattern pat) initialIdState
   SdTypeSig _ _ _ -> []
+  SdDataDecl _ _ -> []
 
 evalDecls :: Show l =>
   EvalContext -> [SimpDecl l] -> State IDState (SyntaxGraph, EvalContext)
@@ -610,6 +611,7 @@ evalDecl :: Show l => EvalContext -> SimpDecl l -> State IDState SyntaxGraph
 evalDecl c d = case d of
   SdPatBind l pat e -> evalPatBind l c pat e
   SdTypeSig _ names typeForNames -> fst <$> evalTypeSig names typeForNames
+  SdDataDecl _ declStr -> fst <$> makeBox declStr
 
 -- END evalDecl
 

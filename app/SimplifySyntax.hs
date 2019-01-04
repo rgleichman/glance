@@ -15,6 +15,7 @@ import Data.List(foldl')
 import Data.Maybe(catMaybes, isJust)
 
 import qualified Language.Haskell.Exts as Exts
+import qualified Language.Haskell.Exts.Pretty as PExts
 
 import TranslateCore(nTupleSectionString, nTupleString, nListString)
 
@@ -57,6 +58,8 @@ data SimpDecl l =
   -- These don't have decl lists, since only lets have decl lists
   SdPatBind l (SimpPat l) (SimpExp l)
   | SdTypeSig l [Exts.Name l] (Exts.Type l)
+  -- TODO Add a visual representation of data declarations
+  | SdDataDecl l String
   deriving (Show, Eq)
 
 data SimpPat l =
@@ -182,6 +185,7 @@ hsDeclToSimpDecl decl = case decl of
   Exts.PatBind l pat rhs maybeBinds -> SdPatBind l (hsPatToSimpPat pat) expr
     where
       expr = whereToLet l rhs maybeBinds
+  Exts.DataDecl l _ _ _ _ _ -> SdDataDecl l (PExts.prettyPrint decl)
   _ -> error $ "Unsupported syntax in hsDeclToSimpDecl: " ++ show decl
 
 hsBindsToDecls :: Show a => Exts.Binds a -> [SimpDecl a]
