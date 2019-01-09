@@ -297,6 +297,7 @@ hsExpToSimpExp x = simplifyExp $ case x of
   Exts.EnumFromTo l e1 e2 -> desugarEnums l "enumFromTo" [e1, e2]
   Exts.EnumFromThen l e1 e2 -> desugarEnums l "enumFromThen" [e1, e2]
   Exts.EnumFromThenTo l e1 e2 e3 -> desugarEnums l "enumFromThenTo" [e1, e2, e3]
+  Exts.MultiIf l rhss -> SeGuard l (fmap guardedRhsToSelectorAndVal rhss)
   _ -> error $ "Unsupported syntax in hsExpToSimpExp: " ++ show x
 
 -- Parsing
@@ -306,7 +307,8 @@ customParseMode = Exts.defaultParseMode
   {Exts.extensions =
    [Exts.EnableExtension Exts.MultiParamTypeClasses,
     Exts.EnableExtension Exts.FlexibleContexts,
-    Exts.EnableExtension Exts.TupleSections
+    Exts.EnableExtension Exts.TupleSections,
+    Exts.EnableExtension Exts.MultiWayIf
    ]
   }
 

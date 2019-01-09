@@ -280,6 +280,17 @@ dataDeclTests = [
   , "data Foo = Foo Int"
   ]
 
+multiWayIfTests :: [String]
+multiWayIfTests = [
+  "y = if | x == 0 -> 1"
+  , "y = if\n\
+  \  | x == 0 -> 1\n\
+  \  | otherwise -> 2"
+  , "y = if\n\
+  \  | x == 0 -> if {| y > z -> 2; | pizza -> 3} \n\
+  \  | otherwise -> 2"
+  ]
+
 testDecls :: [String]
 testDecls = mconcat [
   simpleTests
@@ -298,6 +309,7 @@ testDecls = mconcat [
   , otherTests
   , typeSigTests
   , dataDeclTests
+  , multiWayIfTests
   ]
 
 
