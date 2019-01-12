@@ -9,13 +9,13 @@ module SimplifySyntax (
   , nameToString
   , customParseDecl
   , hsDeclToSimpDecl
+  , formatString
   ) where
 
 import Data.List(foldl')
 import Data.Maybe(catMaybes, isJust)
 
 import qualified Language.Haskell.Exts as Exts
-import qualified Language.Haskell.Exts.Pretty as PExts
 
 import TranslateCore(nTupleSectionString, nTupleString, nListString)
 
@@ -39,6 +39,7 @@ data SimpExp l =
   | SeLambda l [SimpPat l] (SimpExp l)
   | SeLet l [SimpDecl l] (SimpExp l)
   | SeCase l (SimpExp l) [SimpAlt l]
+  -- TODO Rename SeGuard to SeMultiIf
   | SeGuard l [SelectorAndVal l]
   deriving (Show, Eq)
 
@@ -59,7 +60,7 @@ data SimpDecl l =
   SdPatBind l (SimpPat l) (SimpExp l)
   | SdTypeSig l [Exts.Name l] (Exts.Type l)
   -- TODO Add a visual representation of data declarations
-  | SdDataDecl l String
+  | SdCatchAll (Exts.Decl l)
   deriving (Show, Eq)
 
 data SimpPat l =
@@ -104,6 +105,9 @@ qNameToString qName = case qName of
     Exts.UnboxedSingleCon _ -> "(# #)"
     _ -> error $ "Unsupported syntax in qNameToSrting: " <> show qName
 
+simpExpToRhs :: Show l => l -> SimpExp l -> Exts.Rhs l
+simpExpToRhs l e = Exts.UnGuardedRhs l (simpExpToHsExp e)
+
 --
 
 hsPatToSimpPat :: Show a => Exts.Pat a -> SimpPat a
@@ -124,6 +128,14 @@ hsPatToSimpPat p = case p of
                         ((strToQName l . nListString . length) patts)
                         (fmap hsPatToSimpPat patts)
   _ -> error $  "Unsupported syntax in hsPatToSimpPat: " <> show p
+
+simpPatToHsPat :: Show a => SimpPat a -> Exts.Pat a
+simpPatToHsPat pat = case pat of
+  SpVar l n -> Exts.PVar l n
+  SpLit l s lit -> Exts.PLit l s lit
+  SpApp l n pats -> Exts.PApp l n (fmap simpPatToHsPat pats)
+  SpAsPat l n p -> Exts.PAsPat l n (simpPatToHsPat p)
+  SpWildCard l -> Exts.PWildCard l
 
 whereToLet :: Show a => a -> Exts.Rhs a -> Maybe (Exts.Binds a) -> SimpExp a
 whereToLet l rhs maybeBinds = val
@@ -180,13 +192,22 @@ hsDeclToSimpDecl decl = case decl of
   Exts.PatBind l pat rhs maybeBinds -> SdPatBind l (hsPatToSimpPat pat) expr
     where
       expr = whereToLet l rhs maybeBinds
-  Exts.DataDecl l _ _ _ _ _ -> SdDataDecl l (PExts.prettyPrint decl)
-  _ -> error $ "Unsupported syntax in hsDeclToSimpDecl: " ++ show decl
+  d -> SdCatchAll d
+
+simpDeclToHsDecl :: Show a => SimpDecl a -> Exts.Decl a
+simpDeclToHsDecl decl = case decl of
+  SdPatBind l pat e
+    -> Exts.PatBind l (simpPatToHsPat pat) (simpExpToRhs l e) Nothing
+  SdTypeSig l names typeForNames -> Exts.TypeSig l names typeForNames
+  SdCatchAll d -> d
 
 hsBindsToDecls :: Show a => Exts.Binds a -> [SimpDecl a]
 hsBindsToDecls binds = case binds of
   Exts.BDecls _ decls -> fmap hsDeclToSimpDecl decls
   _ -> error $ "Unsupported syntax in hsBindsToDecls: " ++ show binds
+
+simpDeclsToHsBinds :: Show a => a -> [SimpDecl a] -> Exts.Binds a
+simpDeclsToHsBinds l decls = Exts.BDecls l (fmap simpDeclToHsDecl decls)
 
 guardedRhsToSelectorAndVal :: Show a => Exts.GuardedRhs a -> SelectorAndVal a
 guardedRhsToSelectorAndVal rhs = case rhs of
@@ -199,6 +220,12 @@ guardedRhsToSelectorAndVal rhs = case rhs of
       _ -> error
            $ "Unsupported syntax in stmtToExp: " ++ show stmt
 
+selAndValToGuardedRhs :: Show a => a -> SelectorAndVal a -> Exts.GuardedRhs a
+selAndValToGuardedRhs l selAndVal = Exts.GuardedRhs
+  l
+  [Exts.Qualifier l (simpExpToHsExp $ svSelector selAndVal)]
+  (simpExpToHsExp $ svVal selAndVal)
+
 hsRhsToExp :: Show a => Exts.Rhs a -> SimpExp a
 hsRhsToExp rhs = case rhs of
   Exts.UnGuardedRhs _ e -> hsExpToSimpExp e
@@ -208,6 +235,10 @@ hsRhsToExp rhs = case rhs of
 hsAltToSimpAlt :: Show a => Exts.Alt a -> SimpAlt a
 hsAltToSimpAlt (Exts.Alt l pat rhs maybeBinds)
   = SimpAlt{saPat=hsPatToSimpPat pat, saVal=whereToLet l rhs maybeBinds}
+
+simpAltToHsAlt :: Show a => a -> SimpAlt a -> Exts.Alt a
+simpAltToHsAlt l (SimpAlt pat e)
+  = Exts.Alt l (simpPatToHsPat pat) (simpExpToRhs l e) Nothing
 
 ifToGuard :: a -> SimpExp a -> SimpExp a -> SimpExp a -> SimpExp a
 ifToGuard l e1 e2 e3
@@ -300,6 +331,23 @@ hsExpToSimpExp x = simplifyExp $ case x of
   Exts.MultiIf l rhss -> SeGuard l (fmap guardedRhsToSelectorAndVal rhss)
   _ -> error $ "Unsupported syntax in hsExpToSimpExp: " ++ show x
 
+simpExpToHsExp :: Show a => SimpExp a -> Exts.Exp a
+simpExpToHsExp x = case x of
+  -- TODO Sometimes SeName comes from Exts.Con
+  --
+  -- Put names in parens in case it's an operator
+  SeName l str -> Exts.Paren l (Exts.Var l (strToQName l str))
+  -- SeName l str -> (Exts.Var l (strToQName l str))
+  SeLit l lit -> Exts.Lit l lit
+  SeApp l e1 e2 -> Exts.App l (simpExpToHsExp e1) (simpExpToHsExp e2)
+  SeLambda l pats e
+    -> Exts.Lambda l (fmap simpPatToHsPat pats) (simpExpToHsExp e)
+  SeLet l decls e -> Exts.Let l (simpDeclsToHsBinds l decls) (simpExpToHsExp e)
+  SeCase l e alts
+    -> Exts.Case l (simpExpToHsExp e) $ fmap (simpAltToHsAlt l) alts
+  SeGuard l selsAndVal
+    -> Exts.MultiIf l (fmap (selAndValToGuardedRhs l) selsAndVal)
+
 -- Parsing
 
 customParseMode :: Exts.ParseMode
@@ -317,3 +365,6 @@ customParseDecl = Exts.fromParseResult . Exts.parseDeclWithMode customParseMode
 
 stringToSimpDecl :: String -> SimpDecl Exts.SrcSpanInfo
 stringToSimpDecl = hsDeclToSimpDecl . customParseDecl
+
+formatString :: String -> Exts.Decl Exts.SrcSpanInfo
+formatString = simpDeclToHsDecl . hsDeclToSimpDecl . customParseDecl

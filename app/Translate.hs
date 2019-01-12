@@ -16,6 +16,7 @@ import Data.List(unzip5, partition, intercalate)
 import Data.Maybe(catMaybes, fromMaybe)
 
 import qualified Language.Haskell.Exts as Exts
+import qualified Language.Haskell.Exts.Pretty as PExts
 
 import GraphAlgorithms(collapseNodes)
 import Icons(inputPort, resultPort, argumentPorts, caseRhsPorts,
@@ -365,7 +366,7 @@ getBoundVarName d = case d of
                      -- TODO Should evalState be used here?
                      $ evalState (evalPattern pat) initialIdState
   SdTypeSig _ _ _ -> []
-  SdDataDecl _ _ -> []
+  SdCatchAll _ -> []
 
 evalDecls :: Show l =>
   EvalContext -> [SimpDecl l] -> State IDState (SyntaxGraph, EvalContext)
@@ -611,7 +612,7 @@ evalDecl :: Show l => EvalContext -> SimpDecl l -> State IDState SyntaxGraph
 evalDecl c d = case d of
   SdPatBind l pat e -> evalPatBind l c pat e
   SdTypeSig _ names typeForNames -> fst <$> evalTypeSig names typeForNames
-  SdDataDecl _ declStr -> fst <$> makeBox declStr
+  SdCatchAll decl -> fst <$> makeBox (PExts.prettyPrint decl)
 
 -- END evalDecl
 
