@@ -27,7 +27,7 @@ import SimplifySyntax(SimpAlt(..), stringToSimpDecl, SimpExp(..), SimpPat(..)
 import TranslateCore(Reference, SyntaxGraph(..), EvalContext, GraphAndRef(..)
                     , SgSink(..), syntaxGraphFromNodes
                     , syntaxGraphFromNodesEdges, getUniqueName
-                    , edgesForRefPortList, makeApplyGraph, makeGuardGraph
+                    , edgesForRefPortList, makeApplyGraph, makeMultiIfGraph
                     , combineExpressions, namesInPattern, lookupReference
                     , deleteBindings, makeEdges, makeBox, syntaxGraphToFglGraph
                     , getUniqueString, bindsToSyntaxGraph, SgBind(..)
@@ -398,12 +398,12 @@ evalSelectorAndVal :: Show l =>
 evalSelectorAndVal c SelectorAndVal{svSelector=sel, svVal=val}
   = (,) <$> evalExp c sel <*> evalExp c val
 
-evalGuard :: Show l =>
+evalMultiIf :: Show l =>
   EvalContext -> [SelectorAndVal l] -> State IDState (SyntaxGraph, NameAndPort)
-evalGuard c selectorsAndVals = let
+evalMultiIf c selectorsAndVals = let
   evaledRhss = unzip <$> mapM (evalSelectorAndVal c) selectorsAndVals
   in
-  makeGuardGraph (length selectorsAndVals)
+  makeMultiIfGraph (length selectorsAndVals)
   <$>
   getUniqueName
   <*>
@@ -574,7 +574,8 @@ evalExp c x = case x of
   SeLambda l patterns e -> grNamePortToGrRef <$> evalLambda l c patterns e
   SeLet _ decls expr -> evalLet c decls expr
   SeCase _ expr alts -> grNamePortToGrRef <$> evalCase c expr alts
-  SeGuard _ selectorsAndVals -> grNamePortToGrRef <$> evalGuard c selectorsAndVals
+  SeMultiIf _ selectorsAndVals
+    -> grNamePortToGrRef <$> evalMultiIf c selectorsAndVals
 
 -- BEGIN evalDecl
 

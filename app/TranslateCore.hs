@@ -14,7 +14,7 @@ module TranslateCore(
   edgesForRefPortList,
   combineExpressions,
   makeApplyGraph,
-  makeGuardGraph,
+  makeMultiIfGraph,
   namesInPattern,
   lookupReference,
   deleteBindings,
@@ -35,11 +35,11 @@ import qualified Data.Graph.Inductive.PatriciaTree as FGR
 import Data.List(find)
 import Data.Semigroup(Semigroup, (<>))
 
-import Icons(inputPort, resultPort, argumentPorts, guardRhsPorts
-            , guardBoolPorts)
+import Icons(inputPort, resultPort, argumentPorts, multiIfRhsPorts
+            , multiIfBoolPorts)
 import Types(Labeled(..), Icon(..), SyntaxNode(..), Edge(..), EdgeOption(..)
             , NameAndPort(..), IDState, SgNamedNode(..), NodeName(..), Port
-            , LikeApplyFlavor(..), CaseOrGuardTag(..), IDState(..)
+            , LikeApplyFlavor(..), CaseOrMultiIfTag(..), IDState(..)
             , NamedIcon(..))
 import Util(noEnds, nameAndPort, makeSimpleEdge, justName, maybeBoolToBool
            , mapNodeInNamedNode, nodeNameToInt)
@@ -191,20 +191,20 @@ makeApplyGraph numArgs applyFlavor inPattern applyIconName funVal argVals
     icons = [SgNamedNode applyIconName applyNode]
     newGraph = syntaxGraphFromNodes icons
 
-makeGuardGraph ::
+makeMultiIfGraph ::
   Int
   -> NodeName
   -> [GraphAndRef]
   -> [GraphAndRef]
   -> (SyntaxGraph, NameAndPort)
-makeGuardGraph numPairs guardName bools exps
-  = (newGraph, nameAndPort guardName (resultPort guardNode))
+makeMultiIfGraph numPairs multiIfName bools exps
+  = (newGraph, nameAndPort multiIfName (resultPort multiIfNode))
   where
-    guardNode = GuardNode numPairs
-    expsWithPorts = zip exps $ map (nameAndPort guardName) guardRhsPorts
-    boolsWithPorts = zip bools $ map (nameAndPort guardName) guardBoolPorts
+    multiIfNode = MultiIfNode numPairs
+    expsWithPorts = zip exps $ map (nameAndPort multiIfName) multiIfRhsPorts
+    boolsWithPorts = zip bools $ map (nameAndPort multiIfName) multiIfBoolPorts
     combindedGraph = combineExpressions False $ expsWithPorts <> boolsWithPorts
-    icons = [SgNamedNode guardName guardNode]
+    icons = [SgNamedNode multiIfName multiIfNode]
     newGraph = syntaxGraphFromNodes icons <> combindedGraph
 
 namesInPatternHelper :: GraphAndRef -> [String]
@@ -288,11 +288,11 @@ nodeToIcon (NameNode s) = TextBoxIcon s
 nodeToIcon (BindNameNode s) = BindTextBoxIcon s
 nodeToIcon (LiteralNode s) = TextBoxIcon s
 nodeToIcon (FunctionDefNode x names) = FlatLambdaIcon x names
-nodeToIcon (GuardNode n) = GuardIcon n
+nodeToIcon (MultiIfNode n) = MultiIfIcon n
 nodeToIcon (CaseNode n) = CaseIcon n
 nodeToIcon CaseResultNode = CaseResultIcon
-nodeToIcon (NestedCaseOrGuardNode tag x edges)
-  = nestedCaseOrGuardNodeToIcon tag x edges
+nodeToIcon (NestedCaseOrMultiIfNode tag x edges)
+  = nestedCaseOrMultiIfNodeToIcon tag x edges
 
 makeArg :: [(SgNamedNode, Edge)] -> Port -> Maybe NamedIcon
 makeArg args port = case find (findArg port) args of
@@ -312,14 +312,14 @@ nestedApplySyntaxNodeToIcon flavor numArgs args =
     headIcon = makeArg args (inputPort dummyNode)
     argList = fmap (makeArg args) argPorts
 
-nestedCaseOrGuardNodeToIcon ::
-  CaseOrGuardTag
+nestedCaseOrMultiIfNodeToIcon ::
+  CaseOrMultiIfTag
   -> Int
   -> [(SgNamedNode, Edge)]
   -> Icon
-nestedCaseOrGuardNodeToIcon tag numArgs args = case tag of
+nestedCaseOrMultiIfNodeToIcon tag numArgs args = case tag of
   CaseTag -> NestedCaseIcon argList
-  GuardTag -> NestedGuardIcon argList
+  MultiIfTag -> NestedMultiIfIcon argList
   where
     dummyNode = CaseNode numArgs
     argPorts = take (2 * numArgs) $ argumentPorts dummyNode

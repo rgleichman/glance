@@ -39,8 +39,7 @@ data SimpExp l =
   | SeLambda l [SimpPat l] (SimpExp l)
   | SeLet l [SimpDecl l] (SimpExp l)
   | SeCase l (SimpExp l) [SimpAlt l]
-  -- TODO Rename SeGuard to SeMultiIf
-  | SeGuard l [SelectorAndVal l]
+  | SeMultiIf l [SelectorAndVal l]
   deriving (Show, Eq)
 
 data SelectorAndVal l = SelectorAndVal {
@@ -230,7 +229,7 @@ hsRhsToExp :: Show a => Exts.Rhs a -> SimpExp a
 hsRhsToExp rhs = case rhs of
   Exts.UnGuardedRhs _ e -> hsExpToSimpExp e
   Exts.GuardedRhss l rhss
-    -> SeGuard l (fmap guardedRhsToSelectorAndVal rhss)
+    -> SeMultiIf l (fmap guardedRhsToSelectorAndVal rhss)
 
 hsAltToSimpAlt :: Show a => Exts.Alt a -> SimpAlt a
 hsAltToSimpAlt (Exts.Alt l pat rhs maybeBinds)
@@ -242,8 +241,8 @@ simpAltToHsAlt l (SimpAlt pat e)
 
 ifToGuard :: a -> SimpExp a -> SimpExp a -> SimpExp a -> SimpExp a
 ifToGuard l e1 e2 e3
-  = SeGuard l [SelectorAndVal{svSelector=e1, svVal=e2}
-              , SelectorAndVal{svSelector=otherwiseExp, svVal=e3}]
+  = SeMultiIf l [SelectorAndVal{svSelector=e1, svVal=e2}
+                , SelectorAndVal{svSelector=otherwiseExp, svVal=e3}]
   where
     otherwiseExp = SeName l "otherwise"
 
@@ -328,7 +327,7 @@ hsExpToSimpExp x = simplifyExp $ case x of
   Exts.EnumFromTo l e1 e2 -> desugarEnums l "enumFromTo" [e1, e2]
   Exts.EnumFromThen l e1 e2 -> desugarEnums l "enumFromThen" [e1, e2]
   Exts.EnumFromThenTo l e1 e2 e3 -> desugarEnums l "enumFromThenTo" [e1, e2, e3]
-  Exts.MultiIf l rhss -> SeGuard l (fmap guardedRhsToSelectorAndVal rhss)
+  Exts.MultiIf l rhss -> SeMultiIf l (fmap guardedRhsToSelectorAndVal rhss)
   _ -> error $ "Unsupported syntax in hsExpToSimpExp: " ++ show x
 
 simpExpToHsExp :: Show a => SimpExp a -> Exts.Exp a
@@ -345,7 +344,7 @@ simpExpToHsExp x = case x of
   SeLet l decls e -> Exts.Let l (simpDeclsToHsBinds l decls) (simpExpToHsExp e)
   SeCase l e alts
     -> Exts.Case l (simpExpToHsExp e) $ fmap (simpAltToHsAlt l) alts
-  SeGuard l selsAndVal
+  SeMultiIf l selsAndVal
     -> Exts.MultiIf l (fmap (selAndValToGuardedRhs l) selsAndVal)
 
 -- Parsing

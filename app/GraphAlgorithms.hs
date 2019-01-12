@@ -13,14 +13,14 @@ import Data.Maybe(catMaybes, isJust, fromMaybe)
 --import qualified Debug.Trace
 
 import Types(SyntaxNode(..), IngSyntaxGraph, Edge(..),
-            CaseOrGuardTag(..), Port(..), NameAndPort(..), SgNamedNode(..))
+             CaseOrMultiIfTag(..), Port(..), NameAndPort(..), SgNamedNode(..))
 import Util(maybeBoolToBool, sgNamedNodeToSyntaxNode)
 --import Util(printSelf)
 {-# ANN module "HLint: ignore Use record patterns" #-}
 
 -- See graph_algs.txt for pseudocode
 
-data ParentType = ApplyParent | CaseParent | GuardParent | NotAParent
+data ParentType = ApplyParent | CaseParent | MultiIfParent | NotAParent
   deriving (Eq, Show)
 
 data DirectionalEdge a = ParentToChild a | ChildToParent a deriving (Eq, Show)
@@ -43,8 +43,8 @@ syntaxNodeIsEmbeddable parentType n mParentPort = case (parentType, n) of
   (CaseParent, LikeApplyNode _ _) -> notResultPort && notInputPort
   (CaseParent, NestedPatternApplyNode _ _) -> notResultPort && notInputPort
 
-  (GuardParent, LiteralNode _) -> notResultPort
-  (GuardParent, LikeApplyNode _ _) -> notResultPort && notInputPort
+  (MultiIfParent, LiteralNode _) -> notResultPort
+  (MultiIfParent, LikeApplyNode _ _) -> notResultPort && notInputPort
 
   _ -> False
   where
@@ -66,9 +66,9 @@ parentTypeForNode n = case n of
   LikeApplyNode _ _ -> ApplyParent
   NestedApplyNode _ _ _ -> ApplyParent
   CaseNode _ -> CaseParent
-  GuardNode _ -> GuardParent
-  NestedCaseOrGuardNode CaseTag _ _ -> CaseParent
-  NestedCaseOrGuardNode GuardTag _ _ -> GuardParent
+  MultiIfNode _ -> MultiIfParent
+  NestedCaseOrMultiIfNode CaseTag _ _ -> CaseParent
+  NestedCaseOrMultiIfNode MultiIfTag _ _ -> MultiIfParent
   -- The NotAParent case should never occur.
   _ -> NotAParent
 
@@ -308,9 +308,9 @@ embedChildSyntaxNodes parentNode childrenNodes oldGraph = case childrenNodes of
             LikeApplyNode flavor x
               -> NestedApplyNode flavor x childrenAndEdgesToParent
             CaseNode x
-              -> NestedCaseOrGuardNode CaseTag x childrenAndEdgesToParent
-            GuardNode x
-              -> NestedCaseOrGuardNode GuardTag x childrenAndEdgesToParent
+              -> NestedCaseOrMultiIfNode CaseTag x childrenAndEdgesToParent
+            MultiIfNode x
+              -> NestedCaseOrMultiIfNode MultiIfTag x childrenAndEdgesToParent
             _ -> oldSyntaxNode
     childrenAndEdgesToParent = catMaybes $ fmap findChildAndEdge childrenNodes
     findChildAndEdge childNode =

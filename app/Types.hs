@@ -19,7 +19,7 @@ module Types (
   SgNamedNode(..),
   IngSyntaxGraph,
   LikeApplyFlavor(..),
-  CaseOrGuardTag(..),
+  CaseOrMultiIfTag(..),
   Labeled(..)
 ) where
 
@@ -49,7 +49,7 @@ instance Applicative Labeled where
 -- | A datatype that represents an icon.
 -- The TextBoxIcon's data is the text that appears in the text box.
 data Icon = TextBoxIcon String
-  | GuardIcon
+  | MultiIfIcon
     Int  -- Number of alternatives
   | FlatLambdaIcon
     [String]  -- Parameter labels
@@ -65,13 +65,13 @@ data Icon = TextBoxIcon String
     (Labeled (Maybe NamedIcon))  -- Data constructor
     [Labeled (Maybe NamedIcon)]  -- Arguments
   | NestedCaseIcon [Maybe NamedIcon]
-  | NestedGuardIcon [Maybe NamedIcon]
+  | NestedMultiIfIcon [Maybe NamedIcon]
   deriving (Show, Eq, Ord)
 
 data LikeApplyFlavor = ApplyNodeFlavor | ComposeNodeFlavor
   deriving (Show, Eq, Ord)
 
-data CaseOrGuardTag = CaseTag | GuardTag deriving (Show, Eq, Ord)
+data CaseOrMultiIfTag = CaseTag | MultiIfTag deriving (Show, Eq, Ord)
 
 data SgNamedNode = SgNamedNode {
   snnName :: NodeName
@@ -92,11 +92,11 @@ data SyntaxNode =
   | FunctionDefNode  -- Function definition (ie. lambda expression)
     [String]  -- Parameter labels
     [NodeName]  -- Nodes inside the lambda
-  | GuardNode
+  | MultiIfNode
     Int  -- Number of alternatives
   | CaseNode Int
   | CaseResultNode -- TODO remove caseResultNode
-  | NestedCaseOrGuardNode CaseOrGuardTag Int [(SgNamedNode, Edge)]
+  | NestedCaseOrMultiIfNode CaseOrMultiIfTag Int [(SgNamedNode, Edge)]
   deriving (Show, Eq, Ord)
 
 newtype Port = Port Int deriving (Typeable, Eq, Ord, Show)

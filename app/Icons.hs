@@ -11,8 +11,8 @@ module Icons
     argumentPorts,
     caseRhsPorts,
     casePatternPorts,
-    guardRhsPorts,
-    guardBoolPorts,
+    multiIfRhsPorts,
+    multiIfBoolPorts,
     textBox,
     multilineComment,
     defaultLineWidth,
@@ -70,7 +70,7 @@ iconToDiagram :: SpecialBackend b n => Icon -> TransformableDia b n
 iconToDiagram icon = case icon of
   TextBoxIcon s -> textBox s
   BindTextBoxIcon s -> identDiaFunc $ bindTextBox s
-  GuardIcon n -> nestedGuardDia $ replicate (1 + (2 * n)) Nothing
+  MultiIfIcon n -> nestedMultiIfDia $ replicate (1 + (2 * n)) Nothing
   CaseIcon n -> nestedCaseDia $ replicate (1 + (2 * n)) Nothing
   CaseResultIcon -> identDiaFunc caseResult
   FlatLambdaIcon x _ -> flatLambda x
@@ -78,7 +78,7 @@ iconToDiagram icon = case icon of
   NestedPApp constructor args
     -> nestedPAppDia (repeat $ patternC colorScheme) constructor args
   NestedCaseIcon args -> nestedCaseDia args
-  NestedGuardIcon args -> nestedGuardDia args
+  NestedMultiIfIcon args -> nestedMultiIfDia args
 
 -- BEGIN getPortAngles --
 
@@ -95,8 +95,8 @@ pAppPortAngles (Port x) = fmap (@@ turn) $ case x of
   1 -> [0]
   _ -> [1/2]
 
-guardPortAngles :: Floating n => Port -> [Angle n]
-guardPortAngles (Port port) = case port of
+multiIfPortAngles :: Floating n => Port -> [Angle n]
+multiIfPortAngles (Port port) = case port of
   0 -> [1/4 @@ turn]
   1 -> [3/4 @@ turn]
   _ -> otherAngles where otherAngles
@@ -142,13 +142,13 @@ reflectXAngle x = reflectedAngle where
   reflectedAngle = (-) <$> halfTurn <*> normalizedAngle
 
 -- TODO reflect the angles for the right side sub-icons
-nestedGuardPortAngles :: SpecialNum n =>
+nestedMultiIfPortAngles :: SpecialNum n =>
   [Maybe NamedIcon]
   -> Port
   -> Maybe NodeName
   -> [Angle n]
-nestedGuardPortAngles args port maybeNodeName = case maybeNodeName of
-  Nothing -> guardPortAngles port
+nestedMultiIfPortAngles args port maybeNodeName = case maybeNodeName of
+  Nothing -> multiIfPortAngles port
   Just name -> case findIcon name args of
     Nothing -> []
     -- TODO Don't use hardcoded numbers
@@ -164,8 +164,8 @@ getPortAngles :: SpecialNum n => Icon -> Port -> Maybe NodeName -> [Angle n]
 getPortAngles icon port maybeNodeName = case icon of
   TextBoxIcon _ -> []
   BindTextBoxIcon _ -> []
-  GuardIcon _ -> guardPortAngles port
-  CaseIcon _ -> guardPortAngles port
+  MultiIfIcon _ -> multiIfPortAngles port
+  CaseIcon _ -> multiIfPortAngles port
   CaseResultIcon -> []
   FlatLambdaIcon _ _ -> applyPortAngles port
   NestedApply _ headIcon args ->
@@ -173,8 +173,8 @@ getPortAngles icon port maybeNodeName = case icon of
   NestedPApp headIcon args ->
     generalNestedPortAngles
     pAppPortAngles (laValue headIcon) (fmap laValue args) port maybeNodeName
-  NestedCaseIcon args -> nestedGuardPortAngles args port maybeNodeName
-  NestedGuardIcon args -> nestedGuardPortAngles args port maybeNodeName
+  NestedCaseIcon args -> nestedMultiIfPortAngles args port maybeNodeName
+  NestedMultiIfIcon args -> nestedMultiIfPortAngles args port maybeNodeName
 
 -- END getPortAngles --
 
@@ -202,11 +202,11 @@ caseRhsPorts = fmap Port [3,5..]
 casePatternPorts :: [Port]
 casePatternPorts = fmap Port [2,4..]
 
-guardRhsPorts :: [Port]
-guardRhsPorts = casePatternPorts
+multiIfRhsPorts :: [Port]
+multiIfRhsPorts = casePatternPorts
 
-guardBoolPorts :: [Port]
-guardBoolPorts = caseRhsPorts
+multiIfBoolPorts :: [Port]
+multiIfBoolPorts = caseRhsPorts
 
 argumentPorts :: SyntaxNode -> [Port]
 argumentPorts n = case n of
@@ -214,8 +214,8 @@ argumentPorts n = case n of
   NestedApplyNode _ _ _ -> defaultPorts
   NestedPatternApplyNode _ _-> defaultPorts
   FunctionDefNode _ _ -> defaultPorts
-  NestedCaseOrGuardNode _ _ _-> defaultPorts
-  GuardNode _ -> defaultPorts
+  NestedCaseOrMultiIfNode _ _ _-> defaultPorts
+  MultiIfNode _ -> defaultPorts
   CaseNode _ -> defaultPorts
   NameNode _ -> []
   BindNameNode _ -> []
@@ -523,34 +523,34 @@ textBox t (TransformParams name _ reflect angle)
 
 -- END Text boxes and icons
 
--- BEGIN Guard and case icons --
-guardSize :: (Fractional a) => a
-guardSize = 0.7
+-- BEGIN MultiIf and case icons --
+multiIfSize :: (Fractional a) => a
+multiIfSize = 0.7
 
-guardTriangle :: SpecialBackend b n =>
+multiIfTriangle :: SpecialBackend b n =>
   SpecialQDiagram b n -> SpecialQDiagram b n
-guardTriangle portDia =
+multiIfTriangle portDia =
   alignL
-  $ alignR (triangleAndPort ||| lwG defaultLineWidth (hrule (guardSize * 0.8)))
+  $ alignR (triangleAndPort ||| lwG defaultLineWidth (hrule (multiIfSize * 0.8)))
   <> portDia
   where
     triangleAndPort = alignR $ alignT $ lwG defaultLineWidth $ rotateBy (1/8) $
       polygon
-      (polyType .~ PolySides [90 @@ deg, 45 @@ deg] [guardSize, guardSize]
+      (polyType .~ PolySides [90 @@ deg, 45 @@ deg] [multiIfSize, multiIfSize]
        $ with)
 
--- | generalNestedGuard port layout:
+-- | generalNestedMultiIf port layout:
 -- 0 -> top
 -- 1 -> bottom
 -- odds -> left
 -- evens -> right
-generalNestedGuard :: SpecialBackend b n
+generalNestedMultiIf :: SpecialBackend b n
                    => Colour Double
                    -> (SpecialQDiagram b n -> SpecialQDiagram b n)
                    -> SpecialQDiagram b n
                    -> [Maybe NamedIcon]
                    -> TransformableDia b n
-generalNestedGuard triangleColor lBracket bottomDia inputAndArgs
+generalNestedMultiIf triangleColor lBracket bottomDia inputAndArgs
   (TransformParams name nestingLevel reflect angle)
   = named name $ case inputAndArgs of
   [] -> mempty
@@ -558,11 +558,11 @@ generalNestedGuard triangleColor lBracket bottomDia inputAndArgs
     finalDia = alignT (bottomDia <> makeQualifiedPort name resultPortConst)
                <> alignB
                (inputIcon === (bigVerticalLine
-                               <> guardDia
+                               <> multiIfDia
                                <> makeQualifiedPort name inputPortConst))
 
     iconMapper (Port portNum) arg
-      | even portNum = Right $ guardTriangle port ||| makeInnerIcon True arg
+      | even portNum = Right $ multiIfTriangle port ||| makeInnerIcon True arg
       | otherwise = Left $ makeInnerIcon False arg ||| lBracket port
       where
         port = makeQualifiedPort name (Port portNum)
@@ -576,17 +576,17 @@ generalNestedGuard triangleColor lBracket bottomDia inputAndArgs
     zipper thisTriangle lBrack
       = verticalLine
         ===
-        (alignR (extrudeRight guardSize lBrack)
+        (alignR (extrudeRight multiIfSize lBrack)
          <> lc triangleColor (alignL thisTriangle))
       where
         verticalLine = strutY 0.4
 
     inputIcon = makeInnerIcon False input
 
-    guardDia = vcat (alignT trianglesAndBrackets)
+    multiIfDia = vcat (alignT trianglesAndBrackets)
     bigVerticalLine
       = alignT
-        $ lwG defaultLineWidth $ lc triangleColor $ vrule (height guardDia)
+        $ lwG defaultLineWidth $ lc triangleColor $ vrule (height multiIfDia)
 
     makeInnerIcon innerReflected mNameAndIcon = case mNameAndIcon of
       Nothing -> mempty
@@ -600,24 +600,24 @@ generalNestedGuard triangleColor lBracket bottomDia inputAndArgs
                                      (innerReflected /= reflect)
                                      angle)
 
-guardLBracket :: SpecialBackend b n =>
+multiIfLBracket :: SpecialBackend b n =>
   SpecialQDiagram b n -> SpecialQDiagram b n
-guardLBracket portDia = alignL (alignT ell) <> portDia
+multiIfLBracket portDia = alignL (alignT ell) <> portDia
   where
-    ellShape = fromOffsets $ map r2 [(0, guardSize), (-guardSize, 0)]
+    ellShape = fromOffsets $ map r2 [(0, multiIfSize), (-multiIfSize, 0)]
     ell
       = lineJoin LineJoinRound
       $ lwG defaultLineWidth $ lc (boolC colorScheme) (strokeLine ellShape)
 
--- | The ports of the guard icon are as follows:
+-- | The ports of the multiIf icon are as follows:
 -- inputPortConst: Top result port (not used)
 -- resultPortConst: Bottom result port
 -- Ports 3,5...: The left ports for the booleans
 -- Ports 2,4...: The right ports for the values
-nestedGuardDia :: SpecialBackend b n =>
+nestedMultiIfDia :: SpecialBackend b n =>
   [Maybe NamedIcon]
   -> TransformableDia b n
-nestedGuardDia = generalNestedGuard lineCol guardLBracket mempty
+nestedMultiIfDia = generalNestedMultiIf lineCol multiIfLBracket mempty
 
 -- TODO Improve design to be more than a circle.
 caseResult :: SpecialBackend b n =>
@@ -636,9 +636,9 @@ caseC portDia = caseResult <> portDia
 -- Ports 3,5...: The left ports for the results
 -- Ports 2,4...: The right ports for the patterns
 nestedCaseDia :: SpecialBackend b n => [Maybe NamedIcon] -> TransformableDia b n
-nestedCaseDia = generalNestedGuard (patternC colorScheme) caseC caseResult
+nestedCaseDia = generalNestedMultiIf (patternC colorScheme) caseC caseResult
 
--- END Guard and case icons
+-- END MultiIf and case icons
 
 -- | The ports of flatLambdaIcon are:
 -- 0: Result icon

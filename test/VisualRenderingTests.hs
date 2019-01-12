@@ -38,14 +38,14 @@ nestedCaseDrawing = Drawing icons [] where
                          Just $ ni9 (TextBoxIcon "n9")])
     ]
 
-nestedGuardDrawing :: Drawing
-nestedGuardDrawing = Drawing icons edges where
+nestedMultiIfDrawing :: Drawing
+nestedMultiIfDrawing = Drawing icons edges where
   icons = [
     ni10 $ TextBoxIcon "n10"
-    , ni0 $ NestedGuardIcon [Nothing, Nothing, Nothing]
-    , ni1 $ NestedGuardIcon [Nothing, Just $ ni2 (TextBoxIcon "n2"), Nothing]
-    , ni3 $ NestedGuardIcon [Nothing, Nothing, Just $ ni4 (TextBoxIcon "n4")]
-    , ni5 $ NestedGuardIcon [Nothing,
+    , ni0 $ NestedMultiIfIcon [Nothing, Nothing, Nothing]
+    , ni1 $ NestedMultiIfIcon [Nothing, Just $ ni2 (TextBoxIcon "n2"), Nothing]
+    , ni3 $ NestedMultiIfIcon [Nothing, Nothing, Just $ ni4 (TextBoxIcon "n4")]
+    , ni5 $ NestedMultiIfIcon [Nothing,
                          Just $ ni6 (TextBoxIcon "n6"),
                          Just $ ni7 (TextBoxIcon "n7"),
                          Just $ ni8 (TextBoxIcon "n8"),
@@ -64,12 +64,12 @@ flatCaseDrawing = Drawing icons edges where
     ]
   edges = []
 
-flatGuardDrawing :: Drawing
-flatGuardDrawing = Drawing icons edges where
+flatMultiIfDrawing :: Drawing
+flatMultiIfDrawing = Drawing icons edges where
   icons = fmap tupleToNamedIcon [
-    (NodeName 1, GuardIcon 1),
-    (NodeName 2, GuardIcon 2),
-    (NodeName 3, GuardIcon 3)
+    (NodeName 1, MultiIfIcon 1),
+    (NodeName 2, MultiIfIcon 2),
+    (NodeName 3, MultiIfIcon 3)
     ]
   edges = []
 
@@ -109,7 +109,7 @@ lambdaDia = Drawing icons []
     icons = [
       ni0 $ FlatLambdaIcon ["foo", "bar"] [n0, n1]
       , ni1 CaseResultIcon
-      , ni2 $ GuardIcon 3
+      , ni2 $ MultiIfIcon 3
       ]
 
 
@@ -122,9 +122,9 @@ renderTests = do
   where
     allDrawings = [
       nestedCaseDrawing
-      , nestedGuardDrawing
+      , nestedMultiIfDrawing
       , flatCaseDrawing
-      , flatGuardDrawing
+      , flatMultiIfDrawing
       , nestedPAppDia
       , nestedApplyDia
       , lambdaDia
