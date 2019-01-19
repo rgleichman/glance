@@ -17,6 +17,7 @@ import Diagrams.Prelude(toName, shaftStyle, global, arrowShaft, noTail
                        , connectOutside', connect', with, (%~), lengths, (^+^)
                        , (.~))
 import Diagrams.TwoD.GraphViz(mkGraph, getGraph, layoutGraph')
+import qualified Diagrams.Prelude as DIA
 
 import qualified Data.GraphViz as GV
 import qualified Data.GraphViz.Attributes.Complete as GVA
@@ -94,12 +95,12 @@ getArrowOpts :: (RealFloat n, Typeable n) =>
   -> [EdgeOption]
   -> (Angle n, Angle n)
   -> NameAndPort
-  -> ArrowOpts n
+  -> (ArrowOpts n, DIA.Colour Double)
 getArrowOpts (t, h)
   _
   (fromAngle, toAngle)
   (NameAndPort (NodeName nodeNum) mPort)
-  = arrowOptions
+  = (arrowOptions, shaftColor)
   where
     -- shaftColor = if EdgeInPattern `elem` opts
     --              then patternC colorScheme
@@ -121,7 +122,6 @@ getArrowOpts (t, h)
       arrowTail .~ noTail $
       arrowShaft .~ bezierShaft fromAngle toAngle $
       lengths .~ global 0.75 $
-      shaftStyle %~ (lwG (2 * defaultLineWidth) . lc shaftColor) $
       lookupHead h $ lookupTail t with
 
 -- | Given an Edge, return a transformation on Diagrams that will draw a line.
@@ -132,8 +132,21 @@ connectMaybePorts portAngles
     opts
     ends
     (fromNamePort@(NameAndPort name0 mPort1), NameAndPort name1 mPort2))
-  = connectFunc (getArrowOpts ends opts portAngles fromNamePort) qPort0 qPort1
+  -- In order to give arrows a "shadow" effect, draw a thicker semi-transparent
+  -- line shaft the same color as the background underneath the normal line
+  -- shaft.
+  = connectFunc normalOpts qPort0 qPort1
+    . connectFunc arrOptsShadow qPort0 qPort1
   where
+    lineWidth = 2 * defaultLineWidth
+    (baseArrOpts, shaftCol) = getArrowOpts ends opts portAngles fromNamePort
+    normalOpts = (shaftStyle %~ (lwG lineWidth . lc shaftCol))
+                 baseArrOpts
+    arrOptsShadow = (shaftStyle
+                     %~ (lwG (1.9 * lineWidth)
+                         . DIA.lcA
+                          $ DIA.withOpacity (backgroundC colorScheme) 0.5))
+                    baseArrOpts
     (connectFunc, qPort0, qPort1) = case (mPort1, mPort2) of
       (Just port0, Just port1) -> (connect', name0 .> port0, name1 .> port1)
       (Nothing, Just port1) -> (connectOutside', toName name0, name1 .> port1)

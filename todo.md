@@ -19,8 +19,6 @@
 
 * Make an icon font/library with labeled ports. E.g. the apply icon would have text labels "function", "result", "arg 0", "arg 1", etc.
 
-* Try giving lines a black border to make line crossings easier to see.
-
 ### Translate todos
 * Fix applyComposeScore in Translate.hs not counting expressions that nest via reference. May need to move compose generation to after translate.
 
