@@ -116,7 +116,7 @@ lambdaDia = Drawing icons []
 --renderTests :: IO (Diagram B)
 renderTests :: SpecialBackend b Double => IO (SpecialQDiagram b Double)
 renderTests = do
-  renderedDiagrams <- traverse renderDrawing allDrawings
+  renderedDiagrams <- traverse (renderDrawing "") allDrawings
   let vCattedDrawings = Dia.vsep 0.5 renderedDiagrams
   pure vCattedDrawings
   where

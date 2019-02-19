@@ -7,7 +7,7 @@ module Rendering (
 ) where
 
 import Diagrams.Prelude(toName, shaftStyle, global, arrowShaft, noTail
-                       , arrowTail, noHead, arrowHead, scale, r2, bezier3
+                       , arrowTail, arrowHead, scale, r2, bezier3
                        , fromSegments, Angle, P2, V2, Point, Name, ArrowOpts, N
                        , TrailLike, V, height, width, (*^), reflectX, rotate
                        , centerXY, place
@@ -27,19 +27,19 @@ import Data.Function(on)
 import qualified Data.Graph.Inductive as ING
 import Data.Graph.Inductive.PatriciaTree (Gr)
 import Data.List(find, minimumBy)
-import Data.Maybe(fromMaybe)
+import Data.Maybe(isNothing, fromMaybe)
 import Data.Typeable(Typeable)
 
 --import qualified Data.GraphViz.Types
 --import Data.GraphViz.Commands
---import qualified Debug.Trace
 
 import Icons(colorScheme, iconToDiagram, defaultLineWidth, ColorStyle(..)
             , getPortAngles, TransformParams(..), circleRadius)
 import TranslateCore(nodeToIcon)
-import Types(Edge(..), EdgeOption(..), Drawing(..), EdgeEnd(..), NameAndPort(..)
+import Types(EmbedInfo(..), AnnotatedGraph, Edge(..)
+            , Drawing(..), NameAndPort(..)
             , SpecialQDiagram, SpecialBackend, SpecialNum, NodeName(..)
-            , Port(..), SgNamedNode, NamedIcon(..), Icon(..))
+            , Port(..), NamedIcon(..), Icon(..))
 
 import Util(fromMaybeError, mapNodeInNamedNode, namedIconToTuple)
 
@@ -66,12 +66,16 @@ drawingToGraphvizScaleFactor = 0.15
 
 -- TODO Refactor with syntaxGraphToFglGraph in TranslateCore
 -- TODO Make this work with nested icons now that names are not qualified.
-drawingToIconGraph :: Drawing -> Gr NamedIcon Edge
+drawingToIconGraph :: Drawing -> Gr NamedIcon (EmbedInfo Edge)
 drawingToIconGraph (Drawing nodes edges) =
   mkGraph nodes labeledEdges where
     labeledEdges = fmap makeLabeledEdge edges
-    makeLabeledEdge e@(Edge _ _ (NameAndPort n1 _, NameAndPort n2 _)) =
-      (NamedIcon n1 (lookupInNodes n1), NamedIcon n2 (lookupInNodes n2), e)
+
+    makeLabeledEdge :: Edge -> (NamedIcon, NamedIcon, EmbedInfo Edge)
+    makeLabeledEdge e@(Edge _ (NameAndPort n1 _, NameAndPort n2 _))
+      = (NamedIcon n1 (lookupInNodes n1)
+        , NamedIcon n2 (lookupInNodes n2)
+        , EmbedInfo Nothing e)
       where
         lookupInNodes name = fromMaybeError
                              errorString
@@ -91,47 +95,39 @@ bezierShaft angle1 angle2 = fromSegments [bezier3 c1 c2 x] where
   c2 = rotate angle2 (scale scaleFactor unitX) ^+^ x
 
 getArrowOpts :: (RealFloat n, Typeable n) =>
-  (EdgeEnd, EdgeEnd)
-  -> [EdgeOption]
-  -> (Angle n, Angle n)
+  (Angle n, Angle n)
   -> NameAndPort
   -> (ArrowOpts n, DIA.Colour Double)
-getArrowOpts (t, h)
-  _
+getArrowOpts
   (fromAngle, toAngle)
   (NameAndPort (NodeName nodeNum) mPort)
   = (arrowOptions, shaftColor)
   where
-    -- shaftColor = if EdgeInPattern `elem` opts
-    --              then patternC colorScheme
-    --              else hashedColor
-    shaftColor = hashedColor
-
     edgeColors = edgeListC colorScheme
-    numEdgeColors = length edgeColors
-    hashedColor = edgeColors !! namePortHash
-    namePortHash = mod (portNum + (503 * nodeNum)) numEdgeColors
     Port portNum = fromMaybe (Port 0) mPort
-
-    lookupTail EndNone = id
-
-    lookupHead EndNone = id
-
+    namePortHash = mod (portNum + (503 * nodeNum)) (length edgeColors)
+    shaftColor = edgeColors !! namePortHash
     arrowOptions =
-      arrowHead .~ noHead $
-      arrowTail .~ noTail $
-      arrowShaft .~ bezierShaft fromAngle toAngle $
-      lengths .~ global 0.75 $
-      lookupHead h $ lookupTail t with
+      arrowHead .~ DIA.noHead
+      -- arrowHead .~ DIA.tri
+      $ DIA.headStyle %~ DIA.fc shaftColor
+      $ arrowTail .~ noTail
+      $ arrowShaft .~ bezierShaft fromAngle toAngle
+      -- TODO Don't use a magic number for lengths (headLength and tailLength)
+      $ lengths .~ global 0.5
+      $ with
 
 -- | Given an Edge, return a transformation on Diagrams that will draw a line.
 connectMaybePorts :: SpecialBackend b n =>
-  (Angle n, Angle n)-> Edge -> SpecialQDiagram b n -> SpecialQDiagram b n
+  (Angle n, Angle n)
+  -> EmbedInfo Edge
+  -> SpecialQDiagram b n
+  -> SpecialQDiagram b n
 connectMaybePorts portAngles
-  (Edge
-    opts
-    ends
-    (fromNamePort@(NameAndPort name0 mPort1), NameAndPort name1 mPort2))
+  (EmbedInfo embedDir
+    (Edge
+     _
+     (fromNamePort@(NameAndPort name0 mPort1), NameAndPort name1 mPort2)))
   -- In order to give arrows a "shadow" effect, draw a thicker semi-transparent
   -- line shaft the same color as the background underneath the normal line
   -- shaft.
@@ -139,8 +135,10 @@ connectMaybePorts portAngles
     . connectFunc arrOptsShadow qPort0 qPort1
   where
     lineWidth = 2 * defaultLineWidth
-    (baseArrOpts, shaftCol) = getArrowOpts ends opts portAngles fromNamePort
-    normalOpts = (shaftStyle %~ (lwG lineWidth . lc shaftCol))
+    (baseArrOpts, shaftCol) = getArrowOpts portAngles fromNamePort
+    -- TODO Use a color from the color scheme for un-embedded shafts.
+    shaftCol' = if isNothing embedDir then shaftCol else DIA.lime
+    normalOpts = (shaftStyle %~ (lwG lineWidth . lc shaftCol'))
                  baseArrOpts
     arrOptsShadow = (shaftStyle
                      %~ (lwG (1.9 * lineWidth)
@@ -218,14 +216,15 @@ lookupNodeAngle rotationMap key
   $ lookup key rotationMap
 
 makeEdge :: (SpecialBackend b n, ING.Graph gr) =>
-  gr NamedIcon Edge
+  String  -- ^ Debugging information
+  -> gr NamedIcon (EmbedInfo Edge)
   -> SpecialQDiagram b n
   -> [(NamedIcon, (Bool, Angle n))]
-  -> ING.LEdge Edge
+  -> ING.LEdge (EmbedInfo Edge)
   -> SpecialQDiagram b n
   -> SpecialQDiagram b n
-makeEdge graph dia rotationMap
-  (node0, node1, edge@(Edge _ _ (namePort0, namePort1)))
+makeEdge debugInfo graph dia rotationMap
+  (node0, node1, edge@(EmbedInfo _ (Edge _ (namePort0, namePort1))))
   = connectMaybePorts portAngles edge
   where
     node0label = fromMaybeError
@@ -257,10 +256,12 @@ makeEdge graph dia rotationMap
 
     getPortPoint n = case foundPoints of
       [point] -> point
-      _ -> error $ "Multiple points with named: " <> show n
+      _ -> error $ "Multiple points. Debug info: " <> debugInfo
+                     <> "\nn: " <> show n
       where
         foundPoints = fromMaybeError
-          ( "makeEdge: port not found. Port: " ++ show n ++ ". Valid ports: "
+          ( "makeEdge: port not found. Debug info: " <> debugInfo
+            <> "\nPort: " ++ show n ++ "\nValid ports: "
             ++ show diaNodeNamePointMap)
           (lookup n diaNodeNamePointMap)
 
@@ -268,13 +269,14 @@ makeEdge graph dia rotationMap
 
 -- | addEdges draws the edges underneath the nodes.
 addEdges :: (SpecialBackend b n, ING.Graph gr) =>
-  gr NamedIcon Edge
+  String  -- ^ Debugging information
+  -> gr NamedIcon (EmbedInfo Edge)
   -> SpecialQDiagram b n
   -> [(NamedIcon, (Bool, Angle n))]
   -> SpecialQDiagram b n
-addEdges graph dia rotationMap = applyAll connections dia
+addEdges debugInfo graph dia rotationMap = applyAll connections dia
   where
-    connections = makeEdge graph dia rotationMap <$> ING.labEdges graph
+    connections = makeEdge debugInfo graph dia rotationMap <$> ING.labEdges graph
 
 -- BEGIN rotateNodes --
 
@@ -296,7 +298,7 @@ scoreAngle iconPosition edges reflected angle
 
 bestAngleForIcon :: (SpecialNum n, ING.Graph gr) =>
   Map.Map NamedIcon (Point V2 n)
-  -> gr NamedIcon Edge
+  -> gr NamedIcon (EmbedInfo Edge)
   -> NamedIcon
   -> Bool
   -> (Angle n, n)
@@ -322,16 +324,16 @@ bestAngleForIcon positionMap graph key@(NamedIcon (NodeName nodeId) _) reflected
         portAngles = findPortAngles key nameAndPort
 
   -- Edge points from id to otherNode
-    getSucEdge (otherNode, edge) = (otherNode, nameAndPort) where
+    getSucEdge (otherNode, EmbedInfo _ edge) = (otherNode, nameAndPort) where
       (nameAndPort, _) = edgeConnection edge
 
   -- Edge points from otherNode to id
-    getPreEdge (otherNode, edge) = (otherNode, nameAndPort) where
+    getPreEdge (otherNode, EmbedInfo _ edge) = (otherNode, nameAndPort) where
       (_, nameAndPort) = edgeConnection edge
 
 findIconRotation :: (SpecialNum n, ING.Graph gr) =>
   Map.Map NamedIcon (Point V2 n)
-  -> gr NamedIcon Edge
+  -> gr NamedIcon (EmbedInfo Edge)
   -> NamedIcon
   -> (NamedIcon, (Bool, Angle n))
 findIconRotation positionMap graph key = (key, (reflected, angle)) where
@@ -344,7 +346,7 @@ findIconRotation positionMap graph key = (key, (reflected, angle)) where
 
 rotateNodes :: (SpecialNum n, ING.Graph gr) =>
   Map.Map NamedIcon (Point V2 n)
-  -> gr NamedIcon Edge
+  -> gr NamedIcon (EmbedInfo Edge)
   -> [(NamedIcon, (Bool, Angle n))]
 rotateNodes positionMap graph
   = findIconRotation positionMap graph <$> Map.keys positionMap
@@ -362,8 +364,8 @@ drawLambdaRegions placedNodes
       where
         enclosedDias = fmap findDia enclosedNames
         findDia n1
-          = fromMaybe mempty
-            $ snd <$> find (\(NamedIcon n2 _, _) -> n1 == n2) placedNodes
+          = maybe mempty snd
+            (find (\(NamedIcon n2 _, _) -> n1 == n2) placedNodes)
     drawRegion _ = mempty
 
     -- TODO Use something better than a rectangle
@@ -414,11 +416,12 @@ customLayoutParams = GV.defaultParams{
   GV.fmtEdge = const [GV.arrowTo GV.noArrow]
   }
 
-doGraphLayout :: forall b.
+renderIconGraph :: forall b.
   SpecialBackend b Double =>
-  Gr NamedIcon Edge
+  String  -- ^ Debugging information
+  -> Gr NamedIcon (EmbedInfo Edge)
   -> IO (SpecialQDiagram b Double)
-doGraphLayout graph = do
+renderIconGraph debugInfo graph = do
   layoutResult <- layoutGraph' layoutParams GVA.Neato graph
   --  layoutResult <- layoutGraph' layoutParams GVA.Fdp graph
   let
@@ -426,7 +429,7 @@ doGraphLayout graph = do
     rotationMap = rotateNodes positionMap graph
     placedNodeList = placeNodes positionMap rotationMap
     placedNodes = mconcat $ fmap snd placedNodeList
-    edges = addEdges graph placedNodes rotationMap
+    edges = addEdges debugInfo graph placedNodes rotationMap
     placedRegions = drawLambdaRegions placedNodeList
   pure (placedNodes <> edges <> placedRegions)
   where
@@ -459,17 +462,14 @@ doGraphLayout graph = do
 
 -- | Given a Drawing, produce a Diagram complete with rotated/flipped icons and
 -- lines connecting ports and icons. IO is needed for the GraphViz layout.
-renderDrawing ::
-  SpecialBackend b Double =>
-  Drawing -> IO (SpecialQDiagram b Double)
-renderDrawing = renderIconGraph . drawingToIconGraph
+renderDrawing :: SpecialBackend b Double
+  => String  -- ^ Debugging information
+  -> Drawing
+  -> IO (SpecialQDiagram b Double)
+renderDrawing debugInfo = renderIconGraph debugInfo . drawingToIconGraph
 
 renderIngSyntaxGraph ::
   SpecialBackend b Double =>
-  Gr SgNamedNode Edge -> IO (SpecialQDiagram b Double)
-renderIngSyntaxGraph
-  = renderIconGraph . ING.nmap (mapNodeInNamedNode nodeToIcon)
-
-renderIconGraph :: SpecialBackend b Double
-                => Gr NamedIcon Edge -> IO (SpecialQDiagram b Double)
-renderIconGraph = doGraphLayout
+  String -> AnnotatedGraph Gr -> IO (SpecialQDiagram b Double)
+renderIngSyntaxGraph debugInfo gr
+  = renderIconGraph debugInfo $ ING.nmap (mapNodeInNamedNode nodeToIcon) gr

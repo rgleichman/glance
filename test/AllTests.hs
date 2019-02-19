@@ -14,6 +14,7 @@ import VisualGraphAlgorithmTests(visualCollapseTests)
 import VisualRenderingTests(renderTests)
 import VisualTranslateTests(visualTranslateTests)
 
+{-# ANN module "HLint: ignore Unnecessary hiding" #-}
 
 drawingsAndNames :: [(String, IO (Diagram B))]
 drawingsAndNames = [

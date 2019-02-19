@@ -23,6 +23,8 @@ import Rendering(renderIngSyntaxGraph)
 import Translate(translateModuleToCollapsedGraphs)
 import Util(customRenderSVG)
 
+{-# ANN module "HLint: ignore Unnecessary hiding" #-}
+
 data CmdLineOptions = CmdLineOptions {
   cmdInputFilename :: String,
   cmdOutputFilename :: String,
@@ -60,7 +62,7 @@ renderFile (CmdLineOptions
   --print "\n\n"
   --print drawings
 
-  diagrams <- traverse renderIngSyntaxGraph drawings
+  diagrams <- traverse (renderIngSyntaxGraph "") drawings
   let
     commentsInBoxes
       = fmap

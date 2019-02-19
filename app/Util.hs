@@ -4,7 +4,6 @@ module Util (
   printSelf,
   iconToPort,
   makeSimpleEdge,
-  noEnds,
   nameAndPort,
   justName,
   fromMaybeError,
@@ -26,14 +25,11 @@ import Data.Text(pack)
 import Data.Typeable(Typeable)
 import qualified Debug.Trace
 
-import Types(EdgeEnd(..), Edge(..), NameAndPort(..), Connection, NodeName(..)
+import Types(Edge(..), NameAndPort(..), Connection, NodeName(..)
             , Port, SyntaxNode, SgNamedNode(..), NamedIcon(..), Icon(..))
 
-noEnds :: (EdgeEnd, EdgeEnd)
-noEnds = (EndNone, EndNone)
-
 makeSimpleEdge :: Connection -> Edge
-makeSimpleEdge = Edge [] noEnds
+makeSimpleEdge = Edge []
 
 nameAndPort :: NodeName -> Port -> NameAndPort
 nameAndPort n p = NameAndPort n (Just p)

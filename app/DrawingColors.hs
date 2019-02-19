@@ -8,6 +8,8 @@ module DrawingColors (
 
 import Diagrams.Prelude hiding ((&), (#))
 
+{-# ANN module "HLint: ignore Unnecessary hiding" #-}
+
 -- COLO(U)RS --
 colorScheme :: ColorStyle Double
 colorScheme = colorOnBlackScheme

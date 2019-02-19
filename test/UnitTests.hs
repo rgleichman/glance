@@ -4,16 +4,12 @@ module UnitTests(
 
 import Test.HUnit
 
-import qualified Data.Graph.Inductive.Graph as ING
-import qualified Data.Graph.Inductive.PatriciaTree as FGR
-
 import Data.List(foldl', sort, sortOn)
 
 import Translate(translateStringToSyntaxGraph)
-import TranslateCore(syntaxGraphToFglGraph, SyntaxGraph(..), SgBind(..))
+import TranslateCore(SyntaxGraph(..), SgBind(..))
 import Types(Labeled(..), SgNamedNode(..), Edge(..), SyntaxNode(..),
-             IngSyntaxGraph, NodeName(..), LikeApplyFlavor(..), NameAndPort(..))
-import qualified GraphAlgorithms
+             NodeName(..), NameAndPort(..))
 import Util(fromMaybeError)
 
 -- Unit Test Helpers --
@@ -75,8 +71,8 @@ renameNamePort nameMap nameAndPort@(NameAndPort name port) = NameAndPort newName
   errorStr = "renameNamePort: name not found. name = " ++ show name ++ "\nNameAndPort = " ++ show nameAndPort ++ "\nNameMap = " ++ show nameMap
 
 renameEdge :: NameMap -> Edge -> Edge
-renameEdge nameMap (Edge options ends (np1, np2)) =
-  Edge options ends (renameNamePort nameMap np1, renameNamePort nameMap np2)
+renameEdge nameMap (Edge options (np1, np2)) =
+  Edge options (renameNamePort nameMap np1, renameNamePort nameMap np2)
 
 renameSource :: NameMap -> SgBind -> SgBind
 renameSource nameMap (SgBind str ref) = SgBind str newRef where
@@ -107,55 +103,6 @@ renameGraph (SyntaxGraph nodes edges sinks sources embedMap) =
 -- END renameGraph
 
 -- END Unit Test Helpers --
-
-
--- 0:(toName "app02",ApplyNode 1)->[]
--- 1:(toName "f0",LiteralNode "f")->[(Edge {edgeOptions = [], edgeEnds = (EndNone,EndNone), edgeConnection = (NameAndPort (toName "f0") Nothing,NameAndPort (toName "app02") (Just 0))},0)]
--- 2:(toName "x1",LiteralNode "x")->[(Edge {edgeOptions = [], edgeEnds = (EndNone,EndNone), edgeConnection = (NameAndPort (toName "x1") Nothing,NameAndPort (toName "app02") (Just 2))},0)]
--- 3:(toName "y3",NameNode "y")->[(Edge {edgeOptions = [], edgeEnds = (EndNone,EndNone), edgeConnection = (NameAndPort (toName "y3") Nothing,NameAndPort (toName "app02") (Just 1))},0)]
-singleApplyGraph :: FGR.Gr SgNamedNode Edge
-singleApplyGraph = syntaxGraphToFglGraph $ translateStringToSyntaxGraph "y = f x"
-
-makeTreeRootTest :: (String, [Maybe SgNamedNode], String) -> Test
-makeTreeRootTest (testName, expected, haskellString) = TestCase $ assertEqual testName expected actual where
-  actual = fmap (ING.lab graph) treeRoots
-  graph = syntaxGraphToFglGraph $ translateStringToSyntaxGraph haskellString
-  treeRoots = GraphAlgorithms.findTreeRoots graph
-
-treeRootTests :: Test
-treeRootTests = TestList $ fmap makeTreeRootTest treeRootTestList where
-  treeRootTestList = [
-    ("single apply", [Just $ SgNamedNode (NodeName 2) (LikeApplyNode ApplyNodeFlavor 1)], "y = f x"),
-    -- TODO Fix test below
-    ("double apply", [Just $ SgNamedNode (NodeName 3) (LikeApplyNode ComposeNodeFlavor 2)], "y = f (g x)"),
-    ("recursive apply", [Just $ SgNamedNode (NodeName 3) (LikeApplyNode ComposeNodeFlavor 2)], "y = f (g y)")
-    ]
-
-makeChildCanBeEmbeddedTest ::
-  ING.Graph gr =>
-  (String, IngSyntaxGraph gr, ING.Node, Bool) -> Test
-makeChildCanBeEmbeddedTest (testName, graph, node, expected) =TestCase $ assertEqual testName expected canBeEmbedded where
-  canBeEmbedded = GraphAlgorithms.nodeWillBeEmbedded graph node
-
--- TODO Add more cases for childCanBeEmbeddedTests
--- TODO Fix these tests
-childCanBeEmbeddedTests :: Test
-childCanBeEmbeddedTests
-  = TestList $ fmap makeChildCanBeEmbeddedTest childCanBeEmbeddedList
-  where
-    childCanBeEmbeddedList = [
-      -- ("single apply, ap", singleApplyGraph, 0, False),
-      ("single apply, f", singleApplyGraph, 1, True),
-      -- ("single apply, x", singleApplyGraph, 2, True),
-      ("single apply, y", singleApplyGraph, 3, False)
-      ]
-
-collapseUnitTests :: Test
-collapseUnitTests = TestList[
-  TestLabel "findTreeRoots" treeRootTests
-  , TestLabel "childCanBeEmbedded" childCanBeEmbeddedTests
-  ]
-
 -- Translate unit tests
 
 applyTests :: Test
@@ -402,6 +349,5 @@ translateUnitTests = TestList [
 
 allUnitTests :: Test
 allUnitTests = TestList[
-  TestLabel "collapseUnitTests" collapseUnitTests,
   TestLabel "translateTests" translateUnitTests
   ]

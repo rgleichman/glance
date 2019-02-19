@@ -18,7 +18,7 @@ import Data.Maybe(catMaybes, fromMaybe)
 import qualified Language.Haskell.Exts as Exts
 import qualified Language.Haskell.Exts.Pretty as PExts
 
-import GraphAlgorithms(collapseNodes)
+import GraphAlgorithms(annotateGraph, collapseAnnotatedGraph)
 import Icons(inputPort, resultPort, argumentPorts, caseRhsPorts,
              casePatternPorts)
 import SimplifySyntax(SimpAlt(..), stringToSimpDecl, SimpExp(..), SimpPat(..)
@@ -32,8 +32,8 @@ import TranslateCore(Reference, SyntaxGraph(..), EvalContext, GraphAndRef(..)
                     , deleteBindings, makeEdges, makeBox, syntaxGraphToFglGraph
                     , getUniqueString, bindsToSyntaxGraph, SgBind(..)
                     , graphAndRefToGraph, initialIdState)
-import Types(Labeled(..), NameAndPort(..), IDState,
-  Edge, SyntaxNode(..), IngSyntaxGraph, NodeName, SgNamedNode(..),
+import Types(AnnotatedGraph, Labeled(..), NameAndPort(..), IDState,
+  Edge, SyntaxNode(..), NodeName, SgNamedNode(..),
   LikeApplyFlavor(..))
 import Util(makeSimpleEdge, nameAndPort, justName)
 
@@ -643,22 +643,24 @@ translateDeclToSyntaxGraph d = graph where
 translateStringToSyntaxGraph :: String -> SyntaxGraph
 translateStringToSyntaxGraph = translateDeclToSyntaxGraph . stringToSimpDecl
 
-syntaxGraphToCollapsedGraph :: SyntaxGraph -> IngSyntaxGraph FGR.Gr
-syntaxGraphToCollapsedGraph = collapseNodes . syntaxGraphToFglGraph
+syntaxGraphToCollapsedGraph :: SyntaxGraph -> AnnotatedGraph FGR.Gr
+syntaxGraphToCollapsedGraph
+  = collapseAnnotatedGraph . annotateGraph . syntaxGraphToFglGraph
+  -- = annotateGraph . syntaxGraphToFglGraph  
 
-translateDeclToCollapsedGraph :: Show l => Exts.Decl l -> IngSyntaxGraph FGR.Gr
+translateDeclToCollapsedGraph :: Show l => Exts.Decl l -> AnnotatedGraph FGR.Gr
 translateDeclToCollapsedGraph
   = syntaxGraphToCollapsedGraph . translateDeclToSyntaxGraph . hsDeclToSimpDecl
 
 -- Profiling: At one point, this was about 1.5% of total time.
 translateStringToCollapsedGraphAndDecl ::
-  String -> (IngSyntaxGraph FGR.Gr, Exts.Decl Exts.SrcSpanInfo)
+  String -> (AnnotatedGraph FGR.Gr, Exts.Decl Exts.SrcSpanInfo)
 translateStringToCollapsedGraphAndDecl s = (drawing, decl) where
   decl = customParseDecl s -- :: ParseResult Module
   drawing = translateDeclToCollapsedGraph decl
 
 translateModuleToCollapsedGraphs :: Show l =>
-  Exts.Module l -> [IngSyntaxGraph FGR.Gr]
+  Exts.Module l -> [AnnotatedGraph FGR.Gr]
 translateModuleToCollapsedGraphs (Exts.Module _ _ _ _ decls)
   = fmap translateDeclToCollapsedGraph decls
 translateModuleToCollapsedGraphs moduleSyntax

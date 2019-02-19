@@ -12,22 +12,30 @@ import qualified Data.GraphViz.Attributes.Complete as GVA
 
 import qualified Data.Graph.Inductive.PatriciaTree as FGR
 
-import Types(SpecialQDiagram, SpecialBackend, SyntaxNode(..), NameAndPort(..), SgNamedNode(..), Edge(..))
+import Types(SpecialQDiagram, SpecialBackend, SyntaxNode(..), NameAndPort(..)
+            , SgNamedNode(..), Edge(..))
 import Translate(translateStringToSyntaxGraph)
 import TranslateCore(syntaxGraphToFglGraph)
-import GraphAlgorithms(collapseNodes)
+import GraphAlgorithms(annotateGraph, collapseAnnotatedGraph)
 import Rendering(customLayoutParams)
 import Icons(coloredTextBox)
 
+{-# ANN module "HLint: ignore Unnecessary hiding" #-}
+
 prettyPrintSyntaxNode :: SyntaxNode -> String
-prettyPrintSyntaxNode (NestedApplyNode _ _ namedNodesAndEdges) = concatMap printNameAndEdge namedNodesAndEdges
+prettyPrintSyntaxNode (NestedApplyNode _ _ namedNodesAndEdges)
+  = concatMap printNameAndEdge namedNodesAndEdges
   where
-    printNameAndEdge (namedNode, edge) = "(" ++ prettyPrintNamedNode namedNode ++ "," ++ printEdge edge ++ ")"
-    prettyPrintNamedNode (SgNamedNode name _) = show name --  "(" ++ show name ++ "," ++ prettyPrintSyntaxNode syntaxNode ++ ")"
-    printEdge (Edge _ _ (NameAndPort n1 _, NameAndPort n2 _)) = show (n1, n2)
+    printNameAndEdge (namedNode, edge)
+      = "(" ++ prettyPrintNamedNode namedNode ++ "," ++ printEdge edge ++ ")"
+    prettyPrintNamedNode (SgNamedNode name _)
+      = show name --  "(" ++ show name ++ "," ++ prettyPrintSyntaxNode syntaxNode ++ ")"
+    printEdge (Edge _ (NameAndPort n1 _, NameAndPort n2 _)) = show (n1, n2)
 prettyPrintSyntaxNode x = show x
 
-renderFglGraph :: SpecialBackend b Double => FGR.Gr SgNamedNode Edge -> IO (SpecialQDiagram b Double)
+renderFglGraph :: SpecialBackend b Double
+               => FGR.Gr SgNamedNode e
+               -> IO (SpecialQDiagram b Double)
 renderFglGraph fglGraph = do
   layedOutGraph <- DiaGV.layoutGraph' layoutParams GVA.Neato fglGraph
   pure $ DiaGV.drawGraph
@@ -36,12 +44,20 @@ renderFglGraph fglGraph = do
     -- TODO Draw some type of arrow if point1 == point2
     (\_ point1 _ point2 _ _ ->  if point1 == point2
       then mempty
-      else lcA (withOpacity white 0.5) $ arrowBetween (scaleFactor *^ point1) (scaleFactor *^ point2))
+      else lcA (withOpacity white 0.7)
+           $ arrowBetween'
+           (shaftStyle %~ lwG 0.5 $ headLength .~ global 1.5 $ with)
+           (scaleFactor *^ point1)
+           (scaleFactor *^ point2))
     layedOutGraph
   where
-    scaleFactor = 0.12
-    nodeFunc (SgNamedNode name syntaxNode) point =
-      place (coloredTextBox white (opaque white) (show name ++ prettyPrintSyntaxNode syntaxNode) {- :: Diagram B -})
+    scaleFactor = 0.3
+    nodeFunc (SgNamedNode name syntaxNode) point
+      = place (coloredTextBox
+                white
+                (opaque white)
+                (show name ++ prettyPrintSyntaxNode syntaxNode)
+                {- :: Diagram B -})
       (scaleFactor *^ point)
     layoutParams :: GV.GraphvizParams Int v e () v
     layoutParams = customLayoutParams{
@@ -82,7 +98,7 @@ makeCollapseTest str = do
     afterCollapse]
   where
     fglGraph = syntaxGraphToFglGraph $ translateStringToSyntaxGraph str
-    collapsedGraph = collapseNodes fglGraph
+    collapsedGraph = collapseAnnotatedGraph $ annotateGraph fglGraph
     customTextBox = coloredTextBox white (opaque lime)
     expressionText = alignL $ coloredTextBox white (opaque yellow) str -- :: Diagram B
     beforeText = alignL $ customTextBox "Before:" -- :: Diagram B

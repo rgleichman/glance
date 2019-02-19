@@ -41,7 +41,7 @@ import Types(Labeled(..), Icon(..), SyntaxNode(..), Edge(..), EdgeOption(..)
             , NameAndPort(..), IDState, SgNamedNode(..), NodeName(..), Port
             , LikeApplyFlavor(..), CaseOrMultiIfTag(..), IDState(..)
             , NamedIcon(..))
-import Util(noEnds, nameAndPort, makeSimpleEdge, justName, maybeBoolToBool
+import Util(nameAndPort, makeSimpleEdge, justName, maybeBoolToBool
            , mapNodeInNamedNode, nodeNameToInt)
 
 {-# ANN module "HLint: ignore Use list comprehension" #-}
@@ -150,7 +150,7 @@ edgesForRefPortList inPattern portExpPairs
       Left str -> if inPattern
         then bindsToSyntaxGraph [SgBind str (Right port)]
         else sinksToSyntaxGraph [SgSink str port]
-      Right resPort -> edgesToSyntaxGraph [Edge edgeOpts noEnds connection]
+      Right resPort -> edgesToSyntaxGraph [Edge edgeOpts connection]
         where
           connection = if inPattern
                           -- If in a pattern, then the port on the case icon is
@@ -167,7 +167,7 @@ combineExpressions inPattern portExpPairs
       Left str -> if inPattern
         then bindsToSyntaxGraph [SgBind str (Right port)]
         else sinksToSyntaxGraph [SgSink str port]
-      Right resPort -> edgesToSyntaxGraph [Edge edgeOpts noEnds (resPort, port)]
+      Right resPort -> edgesToSyntaxGraph [Edge edgeOpts (resPort, port)]
 
 makeApplyGraph ::
   Int
@@ -335,7 +335,7 @@ nestedPatternNodeToIcon str children = NestedPApp
 findArg :: Port -> (SgNamedNode, Edge) -> Bool
 findArg currentPort
   (SgNamedNode argName _
-  , Edge _ _ (NameAndPort fromName fromPort, NameAndPort toName toPort))
+  , Edge _ (NameAndPort fromName fromPort, NameAndPort toName toPort))
   | argName == fromName = maybeBoolToBool $ fmap (== currentPort) toPort
   | argName == toName = maybeBoolToBool $ fmap (== currentPort) fromPort
   | otherwise = False -- This case should never happen
@@ -357,7 +357,7 @@ syntaxGraphToFglGraph (SyntaxGraph nodes edges _ _ eMap) =
   ING.mkGraph (fmap makeLNode nodes) labeledEdges where
     labeledEdges = fmap makeLabeledEdge edges
 
-    makeLabeledEdge e@(Edge _ _ (NameAndPort name1 _, NameAndPort name2 _)) =
+    makeLabeledEdge e@(Edge _ (NameAndPort name1 _, NameAndPort name2 _)) =
       (nodeNameToInt $ lookupInEmbeddingMap name1 eMap
       , nodeNameToInt $ lookupInEmbeddingMap name2 eMap
       , e)

@@ -16,6 +16,7 @@ import TranslateCore(syntaxGraphToFglGraph, SyntaxGraph(..))
 import Rendering(renderIngSyntaxGraph)
 import Icons(textBox, TransformParams(..))
 
+{-# ANN module "HLint: ignore Unnecessary hiding" #-}
 
 prettyShowList :: Show a => [a] -> String
 prettyShowList ls = intercalate "\n" $ fmap show ls
@@ -45,6 +46,8 @@ composeTests = [
 -- | nestedTests / collapseTest
 nestedTests :: [String]
 nestedTests = [
+  "y = (\\x -> x) 0",
+  "y = f (\\x -> x)",
   "y = f x",
   "y = let x = 1 in f (g x)",
   "y = f []",
@@ -333,10 +336,10 @@ translateStringToDrawing s = do
       print collapsedGraph
       putStr "\n\n"
   if False then printAction else pure ()  -- Supress unused printAction warning
-  renderIngSyntaxGraph collapsedGraph
-  -- renderIngSyntaxGraph fglGraph
+  renderIngSyntaxGraph s collapsedGraph
 
-visualTranslateTests :: SpecialBackend b Double => IO (SpecialQDiagram b Double)
+visualTranslateTests :: SpecialBackend b Double
+                     => IO (SpecialQDiagram b Double)
 visualTranslateTests = do
   drawings <- traverse translateStringToDrawing testDecls
   let

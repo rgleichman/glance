@@ -36,6 +36,7 @@ import Types(Icon(..), SpecialQDiagram, SpecialBackend, SpecialNum
 import DrawingColors(colorScheme, ColorStyle(..))
 
 {-# ANN module "HLint: ignore Use record patterns" #-}
+{-# ANN module "HLint: ignore Unnecessary hiding" #-}
 
 -- TYPES --
 
@@ -646,7 +647,7 @@ nestedCaseDia = generalNestedMultiIf (patternC colorScheme) caseC caseResult
 -- 2,3.. : The parameters
 flatLambda :: SpecialBackend b n => [String] -> TransformableDia b n
 flatLambda paramNames (TransformParams name _ reflect angle)
-  = named name finalDia
+  = centerXY $ named name finalDia
   where
   lambdaCircle
     = lwG defaultLineWidth

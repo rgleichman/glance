@@ -1,4 +1,5 @@
 {-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, ConstraintKinds #-}
+{-# LANGUAGE DeriveFunctor #-}
 
 module Types (
   NamedIcon(..),
@@ -10,7 +11,6 @@ module Types (
   Connection,
   Edge(..),
   EdgeOption(..),
-  EdgeEnd(..),
   Drawing(..),
   IDState(..),
   SpecialQDiagram,
@@ -20,7 +20,10 @@ module Types (
   IngSyntaxGraph,
   LikeApplyFlavor(..),
   CaseOrMultiIfTag(..),
-  Labeled(..)
+  Labeled(..),
+  EmbedDirection(..),
+  EmbedInfo(..),
+  AnnotatedGraph,
 ) where
 
 import Diagrams.Prelude(QDiagram, V2, Any, Renderable, Path, IsName)
@@ -84,6 +87,7 @@ data SyntaxNode =
  -- Function application, composition, and applying to a composition
   LikeApplyNode LikeApplyFlavor Int
   -- NestedApplyNode is only created in GraphAlgorithms, not during translation.
+  -- The list of nodes is unordered (replace with a map?)
   | NestedApplyNode LikeApplyFlavor Int [(SgNamedNode, Edge)]
   | NestedPatternApplyNode String [Labeled (Maybe SgNamedNode)]
   | NameNode String -- Identifiers or symbols
@@ -106,15 +110,13 @@ data NameAndPort = NameAndPort NodeName (Maybe Port) deriving (Show, Eq, Ord)
 
 type Connection = (NameAndPort, NameAndPort)
 
--- TODO Consider removing EdgeOption and EdgeEnd since they are unused.
+-- TODO Consider removing EdgeOption since it's unused.
 data EdgeOption = EdgeInPattern deriving (Show, Eq, Ord)
-
-data EdgeEnd = EndNone deriving (Show, Eq, Ord)
 
 -- | An Edge has an name of the source icon, and its optional port number,
 -- and the name of the destination icon, and its optional port number.
 data Edge = Edge { edgeOptions :: [EdgeOption]
-                 , edgeEnds :: (EdgeEnd, EdgeEnd), edgeConnection :: Connection}
+                 , edgeConnection :: Connection}
   deriving (Show, Eq, Ord)
 
 -- | A drawing is a map from names to Icons, a list of edges,
@@ -135,3 +137,14 @@ type SpecialBackend b n
 type SpecialQDiagram b n = QDiagram b V2 n Any
 
 type IngSyntaxGraph gr = gr SgNamedNode Edge
+
+data EmbedDirection =
+  EdEmbedFrom -- The tail
+  | EdEmbedTo -- The head
+  deriving (Show, Eq)
+
+-- A Nothing eiEmbedDir means the edge is not embedded.
+data EmbedInfo a = EmbedInfo {eiEmbedDir :: Maybe EmbedDirection, eiVal :: a}
+  deriving (Show, Eq, Functor)
+
+type AnnotatedGraph gr = gr SgNamedNode (EmbedInfo Edge)
