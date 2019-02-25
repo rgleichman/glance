@@ -33,8 +33,8 @@ import TranslateCore(Reference, SyntaxGraph(..), EvalContext, GraphAndRef(..)
                     , getUniqueString, bindsToSyntaxGraph, SgBind(..)
                     , graphAndRefToGraph, initialIdState)
 import Types(AnnotatedGraph, Labeled(..), NameAndPort(..), IDState,
-  Edge, SyntaxNode(..), NodeName, SgNamedNode(..),
-  LikeApplyFlavor(..))
+             Edge, SyntaxNode(..), NodeName, SgNamedNode(..),
+             LikeApplyFlavor(..), CaseOrMultiIfTag(..))
 import Util(makeSimpleEdge, nameAndPort, justName)
 
 {-# ANN module "HLint: ignore Use record patterns" #-}
@@ -147,7 +147,7 @@ makeNestedPatternGraph ::
   -> (SyntaxGraph, NameAndPort)
 makeNestedPatternGraph applyIconName funStr argVals = nestedApplyResult
   where
-    dummyNode = NestedPatternApplyNode "" []
+    dummyNode = PatternApplyNode "" []
 
     argsAndPorts
       = zip argVals $ map (nameAndPort applyIconName) $ argumentPorts dummyNode
@@ -167,7 +167,7 @@ makeNestedPatternGraph applyIconName funStr argVals = nestedApplyResult
 
     combinedGraph = combineExpressions True unnestedArgsAndPort
 
-    pAppNode = NestedPatternApplyNode funStr argList
+    pAppNode = PatternApplyNode funStr argList
     icons = [SgNamedNode applyIconName pAppNode]
 
     asNameBinds = catMaybes $ fmap asNameBind argVals
@@ -452,7 +452,7 @@ evalCaseHelper numAlts caseIconName resultIconNames
   where
     (patRhsConnected, altGraphs, patRefs, rhsRefs, asNames) = unzip5 evaledAlts
     combindedAltGraph = mconcat altGraphs
-    caseNode = CaseNode numAlts
+    caseNode = CaseOrMultiIfNode CaseTag numAlts []
     icons = [SgNamedNode caseIconName caseNode]
     caseGraph = syntaxGraphFromNodes icons
     expEdge = (expRef, nameAndPort caseIconName (inputPort caseNode))
@@ -646,7 +646,7 @@ translateStringToSyntaxGraph = translateDeclToSyntaxGraph . stringToSimpDecl
 syntaxGraphToCollapsedGraph :: SyntaxGraph -> AnnotatedGraph FGR.Gr
 syntaxGraphToCollapsedGraph
   = collapseAnnotatedGraph . annotateGraph . syntaxGraphToFglGraph
-  -- = annotateGraph . syntaxGraphToFglGraph  
+  -- = annotateGraph . syntaxGraphToFglGraph
 
 translateDeclToCollapsedGraph :: Show l => Exts.Decl l -> AnnotatedGraph FGR.Gr
 translateDeclToCollapsedGraph

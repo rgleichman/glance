@@ -84,23 +84,18 @@ data SgNamedNode = SgNamedNode {
 
 -- TODO remove Ints from SyntaxNode data constructors.
 data SyntaxNode =
- -- Function application, composition, and applying to a composition
-  LikeApplyNode LikeApplyFlavor Int
-  -- NestedApplyNode is only created in GraphAlgorithms, not during translation.
+  -- Function application, composition, and applying to a composition
   -- The list of nodes is unordered (replace with a map?)
-  | NestedApplyNode LikeApplyFlavor Int [(SgNamedNode, Edge)]
-  | NestedPatternApplyNode String [Labeled (Maybe SgNamedNode)]
+  ApplyNode LikeApplyFlavor Int [(SgNamedNode, Edge)]
+  | PatternApplyNode String [Labeled (Maybe SgNamedNode)]
   | NameNode String -- Identifiers or symbols
   | BindNameNode String
   | LiteralNode String -- Literal values like the string "Hello World"
   | FunctionDefNode  -- Function definition (ie. lambda expression)
     [String]  -- Parameter labels
     [NodeName]  -- Nodes inside the lambda
-  | MultiIfNode
-    Int  -- Number of alternatives
-  | CaseNode Int
   | CaseResultNode -- TODO remove caseResultNode
-  | NestedCaseOrMultiIfNode CaseOrMultiIfTag Int [(SgNamedNode, Edge)]
+  | CaseOrMultiIfNode CaseOrMultiIfTag Int [(SgNamedNode, Edge)]
   deriving (Show, Eq, Ord)
 
 newtype Port = Port Int deriving (Typeable, Eq, Ord, Show)

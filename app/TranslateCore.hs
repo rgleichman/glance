@@ -182,7 +182,7 @@ makeApplyGraph numArgs applyFlavor inPattern applyIconName funVal argVals
     , nameAndPort applyIconName (resultPort applyNode)
     )
   where
-    applyNode = LikeApplyNode applyFlavor numArgs
+    applyNode = ApplyNode applyFlavor numArgs []
     argumentNamePorts
       = map (nameAndPort applyIconName) (argumentPorts applyNode)
     functionPort = nameAndPort applyIconName (inputPort applyNode)
@@ -200,7 +200,7 @@ makeMultiIfGraph ::
 makeMultiIfGraph numPairs multiIfName bools exps
   = (newGraph, nameAndPort multiIfName (resultPort multiIfNode))
   where
-    multiIfNode = MultiIfNode numPairs
+    multiIfNode = CaseOrMultiIfNode MultiIfTag numPairs []
     expsWithPorts = zip exps $ map (nameAndPort multiIfName) multiIfRhsPorts
     boolsWithPorts = zip bools $ map (nameAndPort multiIfName) multiIfBoolPorts
     combindedGraph = combineExpressions False $ expsWithPorts <> boolsWithPorts
@@ -278,20 +278,16 @@ nListString 1 = "[_]"
 nListString n = '[' : replicate (n -1) ',' ++ "]"
 
 nodeToIcon :: SyntaxNode -> Icon
-nodeToIcon (LikeApplyNode flavor n)
-  = NestedApply flavor Nothing (replicate n Nothing)
-nodeToIcon (NestedApplyNode flavor x edges)
+nodeToIcon (ApplyNode flavor x edges)
   = nestedApplySyntaxNodeToIcon flavor x edges
-nodeToIcon (NestedPatternApplyNode s children)
+nodeToIcon (PatternApplyNode s children)
   = nestedPatternNodeToIcon s children
 nodeToIcon (NameNode s) = TextBoxIcon s
 nodeToIcon (BindNameNode s) = BindTextBoxIcon s
 nodeToIcon (LiteralNode s) = TextBoxIcon s
 nodeToIcon (FunctionDefNode x names) = FlatLambdaIcon x names
-nodeToIcon (MultiIfNode n) = MultiIfIcon n
-nodeToIcon (CaseNode n) = CaseIcon n
 nodeToIcon CaseResultNode = CaseResultIcon
-nodeToIcon (NestedCaseOrMultiIfNode tag x edges)
+nodeToIcon (CaseOrMultiIfNode tag x edges)
   = nestedCaseOrMultiIfNodeToIcon tag x edges
 
 makeArg :: [(SgNamedNode, Edge)] -> Port -> Maybe NamedIcon
@@ -307,7 +303,7 @@ nestedApplySyntaxNodeToIcon :: LikeApplyFlavor
 nestedApplySyntaxNodeToIcon flavor numArgs args =
   NestedApply flavor headIcon argList
   where
-    dummyNode = LikeApplyNode flavor numArgs
+    dummyNode = ApplyNode flavor numArgs []
     argPorts = take numArgs (argumentPorts dummyNode)
     headIcon = makeArg args (inputPort dummyNode)
     argList = fmap (makeArg args) argPorts
@@ -321,7 +317,7 @@ nestedCaseOrMultiIfNodeToIcon tag numArgs args = case tag of
   CaseTag -> NestedCaseIcon argList
   MultiIfTag -> NestedMultiIfIcon argList
   where
-    dummyNode = CaseNode numArgs
+    dummyNode = CaseOrMultiIfNode CaseTag numArgs []
     argPorts = take (2 * numArgs) $ argumentPorts dummyNode
     argList = fmap (makeArg args) (inputPort dummyNode : argPorts)
 

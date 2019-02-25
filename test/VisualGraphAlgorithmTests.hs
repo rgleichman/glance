@@ -23,7 +23,7 @@ import Icons(coloredTextBox)
 {-# ANN module "HLint: ignore Unnecessary hiding" #-}
 
 prettyPrintSyntaxNode :: SyntaxNode -> String
-prettyPrintSyntaxNode (NestedApplyNode _ _ namedNodesAndEdges)
+prettyPrintSyntaxNode (ApplyNode _ _ namedNodesAndEdges)
   = concatMap printNameAndEdge namedNodesAndEdges
   where
     printNameAndEdge (namedNode, edge)

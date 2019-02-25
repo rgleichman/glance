@@ -211,13 +211,10 @@ multiIfBoolPorts = caseRhsPorts
 
 argumentPorts :: SyntaxNode -> [Port]
 argumentPorts n = case n of
-  LikeApplyNode  _ _-> defaultPorts
-  NestedApplyNode _ _ _ -> defaultPorts
-  NestedPatternApplyNode _ _-> defaultPorts
+  ApplyNode _ _ _ -> defaultPorts
+  PatternApplyNode _ _-> defaultPorts
   FunctionDefNode _ _ -> defaultPorts
-  NestedCaseOrMultiIfNode _ _ _-> defaultPorts
-  MultiIfNode _ -> defaultPorts
-  CaseNode _ -> defaultPorts
+  CaseOrMultiIfNode _ _ _-> defaultPorts
   NameNode _ -> []
   BindNameNode _ -> []
   LiteralNode _ -> []

@@ -47,8 +47,8 @@ maybeRenameNodeFolder (renamedNodes, nameMap, counter) mNode = case mNode of
 renameSyntaxNode :: NameMap -> SyntaxNode -> Int  -> (SyntaxNode, NameMap, Int)
 renameSyntaxNode nameMap node counter = case node of
   -- TODO Keep the Nothing subNodes
-  NestedPatternApplyNode s subNodes
-    -> (NestedPatternApplyNode s (reverse renamedSubNodes)
+  PatternApplyNode s subNodes
+    -> (PatternApplyNode s (reverse renamedSubNodes)
        , newNameMap
        , counter2)
     where

@@ -43,20 +43,20 @@ syntaxNodeIsEmbeddable :: ParentType
                        -> Bool
 syntaxNodeIsEmbeddable parentType n mParentPort _mChildPort
   = case (parentType, n) of
-      (ApplyParent, LikeApplyNode _ _) -> parentPortNotResult
+      (ApplyParent, ApplyNode _ _ _) -> parentPortNotResult
       (ApplyParent, LiteralNode _) -> parentPortNotResult
       -- TODO Embedded FunctionDefNodes are missing their enclosures.
       -- (ApplyParent, FunctionDefNode _ _)
       --   -> isInput mParentPort && isResult mChildPort
 
       (CaseParent, LiteralNode _) -> parentPortNotResult
-      (CaseParent, LikeApplyNode _ _)
+      (CaseParent, ApplyNode _ _ _)
         -> parentPortNotResult && parentPortNotInput
-      (CaseParent, NestedPatternApplyNode _ _)
+      (CaseParent, PatternApplyNode _ _)
         -> parentPortNotResult && parentPortNotInput
 
       (MultiIfParent, LiteralNode _) -> parentPortNotResult
-      (MultiIfParent, LikeApplyNode _ _)
+      (MultiIfParent, ApplyNode _ _ _)
         -> parentPortNotResult && parentPortNotInput
 
       _ -> False
@@ -75,12 +75,9 @@ syntaxNodeIsEmbeddable parentType n mParentPort _mChildPort
 
 parentTypeForNode :: SyntaxNode -> ParentType
 parentTypeForNode n = case n of
-  LikeApplyNode _ _ -> ApplyParent
-  NestedApplyNode _ _ _ -> ApplyParent
-  CaseNode _ -> CaseParent
-  MultiIfNode _ -> MultiIfParent
-  NestedCaseOrMultiIfNode CaseTag _ _ -> CaseParent
-  NestedCaseOrMultiIfNode MultiIfTag _ _ -> MultiIfParent
+  ApplyNode _ _ _ -> ApplyParent
+  CaseOrMultiIfNode CaseTag _ _ -> CaseParent
+  CaseOrMultiIfNode MultiIfTag _ _ -> MultiIfParent
   _ -> NotAParent
 
 lookupSyntaxNode :: ING.Graph gr =>
@@ -181,18 +178,12 @@ embedChildSyntaxNode parentNode childNode oldGraph = newGraph
           SgNamedNode nodeName oldSyntaxNode = oldNodeLabel
           newNodeLabel = SgNamedNode nodeName newSyntaxNode
           newSyntaxNode = case oldSyntaxNode of
-            LikeApplyNode flavor x
-              -> NestedApplyNode flavor x childrenAndEdgesToParent
-            NestedApplyNode flavor x existingNodes
-              -> NestedApplyNode flavor x
+            ApplyNode flavor x existingNodes
+              -> ApplyNode flavor x
                  (childrenAndEdgesToParent <> existingNodes)
-            CaseNode x
-              -> NestedCaseOrMultiIfNode CaseTag x childrenAndEdgesToParent
-            NestedCaseOrMultiIfNode tag x existingNodes
-              -> NestedCaseOrMultiIfNode tag x
+            CaseOrMultiIfNode tag x existingNodes
+              -> CaseOrMultiIfNode tag x
                  (childrenAndEdgesToParent <> existingNodes)
-            MultiIfNode x
-              -> NestedCaseOrMultiIfNode MultiIfTag x childrenAndEdgesToParent
             _ -> oldSyntaxNode
 
 changeEdgeToParent :: ING.Node -> ING.Node -> ING.LEdge b -> ING.LEdge b
