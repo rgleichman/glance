@@ -2,7 +2,6 @@
 
 ## Todo Now
 * Remove port number magic numbers in GraphAlgorithms.hs.
-* Consider removing LikeApplyNode and CaseNode, or their embedded versions.
 * Fix embedded lambdas missing their enclosures.
 * Add command line flags for color style, embedding, and whether to draw arrowheads.
 * Add wiki pages discussing: Why a visual language?, History of Glance, How to contribute, Code guide [code style, ...], etc..
