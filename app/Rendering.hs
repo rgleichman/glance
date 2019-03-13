@@ -6,6 +6,7 @@ module Rendering (
   renderIngSyntaxGraph
 ) where
 
+import qualified Diagrams.Prelude as DIA
 import Diagrams.Prelude(toName, shaftStyle, global, arrowShaft, noTail
                        , arrowTail, arrowHead, scale, r2, bezier3
                        , fromSegments, Angle, P2, V2, Point, Name, ArrowOpts, N
@@ -17,7 +18,6 @@ import Diagrams.Prelude(toName, shaftStyle, global, arrowShaft, noTail
                        , connectOutside', connect', with, (%~), lengths, (^+^)
                        , (.~))
 import Diagrams.TwoD.GraphViz(mkGraph, getGraph, layoutGraph')
-import qualified Diagrams.Prelude as DIA
 
 import qualified Data.GraphViz as GV
 import qualified Data.GraphViz.Attributes.Complete as GVA
@@ -27,7 +27,7 @@ import Data.Function(on)
 import qualified Data.Graph.Inductive as ING
 import Data.Graph.Inductive.PatriciaTree (Gr)
 import Data.List(find, minimumBy)
-import Data.Maybe(isNothing, fromMaybe)
+import Data.Maybe(catMaybes, isNothing, fromMaybe)
 import Data.Typeable(Typeable)
 
 --import qualified Data.GraphViz.Types
@@ -353,20 +353,26 @@ rotateNodes positionMap graph
 
 -- END rotateNodes --
 
-drawLambdaRegions :: SpecialBackend b Double =>
+drawLambdaRegions :: forall b . SpecialBackend b Double =>
   [(NamedIcon, SpecialQDiagram b Double)]
   -> SpecialQDiagram b Double
 drawLambdaRegions placedNodes
-  = mconcat $ fmap (drawRegion . niIcon . fst) placedNodes
+  = mconcat $ fmap (drawRegion [] . fst) placedNodes
   where
-    drawRegion (FlatLambdaIcon _ enclosedNames)
-      = regionRect enclosedDias
-      where
-        enclosedDias = fmap findDia enclosedNames
-        findDia n1
-          = maybe mempty snd
-            (find (\(NamedIcon n2 _, _) -> n1 == n2) placedNodes)
-    drawRegion _ = mempty
+    findDia :: NodeName -> SpecialQDiagram b Double
+    findDia n1
+      = maybe mempty snd
+        (find (\(NamedIcon n2 _, _) -> n1 == n2) placedNodes)
+
+    -- Also draw the region around the icon the lambda is in.
+    drawRegion :: [NodeName] -> NamedIcon -> SpecialQDiagram b Double
+    drawRegion parentNames icon = case icon of
+      NamedIcon _ (FlatLambdaIcon _ enclosedNames)
+        -> regionRect $ fmap findDia (parentNames <> enclosedNames)
+      NamedIcon parentName (NestedApply _ headIcon icons)
+        -> mconcat
+           $ drawRegion (parentName:parentNames) <$> catMaybes (headIcon:icons)
+      _ -> mempty
 
     -- TODO Use something better than a rectangle
     regionRect dias

@@ -41,13 +41,12 @@ syntaxNodeIsEmbeddable :: ParentType
                        -> Maybe Port
                        -> Maybe Port
                        -> Bool
-syntaxNodeIsEmbeddable parentType n mParentPort _mChildPort
-  = case (parentType, n) of
+syntaxNodeIsEmbeddable parentType syntaxNode mParentPort mChildPort
+  = case (parentType, syntaxNode) of
       (ApplyParent, ApplyNode _ _ _) -> parentPortNotResult
       (ApplyParent, LiteralNode _) -> parentPortNotResult
-      -- TODO Embedded FunctionDefNodes are missing their enclosures.
-      -- (ApplyParent, FunctionDefNode _ _)
-      --   -> isInput mParentPort && isResult mChildPort
+      (ApplyParent, FunctionDefNode _ _)
+        -> isInput mParentPort && isResult mChildPort
 
       (CaseParent, LiteralNode _) -> parentPortNotResult
       (CaseParent, ApplyNode _ _ _)
