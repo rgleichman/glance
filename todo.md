@@ -1,7 +1,6 @@
 # Todo
 
 ## Todo Now
-* Remove port number magic numbers in GraphAlgorithms.hs.
 * Let lambda icons embed results.
 * Redesign case to avoid non-locality.
 * Add command line flags for color style, embedding, and whether to draw arrowheads.

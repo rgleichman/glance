@@ -1,4 +1,5 @@
 {-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE PatternSynonyms #-}
 module GraphAlgorithms(
   ParentType(..),
   annotateGraph,
@@ -10,10 +11,12 @@ import qualified Data.Graph.Inductive as ING
 import Data.List(foldl', find)
 import Data.Tuple(swap)
 
+import Constants(pattern ResultPortConst, pattern InputPortConst)
 import Types(SyntaxNode(..), IngSyntaxGraph, Edge(..),
              CaseOrMultiIfTag(..), Port(..), NameAndPort(..), SgNamedNode(..)
             , AnnotatedGraph, EmbedInfo(..), EmbedDirection(..))
 import Util(sgNamedNodeToSyntaxNode)
+
 {-# ANN module "HLint: ignore Use record patterns" #-}
 
 data ParentType = ApplyParent
@@ -61,13 +64,13 @@ syntaxNodeIsEmbeddable parentType syntaxNode mParentPort mChildPort
       _ -> False
   where
     isInput mPort = case mPort of
-      Just (Port 0) -> True
+      Just InputPortConst -> True
       _ -> False
 
     isResult mPort = case mPort of
-      Just (Port 1) -> True
+      Nothing -> True
+      Just ResultPortConst -> True
       Just _ -> False
-      _ -> True
 
     parentPortNotInput = not $ isInput mParentPort
     parentPortNotResult = not $ isResult mParentPort

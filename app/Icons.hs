@@ -1,5 +1,9 @@
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, TypeFamilies, ScopedTypeVariables #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Icons
     (
     TransformParams(..),
@@ -30,10 +34,11 @@ import Data.List(find)
 import Data.Maybe(catMaybes, listToMaybe, isJust, fromJust)
 import Data.Typeable(Typeable)
 
+import Constants(pattern InputPortConst, pattern ResultPortConst)
+import DrawingColors(colorScheme, ColorStyle(..))
 import Types(Icon(..), SpecialQDiagram, SpecialBackend, SpecialNum
             , NodeName, Port(..), LikeApplyFlavor(..),
             SyntaxNode(..), NamedIcon(..), Labeled(..))
-import DrawingColors(colorScheme, ColorStyle(..))
 
 {-# ANN module "HLint: ignore Use record patterns" #-}
 {-# ANN module "HLint: ignore Unnecessary hiding" #-}
@@ -181,21 +186,15 @@ getPortAngles icon port maybeNodeName = case icon of
 
 -- BEGIN Port numbers
 
-inputPortConst :: Port
-inputPortConst = Port 0
-
-resultPortConst :: Port
-resultPortConst = Port 1
-
 argPortsConst :: [Port]
 argPortsConst = fmap Port [2,3..]
 
 -- TODO It's a bit strange that the parameter is a SyntaxNode, not an Icon.
 inputPort :: SyntaxNode -> Port
-inputPort = const inputPortConst
+inputPort = const InputPortConst
 
 resultPort :: SyntaxNode -> Port
-resultPort = const resultPortConst
+resultPort = const ResultPortConst
 
 caseRhsPorts :: [Port]
 caseRhsPorts = fmap Port [3,5..]
@@ -312,7 +311,7 @@ makeTransformedText :: SpecialBackend b n =>
   -> SpecialQDiagram b n
 makeTransformedText tp maybeFunText = case laValue maybeFunText of
   Just _ ->
-    makeAppInnerIcon tp True inputPortConst maybeFunText
+    makeAppInnerIcon tp True InputPortConst maybeFunText
   Nothing -> mempty
 
 appArgBox :: (HasStyle a, Typeable (N a)
@@ -344,7 +343,7 @@ nestedPAppDia
     transformedText = makeTransformedText tp maybeFunText
     separation = circleRadius * 1.5
     resultCircleAndPort
-      = makeQualifiedPort name resultPortConst
+      = makeQualifiedPort name ResultPortConst
         <> alignR
         (lc borderCol
           $ lwG defaultLineWidth $ fc borderCol $ circle circleRadius)
@@ -353,7 +352,7 @@ nestedPAppDia
         rotate quarterTurn (apply0Triangle borderCol) :
         zipWith (makeAppInnerIcon tp False) argPortsConst args
     allPorts
-      = makeQualifiedPort name inputPortConst <> alignT triangleAndPorts
+      = makeQualifiedPort name InputPortConst <> alignT triangleAndPorts
     argBox = alignT $ appArgBox
              borderCol
              (width allPorts)
@@ -366,8 +365,8 @@ beside' :: (Semigroup a, Juxtaposable a) => V a (N a) -> a -> a -> a
 beside' dir dia1 dia2 = juxtapose dir dia1 dia2 <> dia1
 
 -- | apply port locations:
--- inputPortConst: Function
--- resultPortConst: Result
+-- InputPortConst: Function
+-- ResultPortConst: Result
 -- Ports 2,3..: Arguments
 generalNestedDia :: SpecialBackend b n
                  => (Colour Double -> SpecialQDiagram b n)
@@ -389,13 +388,13 @@ generalNestedDia
       trianglePortsCircle = hsep separation $
         reflectX (dia borderCol) :
         zipWith (makeAppInnerIcon tp False) argPortsConst (fmap pure args) ++
-        [makeQualifiedPort name resultPortConst
+        [makeQualifiedPort name ResultPortConst
          <> alignR
           (lc borderCol $ lwG defaultLineWidth $ fc borderCol
             $ circle circleRadius)
         ]
       allPorts
-        = makeQualifiedPort name inputPortConst <> alignL trianglePortsCircle
+        = makeQualifiedPort name InputPortConst <> alignL trianglePortsCircle
       argBox = alignL $ appArgBox
                borderCol
                (width allPorts - circleRadius)
@@ -553,11 +552,11 @@ generalNestedMultiIf triangleColor lBracket bottomDia inputAndArgs
   = named name $ case inputAndArgs of
   [] -> mempty
   input : args -> centerXY finalDia where
-    finalDia = alignT (bottomDia <> makeQualifiedPort name resultPortConst)
+    finalDia = alignT (bottomDia <> makeQualifiedPort name ResultPortConst)
                <> alignB
                (inputIcon === (bigVerticalLine
                                <> multiIfDia
-                               <> makeQualifiedPort name inputPortConst))
+                               <> makeQualifiedPort name InputPortConst))
 
     iconMapper (Port portNum) arg
       | even portNum = Right $ multiIfTriangle port ||| makeInnerIcon True arg
@@ -608,8 +607,8 @@ multiIfLBracket portDia = alignL (alignT ell) <> portDia
       $ lwG defaultLineWidth $ lc (boolC colorScheme) (strokeLine ellShape)
 
 -- | The ports of the multiIf icon are as follows:
--- inputPortConst: Top result port (not used)
--- resultPortConst: Bottom result port
+-- InputPortConst: Top result port (not used)
+-- ResultPortConst: Bottom result port
 -- Ports 3,5...: The left ports for the booleans
 -- Ports 2,4...: The right ports for the values
 nestedMultiIfDia :: SpecialBackend b n =>
@@ -629,8 +628,8 @@ caseC :: SpecialBackend b n =>
 caseC portDia = caseResult <> portDia
 
 -- | The ports of the case icon are as follows:
--- inputPortConst: Top input port
--- resultPortConst: Bottom result port
+-- InputPortConst: Top input port
+-- ResultPortConst: Bottom result port
 -- Ports 3,5...: The left ports for the results
 -- Ports 2,4...: The right ports for the patterns
 nestedCaseDia :: SpecialBackend b n => [Maybe NamedIcon] -> TransformableDia b n
@@ -651,10 +650,10 @@ flatLambda paramNames (TransformParams name _ reflect angle)
       $ lc (regionPerimC colorScheme)
       $ fc (regionPerimC colorScheme) $ circle (1.5 * circleRadius)
   lambdaParts
-    = (makeQualifiedPort name inputPortConst <> resultIcon)
+    = (makeQualifiedPort name InputPortConst <> resultIcon)
       :
       (portIcons
-        ++ [makeQualifiedPort name resultPortConst <> alignR lambdaCircle])
+        ++ [makeQualifiedPort name ResultPortConst <> alignR lambdaCircle])
 
   portIcons
     = zipWith (makeLabelledPort name reflect angle) paramNames argPortsConst
