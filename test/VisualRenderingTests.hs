@@ -15,9 +15,9 @@ import Util(iconToPort, tupleToNamedIcon)
 iconToIntPort :: NodeName -> NodeName -> Int -> Edge
 iconToIntPort x y p = iconToPort x y (Port p)
 
-n0, n1, _n2, n3, _n4, n5, _n6, _n7, _n8, _n9, n10 :: NodeName
+n0, n1, n2, n3, _n4, n5, _n6, _n7, _n8, _n9, n10 :: NodeName
 nodeNames :: [NodeName]
-nodeNames@[n0, n1, _n2, n3, _n4, n5, _n6, _n7, _n8, _n9, n10]
+nodeNames@[n0, n1, n2, n3, _n4, n5, _n6, _n7, _n8, _n9, n10]
   = fmap NodeName [0..10]
 
 ni0, ni1, ni2, ni3, ni4, ni5, ni6, ni7, ni8, ni9, ni10 :: Icon -> NamedIcon
@@ -107,7 +107,19 @@ lambdaDia :: Drawing
 lambdaDia = Drawing icons []
   where
     icons = [
-      ni0 $ FlatLambdaIcon ["foo", "bar"] [n0, n1]
+      ni0 $ LambdaIcon ["foo", "bar"] Nothing [n0, n1]
+      , ni1 CaseResultIcon
+      , ni2 $ MultiIfIcon 3
+      ]
+
+nestedLambdaDia :: Drawing
+nestedLambdaDia = Drawing icons []
+  where
+    icons = [
+      ni0 $ LambdaIcon
+        ["baz", "cat"]
+        (Just $ NamedIcon n2 (TextBoxIcon "foobar"))
+        [n0, n1]
       , ni1 CaseResultIcon
       , ni2 $ MultiIfIcon 3
       ]
@@ -128,4 +140,5 @@ renderTests = do
       , nestedPAppDia
       , nestedApplyDia
       , lambdaDia
+      , nestedLambdaDia
       ]

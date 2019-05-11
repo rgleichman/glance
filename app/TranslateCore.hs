@@ -285,7 +285,8 @@ nodeToIcon (PatternApplyNode s children)
 nodeToIcon (NameNode s) = TextBoxIcon s
 nodeToIcon (BindNameNode s) = BindTextBoxIcon s
 nodeToIcon (LiteralNode s) = TextBoxIcon s
-nodeToIcon (FunctionDefNode x names) = FlatLambdaIcon x names
+nodeToIcon (FunctionDefNode labels embeddedNodes bodyNodes)
+  = nestedLambdaToIcon labels embeddedNodes bodyNodes
 nodeToIcon CaseResultNode = CaseResultIcon
 nodeToIcon (CaseOrMultiIfNode tag x edges)
   = nestedCaseOrMultiIfNodeToIcon tag x edges
@@ -307,6 +308,16 @@ nestedApplySyntaxNodeToIcon flavor numArgs args =
     argPorts = take numArgs (argumentPorts dummyNode)
     headIcon = makeArg args (inputPort dummyNode)
     argList = fmap (makeArg args) argPorts
+
+nestedLambdaToIcon :: [String]  -- labels
+                   -> [(SgNamedNode, Edge)]  -- embedded icons
+                   -> [NodeName]  -- body nodes
+                   -> Icon
+nestedLambdaToIcon labels embeddedNodes =
+  LambdaIcon labels embeddedBodyNode
+  where
+    dummyNode = FunctionDefNode [] [] []
+    embeddedBodyNode = makeArg embeddedNodes (inputPort dummyNode)
 
 nestedCaseOrMultiIfNodeToIcon ::
   CaseOrMultiIfTag

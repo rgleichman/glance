@@ -531,7 +531,7 @@ evalLambda _ context patterns expr = do
   let
     paramNames = fmap patternName patternValsWithAsNames
     enclosedNodeNames = snnName <$> sgNodes combinedGraph
-    lambdaNode = FunctionDefNode paramNames enclosedNodeNames
+    lambdaNode = FunctionDefNode paramNames [] enclosedNodeNames
     lambdaPorts = map (nameAndPort lambdaName) $ argumentPorts lambdaNode
     patternGraph = mconcat $ fmap graphAndRefToGraph patternVals
 

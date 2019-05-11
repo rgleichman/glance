@@ -22,6 +22,7 @@ import Util(sgNamedNodeToSyntaxNode)
 data ParentType = ApplyParent
                 | CaseParent
                 | MultiIfParent
+                | LambdaParent
                 | NotAParent
   deriving (Eq, Show)
 
@@ -48,8 +49,13 @@ syntaxNodeIsEmbeddable parentType syntaxNode mParentPort mChildPort
   = case (parentType, syntaxNode) of
       (ApplyParent, ApplyNode _ _ _) -> parentPortNotResult
       (ApplyParent, LiteralNode _) -> parentPortNotResult
-      (ApplyParent, FunctionDefNode _ _)
+      (ApplyParent, FunctionDefNode _ _ _)
         -> isInput mParentPort && isResult mChildPort
+
+      -- (LambdaParent, ApplyNode _ _ _) -> parentPortIsInput
+      (LambdaParent, LiteralNode _) -> parentPortIsInput
+      -- (LambdaParent, FunctionDefNode _ _)
+      --   -> parentPortIsInput
 
       (CaseParent, LiteralNode _) -> parentPortNotResult
       (CaseParent, ApplyNode _ _ _)
@@ -72,6 +78,8 @@ syntaxNodeIsEmbeddable parentType syntaxNode mParentPort mChildPort
       Just ResultPortConst -> True
       Just _ -> False
 
+    parentPortIsInput = isInput mParentPort
+
     parentPortNotInput = not $ isInput mParentPort
     parentPortNotResult = not $ isResult mParentPort
 
@@ -80,6 +88,7 @@ parentTypeForNode n = case n of
   ApplyNode _ _ _ -> ApplyParent
   CaseOrMultiIfNode CaseTag _ _ -> CaseParent
   CaseOrMultiIfNode MultiIfTag _ _ -> MultiIfParent
+  FunctionDefNode _ _ _ -> LambdaParent
   _ -> NotAParent
 
 lookupSyntaxNode :: ING.Graph gr =>
@@ -186,6 +195,11 @@ embedChildSyntaxNode parentNode childNode oldGraph = newGraph
             CaseOrMultiIfNode tag x existingNodes
               -> CaseOrMultiIfNode tag x
                  (childrenAndEdgesToParent <> existingNodes)
+            FunctionDefNode labels existingNodes innerNodes
+              -> FunctionDefNode
+                 labels
+                 (childrenAndEdgesToParent <> existingNodes)
+                 innerNodes
             _ -> oldSyntaxNode
 
 changeEdgeToParent :: ING.Node -> ING.Node -> ING.LEdge b -> ING.LEdge b

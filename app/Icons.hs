@@ -79,7 +79,7 @@ iconToDiagram icon = case icon of
   MultiIfIcon n -> nestedMultiIfDia $ replicate (1 + (2 * n)) Nothing
   CaseIcon n -> nestedCaseDia $ replicate (1 + (2 * n)) Nothing
   CaseResultIcon -> identDiaFunc caseResult
-  FlatLambdaIcon x _ -> flatLambda x
+  LambdaIcon x bodyExp _ -> nestedLambda x bodyExp
   NestedApply flavor headIcon args -> nestedApplyDia flavor headIcon args
   NestedPApp constructor args
     -> nestedPAppDia (repeat $ patternC colorScheme) constructor args
@@ -173,7 +173,7 @@ getPortAngles icon port maybeNodeName = case icon of
   MultiIfIcon _ -> multiIfPortAngles port
   CaseIcon _ -> multiIfPortAngles port
   CaseResultIcon -> []
-  FlatLambdaIcon _ _ -> applyPortAngles port
+  LambdaIcon _ _ _ -> applyPortAngles port
   NestedApply _ headIcon args ->
     generalNestedPortAngles applyPortAngles headIcon args port maybeNodeName
   NestedPApp headIcon args ->
@@ -212,7 +212,7 @@ argumentPorts :: SyntaxNode -> [Port]
 argumentPorts n = case n of
   ApplyNode _ _ _ -> defaultPorts
   PatternApplyNode _ _-> defaultPorts
-  FunctionDefNode _ _ -> defaultPorts
+  FunctionDefNode _ _ _ -> defaultPorts
   CaseOrMultiIfNode _ _ _-> defaultPorts
   NameNode _ -> []
   BindNameNode _ -> []
@@ -290,9 +290,9 @@ resultIcon =  lw none $ fc (lamArgResC colorScheme) unitSquare
 
 makeAppInnerIcon :: SpecialBackend b n =>
   TransformParams n ->
-  Bool ->
-  Port ->
-  Labeled (Maybe NamedIcon) ->
+  Bool ->  -- If False then add one to the nesting level.
+  Port ->  -- Port number (if the NamedIcon is Nothing)
+  Labeled (Maybe NamedIcon) ->  -- The icon
   SpecialQDiagram b n
 makeAppInnerIcon (TransformParams name _ reflect angle) _ portNum
   (Labeled Nothing str)
@@ -641,9 +641,12 @@ nestedCaseDia = generalNestedMultiIf (patternC colorScheme) caseC caseResult
 -- 0: Result icon
 -- 1: The lambda function value
 -- 2,3.. : The parameters
-flatLambda :: SpecialBackend b n => [String] -> TransformableDia b n
-flatLambda paramNames (TransformParams name _ reflect angle)
-  = centerXY $ named name finalDia
+nestedLambda :: SpecialBackend b n
+           => [String]
+           -> Maybe NamedIcon
+           -> TransformableDia b n
+nestedLambda paramNames mBodyExp (TransformParams name level reflect angle)
+  = centerXY $ bodyExpIcon ||| centerY (named name finalDia)
   where
   lambdaCircle
     = lwG defaultLineWidth
@@ -654,6 +657,12 @@ flatLambda paramNames (TransformParams name _ reflect angle)
       :
       (portIcons
         ++ [makeQualifiedPort name ResultPortConst <> alignR lambdaCircle])
+  bodyExpIcon = case mBodyExp of
+    Nothing -> mempty
+    Just (NamedIcon bodyNodeName bodyIcon)
+      -> iconToDiagram
+         bodyIcon
+         (TransformParams bodyNodeName level reflect angle)
 
   portIcons
     = zipWith (makeLabelledPort name reflect angle) paramNames argPortsConst

@@ -54,8 +54,9 @@ instance Applicative Labeled where
 data Icon = TextBoxIcon String
   | MultiIfIcon
     Int  -- Number of alternatives
-  | FlatLambdaIcon
+  | LambdaIcon
     [String]  -- Parameter labels
+    (Maybe NamedIcon)  -- Function body expression
     [NodeName]  -- Nodes inside the lambda
   | CaseIcon Int
   | CaseResultIcon
@@ -93,6 +94,7 @@ data SyntaxNode =
   | LiteralNode String -- Literal values like the string "Hello World"
   | FunctionDefNode  -- Function definition (ie. lambda expression)
     [String]  -- Parameter labels
+    [(SgNamedNode, Edge)]  -- Embedded nodes
     [NodeName]  -- Nodes inside the lambda
   | CaseResultNode -- TODO remove caseResultNode
   | CaseOrMultiIfNode CaseOrMultiIfTag Int [(SgNamedNode, Edge)]
