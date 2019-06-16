@@ -8,6 +8,7 @@ import Diagrams.Prelude hiding ((#), (&))
 
 import qualified Data.Graph.Inductive.Graph as ING
 import Data.List(intercalate)
+import GHC.Stack(HasCallStack)
 
 import Types(SpecialQDiagram, SpecialBackend, NodeName(..))
 import Translate(translateStringToCollapsedGraphAndDecl
@@ -188,6 +189,11 @@ patternTests = [
 
 lambdaTests :: [String]
 lambdaTests = [
+  "y = (\\x -> if True then 0 else 1) 3",
+  "y = (\\x -> 99) x",
+  "y = (\\x -> (\\x -> 2) x)",
+  "y = (\\x -> (\\x -> f 2) x)",
+  "y = (\\x -> (\\x -> x) x)",
   "y = (\\x -> (\\x -> (\\x -> x) x) x)",
   "y = (\\x -> (\\x -> (\\x -> x)))",
   "y = (\\y -> y)",
@@ -333,12 +339,12 @@ translateStringToDrawing s = do
       putStr "\nFGL Graph:\n"
       ING.prettyPrint fglGraph
       putStr "\nCollapsed Graph:\n"
-      print collapsedGraph
+      ING.prettyPrint collapsedGraph
       putStr "\n\n"
   if False then printAction else pure ()  -- Supress unused printAction warning
   renderIngSyntaxGraph s collapsedGraph
 
-visualTranslateTests :: SpecialBackend b Double
+visualTranslateTests :: (HasCallStack, SpecialBackend b Double)
                      => IO (SpecialQDiagram b Double)
 visualTranslateTests = do
   drawings <- traverse translateStringToDrawing testDecls

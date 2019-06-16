@@ -29,6 +29,7 @@ import Data.Graph.Inductive.PatriciaTree (Gr)
 import Data.List(find, minimumBy)
 import Data.Maybe(catMaybes, isNothing, fromMaybe)
 import Data.Typeable(Typeable)
+import GHC.Stack(HasCallStack)
 
 --import qualified Data.GraphViz.Types
 --import Data.GraphViz.Commands
@@ -215,7 +216,7 @@ lookupNodeAngle rotationMap key
     ++ "\n\n rotationMap = " ++ show rotationMap)
   $ lookup key rotationMap
 
-makeEdge :: (SpecialBackend b n, ING.Graph gr) =>
+makeEdge :: (HasCallStack, SpecialBackend b n, ING.Graph gr) =>
   String  -- ^ Debugging information
   -> gr NamedIcon (EmbedInfo Edge)
   -> SpecialQDiagram b n
@@ -268,7 +269,7 @@ makeEdge debugInfo graph dia rotationMap
     portAngles = (icon0PortAngle, icon1PortAngle)
 
 -- | addEdges draws the edges underneath the nodes.
-addEdges :: (SpecialBackend b n, ING.Graph gr) =>
+addEdges :: (HasCallStack, SpecialBackend b n, ING.Graph gr) =>
   String  -- ^ Debugging information
   -> gr NamedIcon (EmbedInfo Edge)
   -> SpecialQDiagram b n
@@ -296,7 +297,7 @@ scoreAngle iconPosition edges reflected angle
         shaftAngle = signedAngleBetween shaftVector unitX
         angleDiff = smallestAngleDiff (reflected, angle) shaftAngle portAngles
 
-bestAngleForIcon :: (SpecialNum n, ING.Graph gr) =>
+bestAngleForIcon :: (HasCallStack, SpecialNum n, ING.Graph gr) =>
   Map.Map NamedIcon (Point V2 n)
   -> gr NamedIcon (EmbedInfo Edge)
   -> NamedIcon
@@ -331,7 +332,7 @@ bestAngleForIcon positionMap graph key@(NamedIcon (NodeName nodeId) _) reflected
     getPreEdge (otherNode, EmbedInfo _ edge) = (otherNode, nameAndPort) where
       (_, nameAndPort) = edgeConnection edge
 
-findIconRotation :: (SpecialNum n, ING.Graph gr) =>
+findIconRotation :: (HasCallStack, SpecialNum n, ING.Graph gr) =>
   Map.Map NamedIcon (Point V2 n)
   -> gr NamedIcon (EmbedInfo Edge)
   -> NamedIcon
@@ -344,7 +345,7 @@ findIconRotation positionMap graph key = (key, (reflected, angle)) where
   reflected = reflectedScore < nonReflectedScore
   angle = if reflected then reflectedAngle else nonReflectedAngle
 
-rotateNodes :: (SpecialNum n, ING.Graph gr) =>
+rotateNodes :: (HasCallStack, SpecialNum n, ING.Graph gr) =>
   Map.Map NamedIcon (Point V2 n)
   -> gr NamedIcon (EmbedInfo Edge)
   -> [(NamedIcon, (Bool, Angle n))]
@@ -474,8 +475,7 @@ renderDrawing :: SpecialBackend b Double
   -> IO (SpecialQDiagram b Double)
 renderDrawing debugInfo = renderIconGraph debugInfo . drawingToIconGraph
 
-renderIngSyntaxGraph ::
-  SpecialBackend b Double =>
-  String -> AnnotatedGraph Gr -> IO (SpecialQDiagram b Double)
+renderIngSyntaxGraph :: (HasCallStack, SpecialBackend b Double)
+  => String -> AnnotatedGraph Gr -> IO (SpecialQDiagram b Double)
 renderIngSyntaxGraph debugInfo gr
   = renderIconGraph debugInfo $ ING.nmap (mapNodeInNamedNode nodeToIcon) gr

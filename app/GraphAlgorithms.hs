@@ -10,6 +10,7 @@ import qualified Control.Arrow as Arrow
 import qualified Data.Graph.Inductive as ING
 import Data.List(foldl', find)
 import Data.Tuple(swap)
+import GHC.Stack(HasCallStack)
 
 import Constants(pattern ResultPortConst, pattern InputPortConst)
 import Types(SyntaxNode(..), IngSyntaxGraph, Edge(..),
@@ -53,7 +54,7 @@ syntaxNodeIsEmbeddable parentType syntaxNode mParentPort mChildPort
         -> isInput mParentPort && isResult mChildPort
 
       -- (LambdaParent, ApplyNode _ _ _) -> parentPortIsInput
-      (LambdaParent, LiteralNode _) -> parentPortIsInput
+      -- (LambdaParent, LiteralNode _) -> parentPortIsInput
       -- (LambdaParent, FunctionDefNode _ _)
       --   -> parentPortIsInput
 
@@ -78,7 +79,7 @@ syntaxNodeIsEmbeddable parentType syntaxNode mParentPort mChildPort
       Just ResultPortConst -> True
       Just _ -> False
 
-    parentPortIsInput = isInput mParentPort
+    -- parentPortIsInput = isInput mParentPort
 
     parentPortNotInput = not $ isInput mParentPort
     parentPortNotResult = not $ isResult mParentPort
@@ -208,7 +209,7 @@ changeEdgeToParent parentNode childNode (fromNode, toNode, lab)
   where
     toParent node = if node == childNode then parentNode else node
 
-collapseEdge :: ING.DynGraph gr
+collapseEdge :: (HasCallStack, ING.DynGraph gr)
              => AnnotatedGraph gr
              -> ING.LEdge (EmbedInfo Edge)
              -> AnnotatedGraph gr
@@ -230,7 +231,7 @@ collapseEdge oldGraph (fromNode, toNode, e@(EmbedInfo mEmbedDir _))
           childDeletedGraph = ING.delNode childNode graphWithEdgesTransferred
 
 
-collapseAnnotatedGraph :: ING.DynGraph gr
+collapseAnnotatedGraph :: (HasCallStack, ING.DynGraph gr)
                        => AnnotatedGraph gr
                        -> AnnotatedGraph gr
 collapseAnnotatedGraph origGraph = newGraph

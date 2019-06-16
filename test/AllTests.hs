@@ -4,6 +4,7 @@ import Prelude hiding (return)
 import Diagrams.Backend.SVG.CmdLine(B)
 import Diagrams.Prelude hiding ((#), (&))
 
+import GHC.Stack(HasCallStack)
 import Test.HUnit
 
 import Icons(colorScheme, ColorStyle(..))
@@ -23,14 +24,14 @@ drawingsAndNames = [
   ("collapse-tests", visualCollapseTests)
   ]
 
-renderDrawings :: [(String, IO (Diagram B))] -> IO ()
+renderDrawings :: HasCallStack => [(String, IO (Diagram B))] -> IO ()
 renderDrawings = mapM_ saveDrawing where
   saveDrawing (name, drawingMaker) = do
     dia <- drawingMaker
     -- TODO Replace string concatenation with proper path manipulation functions.
     customRenderSVG ("test/test-output/" ++ name ++ ".svg") (mkWidth 700) (bgFrame 1 (backgroundC colorScheme) dia)
 
-main :: IO ()
+main :: HasCallStack => IO ()
 --main = print "Hello world"
 main = do
   --  ING.prettyPrint singleApplyGraph
