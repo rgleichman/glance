@@ -482,7 +482,7 @@ renderIconGraph debugInfo fullGraphWithInfo = do
   pure (placedNodes <> edges <> placedRegions)
   where
     parentGraph
-      = ING.nmap niVal $ ING.labfilter (not . niIsChild) fullGraphWithInfo
+      = ING.nmap niVal $ ING.labfilter (isNothing . niParent) fullGraphWithInfo
     fullGraph = ING.nmap niVal fullGraphWithInfo
     iconInfo = IM.fromList
                  $ first nodeNameToInt . namedIconToTuple . snd
@@ -525,7 +525,7 @@ renderDrawing :: SpecialBackend b Double
 renderDrawing debugInfo drawing
   = renderIconGraph debugInfo graph
   where
-    graph = ING.nmap (NodeInfo False) . drawingToIconGraph $ drawing
+    graph = ING.nmap (NodeInfo Nothing) . drawingToIconGraph $ drawing
 
 renderIngSyntaxGraph :: (HasCallStack, SpecialBackend b Double)
   => String -> AnnotatedGraph Gr -> IO (SpecialQDiagram b Double)

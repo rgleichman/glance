@@ -32,6 +32,7 @@ import Diagrams.Prelude(QDiagram, V2, Any, Renderable, Path, IsName)
 import Diagrams.TwoD.Text(Text)
 
 import Control.Applicative(Applicative(..))
+import qualified Data.Graph.Inductive as ING
 import qualified Data.IntMap as IM
 import Data.Typeable(Typeable)
 
@@ -152,7 +153,7 @@ data EmbedInfo a = EmbedInfo {eiEmbedDir :: Maybe EmbedDirection, eiVal :: a}
 type AnnotatedGraph gr = gr (NodeInfo SgNamedNode) (EmbedInfo Edge)
 
 data NodeInfo a = NodeInfo {
-  niIsChild :: Bool
+  niParent :: Maybe ING.Node
   , niVal :: a
   }
   deriving (Show, Eq, Functor, Ord)

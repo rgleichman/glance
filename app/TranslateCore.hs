@@ -301,7 +301,7 @@ makeArg' :: [(SgNamedNode, Edge)] -> Port -> Maybe NodeName
 makeArg' args port = case find (findArg port) args of
   Nothing -> Nothing
   Just (SgNamedNode argName _, _)
-    -> Just $ argName
+    -> Just argName
 
 nestedApplySyntaxNodeToIcon :: LikeApplyFlavor
                             -> Int

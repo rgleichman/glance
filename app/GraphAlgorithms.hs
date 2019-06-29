@@ -15,7 +15,7 @@ import Constants(pattern ResultPortConst, pattern InputPortConst)
 import Types(SyntaxNode(..), IngSyntaxGraph, Edge(..),
              CaseOrMultiIfTag(..), Port(..), NameAndPort(..), SgNamedNode(..)
             , AnnotatedGraph, EmbedInfo(..), EmbedDirection(..), NodeInfo(..))
-import Util(sgNamedNodeToSyntaxNode)
+import Util(fromMaybeError, sgNamedNodeToSyntaxNode)
 
 {-# ANN module "HLint: ignore Use record patterns" #-}
 
@@ -52,10 +52,12 @@ syntaxNodeIsEmbeddable parentType syntaxNode mParentPort mChildPort
       (ApplyParent, FunctionDefNode _ _ _)
         -> isInput mParentPort && isResult mChildPort
 
+      -- The match below works, but can make messy drawings with the current
+      -- icon for lambdas.
       -- (LambdaParent, ApplyNode _ _ _) -> parentPortIsInput
-      -- (LambdaParent, LiteralNode _) -> parentPortIsInput
-      -- (LambdaParent, FunctionDefNode _ _ _)
-      --   -> parentPortIsInput
+      (LambdaParent, LiteralNode _) -> parentPortIsInput
+      (LambdaParent, FunctionDefNode _ _ _)
+        -> parentPortIsInput && isResult mChildPort
 
       (CaseParent, LiteralNode _) -> parentPortNotResult
       (CaseParent, ApplyNode _ _ _)
@@ -78,7 +80,7 @@ syntaxNodeIsEmbeddable parentType syntaxNode mParentPort mChildPort
       Just ResultPortConst -> True
       Just _ -> False
 
-    -- parentPortIsInput = isInput mParentPort
+    parentPortIsInput = isInput mParentPort
 
     parentPortNotInput = not $ isInput mParentPort
     parentPortNotResult = not $ isResult mParentPort
@@ -204,7 +206,9 @@ embedChildSyntaxNode parentNode childNode oldGraph = newGraph
         case mChildAndEdge of
           Nothing -> error "embedChildSyntaxNode: childNode not found."
           Just (NodeInfo _ childNodeLab, EmbedInfo _ edge)
-            -> changeNodeLabel childNode (NodeInfo True childNodeLab)
+            -> changeNodeLabel
+               childNode
+               (NodeInfo (Just parentNode) childNodeLab)
                $ changeNodeLabel parentNode newNodeLabel oldGraph
             where
               SgNamedNode nodeName oldSyntaxNode = oldNodeLabel
@@ -212,43 +216,58 @@ embedChildSyntaxNode parentNode childNode oldGraph = newGraph
                 = addChildrenToNodeLabel [(childNodeLab, edge)] oldSyntaxNode
               newNodeLabel = NodeInfo isChild (SgNamedNode nodeName newSyntaxNode)
 
--- TODO This is buggy since it needs to transfer edges to the root ancestor, not
--- the immediate parent. Otherwise some edges will be between child nodes. Or
--- better yet, don't modify the graph edges, and change the bool in NodeInfo
--- to a Maybe Node which is the nodes parent. Use this info to find the root
--- ancestor when needed.
-changeEdgeToParent :: ING.Node -> ING.Node -> ING.LEdge b -> ING.LEdge b
-changeEdgeToParent parentNode childNode (fromNode, toNode, lab)
-  = (toParent fromNode, toParent toNode, lab)
-  where
-    toParent node = if node == childNode then parentNode else node
-
 collapseEdge :: (HasCallStack, ING.DynGraph gr)
              => AnnotatedGraph gr
              -> ING.LEdge (EmbedInfo Edge)
              -> AnnotatedGraph gr
-collapseEdge oldGraph (fromNode, toNode, e@(EmbedInfo mEmbedDir _))
+collapseEdge oldGraph lEdge@(fromNode, toNode, EmbedInfo mEmbedDir _)
   = case mEmbedDir of
       Nothing -> oldGraph
-      Just embedDir -> graphWithEdgesTransferred
+      Just embedDir -> ING.delLEdge lEdge childEmbeddedGraph
         where
           (parentNode, childNode) = parentAndChild embedDir (fromNode, toNode)
           childEmbeddedGraph
             = embedChildSyntaxNode parentNode childNode oldGraph
-          childEdgesToTransfer
-            = changeEdgeToParent parentNode childNode
-              <$> filter
-              (\(_, _, edge) -> edge /= e)
-              (ING.inn oldGraph childNode <> ING.out oldGraph childNode)
-          graphWithEdgesTransferred
-            = ING.insEdges childEdgesToTransfer childEmbeddedGraph
 
+mapEdges :: (ING.Graph gr1, ING.Graph gr2)
+  => (ING.LEdge b1 -> ING.LEdge b2)
+  -> gr1 a b1
+  -> gr2 a b2
+mapEdges f gr = ING.mkGraph nodes mappedEdges
+  where
+    nodes = ING.labNodes gr
+    mappedEdges = f <$> ING.labEdges gr
+
+findRootAncestor :: ING.Graph gr
+  => gr (NodeInfo a) b -> ING.Node -> ING.Node
+findRootAncestor gr node =
+  let nodeLab = fromMaybeError
+        "findRootAncestor: node does not exist"
+        (ING.lab gr node)
+  in
+    case niParent nodeLab of
+      Nothing -> node
+      Just parentNode -> findRootAncestor gr parentNode
+
+-- Note: modifying the edges could probably be eliminated if the algorithms in
+-- Rendering were re-written to us the node's parent.
+-- | For all of the graph edges, this function moves edge to from and to nodes
+-- of the edge to be root (the parents's parent parent etc.) of the edge's
+-- from and to nodes.
+moveEdges :: (ING.Graph gr1, ING.Graph gr2)
+  => gr1 (NodeInfo a) b -> gr2 (NodeInfo a) b
+moveEdges gr = mapEdges moveEdge gr
+  where
+    moveEdge (fromNode, toNode, label) = (newFrom, newTo, label)
+      where
+        newFrom = findRootAncestor gr fromNode
+        newTo = findRootAncestor gr toNode
 
 collapseAnnotatedGraph :: (HasCallStack, ING.DynGraph gr)
                        => gr SgNamedNode (EmbedInfo Edge)
                        -> AnnotatedGraph gr
-collapseAnnotatedGraph origGraph = newGraph
+collapseAnnotatedGraph origGraph = moveEdges newGraph
   where
-    defaultNodeInfoGraph = ING.nmap (NodeInfo False) origGraph
+    defaultNodeInfoGraph = ING.nmap (NodeInfo Nothing) origGraph
    -- TODO Check that there are no embedded edges left.
     newGraph = foldl' collapseEdge defaultNodeInfoGraph (ING.labEdges origGraph)
