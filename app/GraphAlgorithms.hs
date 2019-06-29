@@ -6,7 +6,6 @@ module GraphAlgorithms(
   collapseAnnotatedGraph
   ) where
 
-import qualified Control.Arrow as Arrow
 import qualified Data.Graph.Inductive as ING
 import Data.List(foldl', find)
 import Data.Tuple(swap)
@@ -15,7 +14,7 @@ import GHC.Stack(HasCallStack)
 import Constants(pattern ResultPortConst, pattern InputPortConst)
 import Types(SyntaxNode(..), IngSyntaxGraph, Edge(..),
              CaseOrMultiIfTag(..), Port(..), NameAndPort(..), SgNamedNode(..)
-            , AnnotatedGraph, EmbedInfo(..), EmbedDirection(..))
+            , AnnotatedGraph, EmbedInfo(..), EmbedDirection(..), NodeInfo(..))
 import Util(sgNamedNodeToSyntaxNode)
 
 {-# ANN module "HLint: ignore Use record patterns" #-}
@@ -55,7 +54,7 @@ syntaxNodeIsEmbeddable parentType syntaxNode mParentPort mChildPort
 
       -- (LambdaParent, ApplyNode _ _ _) -> parentPortIsInput
       -- (LambdaParent, LiteralNode _) -> parentPortIsInput
-      -- (LambdaParent, FunctionDefNode _ _)
+      -- (LambdaParent, FunctionDefNode _ _ _)
       --   -> parentPortIsInput
 
       (CaseParent, LiteralNode _) -> parentPortNotResult
@@ -140,7 +139,8 @@ findEmbedDir gr fromNode toNode e = if
     -> Just EdEmbedFrom
   | otherwise -> Nothing
 
-annotateGraph :: ING.DynGraph gr => IngSyntaxGraph gr -> AnnotatedGraph gr
+
+annotateGraph :: ING.DynGraph gr => IngSyntaxGraph gr -> gr SgNamedNode (EmbedInfo Edge)
 annotateGraph gr = ING.gmap edgeMapper gr
   where
     edgeMapper :: ING.Context SgNamedNode Edge
@@ -166,11 +166,28 @@ findEdgeLabel graph node1 node2 = fmap fst matchingEdges where
   matchingEdges = find ((== node2) . snd) labelledEdges
 
 -- | Replace the a node's label
-changeNodeLabel :: ING.DynGraph gr => gr a b -> ING.Node -> a -> gr a b
-changeNodeLabel graph node newLabel = case ING.match node graph of
+changeNodeLabel :: ING.DynGraph gr => ING.Node -> a -> gr a b -> gr a b
+changeNodeLabel node newLabel graph = case ING.match node graph of
   (Just (inEdges, _, _, outEdges), restOfTheGraph)
     -> (inEdges, node, newLabel, outEdges) ING.& restOfTheGraph
   (Nothing, _) -> graph
+
+-- TODO Wrap the SyntaxNodes in an Embedder type so that this function does not
+-- require pattern matching.
+addChildrenToNodeLabel :: [(SgNamedNode, Edge)] -> SyntaxNode -> SyntaxNode
+addChildrenToNodeLabel children oldSyntaxNode = case oldSyntaxNode of
+  ApplyNode flavor x existingNodes
+    -> ApplyNode flavor x
+       (children <> existingNodes)
+  CaseOrMultiIfNode tag x existingNodes
+    -> CaseOrMultiIfNode tag x
+       (children <> existingNodes)
+  FunctionDefNode labels existingNodes innerNodes
+    -> FunctionDefNode
+       labels
+       (children <> existingNodes)
+       innerNodes
+  _ -> oldSyntaxNode
 
 -- | Change the node label of the parent to be nested.
 embedChildSyntaxNode :: ING.DynGraph gr =>
@@ -180,29 +197,26 @@ embedChildSyntaxNode parentNode childNode oldGraph = newGraph
     mChildAndEdge =
       (,) <$> ING.lab oldGraph childNode
       <*> findEdgeLabel oldGraph parentNode childNode
-    childrenAndEdgesToParent = case mChildAndEdge of
-      Nothing -> []
-      Just childAndEdge -> [Arrow.second eiVal childAndEdge]
     newGraph = case ING.lab oldGraph parentNode of
-      Nothing -> oldGraph
-      Just oldNodeLabel -> changeNodeLabel oldGraph parentNode newNodeLabel
-        where
-          SgNamedNode nodeName oldSyntaxNode = oldNodeLabel
-          newNodeLabel = SgNamedNode nodeName newSyntaxNode
-          newSyntaxNode = case oldSyntaxNode of
-            ApplyNode flavor x existingNodes
-              -> ApplyNode flavor x
-                 (childrenAndEdgesToParent <> existingNodes)
-            CaseOrMultiIfNode tag x existingNodes
-              -> CaseOrMultiIfNode tag x
-                 (childrenAndEdgesToParent <> existingNodes)
-            FunctionDefNode labels existingNodes innerNodes
-              -> FunctionDefNode
-                 labels
-                 (childrenAndEdgesToParent <> existingNodes)
-                 innerNodes
-            _ -> oldSyntaxNode
+      Nothing -> error "embedChildSyntaxNode: parentNode not found"
+      Just (NodeInfo isChild oldNodeLabel) ->
+        -- TODO Refactor with the Maybe Monad?
+        case mChildAndEdge of
+          Nothing -> error "embedChildSyntaxNode: childNode not found."
+          Just (NodeInfo _ childNodeLab, EmbedInfo _ edge)
+            -> changeNodeLabel childNode (NodeInfo True childNodeLab)
+               $ changeNodeLabel parentNode newNodeLabel oldGraph
+            where
+              SgNamedNode nodeName oldSyntaxNode = oldNodeLabel
+              newSyntaxNode
+                = addChildrenToNodeLabel [(childNodeLab, edge)] oldSyntaxNode
+              newNodeLabel = NodeInfo isChild (SgNamedNode nodeName newSyntaxNode)
 
+-- TODO This is buggy since it needs to transfer edges to the root ancestor, not
+-- the immediate parent. Otherwise some edges will be between child nodes. Or
+-- better yet, don't modify the graph edges, and change the bool in NodeInfo
+-- to a Maybe Node which is the nodes parent. Use this info to find the root
+-- ancestor when needed.
 changeEdgeToParent :: ING.Node -> ING.Node -> ING.LEdge b -> ING.LEdge b
 changeEdgeToParent parentNode childNode (fromNode, toNode, lab)
   = (toParent fromNode, toParent toNode, lab)
@@ -216,7 +230,7 @@ collapseEdge :: (HasCallStack, ING.DynGraph gr)
 collapseEdge oldGraph (fromNode, toNode, e@(EmbedInfo mEmbedDir _))
   = case mEmbedDir of
       Nothing -> oldGraph
-      Just embedDir -> childDeletedGraph
+      Just embedDir -> graphWithEdgesTransferred
         where
           (parentNode, childNode) = parentAndChild embedDir (fromNode, toNode)
           childEmbeddedGraph
@@ -228,13 +242,13 @@ collapseEdge oldGraph (fromNode, toNode, e@(EmbedInfo mEmbedDir _))
               (ING.inn oldGraph childNode <> ING.out oldGraph childNode)
           graphWithEdgesTransferred
             = ING.insEdges childEdgesToTransfer childEmbeddedGraph
-          childDeletedGraph = ING.delNode childNode graphWithEdgesTransferred
 
 
 collapseAnnotatedGraph :: (HasCallStack, ING.DynGraph gr)
-                       => AnnotatedGraph gr
+                       => gr SgNamedNode (EmbedInfo Edge)
                        -> AnnotatedGraph gr
 collapseAnnotatedGraph origGraph = newGraph
   where
+    defaultNodeInfoGraph = ING.nmap (NodeInfo False) origGraph
    -- TODO Check that there are no embedded edges left.
-    newGraph = foldl' collapseEdge origGraph (ING.labEdges origGraph)
+    newGraph = foldl' collapseEdge defaultNodeInfoGraph (ING.labEdges origGraph)

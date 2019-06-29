@@ -18,10 +18,10 @@ import VisualTranslateTests(visualTranslateTests)
 {-# ANN module "HLint: ignore Unnecessary hiding" #-}
 
 drawingsAndNames :: [(String, IO (Diagram B))]
-drawingsAndNames = [
-  ("translate-tests", visualTranslateTests),
-  ("render-tests", renderTests),
-  ("collapse-tests", visualCollapseTests)
+drawingsAndNames =
+  [ ("translate-tests", visualTranslateTests)
+  , ("render-tests", renderTests)
+  , ("collapse-tests", visualCollapseTests)
   ]
 
 renderDrawings :: HasCallStack => [(String, IO (Diagram B))] -> IO ()

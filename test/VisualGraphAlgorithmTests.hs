@@ -10,10 +10,11 @@ import qualified Data.GraphViz as GV
 import qualified Diagrams.TwoD.GraphViz as DiaGV
 import qualified Data.GraphViz.Attributes.Complete as GVA
 
+import qualified Data.Graph.Inductive as ING
 import qualified Data.Graph.Inductive.PatriciaTree as FGR
 
 import Types(SpecialQDiagram, SpecialBackend, SyntaxNode(..), NameAndPort(..)
-            , SgNamedNode(..), Edge(..))
+            , SgNamedNode(..), Edge(..), NodeInfo(..))
 import Translate(translateStringToSyntaxGraph)
 import TranslateCore(syntaxGraphToFglGraph)
 import GraphAlgorithms(annotateGraph, collapseAnnotatedGraph)
@@ -89,7 +90,7 @@ collapseTestStrings = [
 makeCollapseTest :: SpecialBackend b Double => String -> IO (SpecialQDiagram b Double)
 makeCollapseTest str = do
   before <- renderFglGraph fglGraph
-  afterCollapse <- renderFglGraph collapsedGraph
+  afterCollapse <- renderFglGraph (ING.nmap niVal collapsedGraph)
   pure $ vsep 1 [
     expressionText,
     beforeText,

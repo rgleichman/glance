@@ -297,6 +297,12 @@ makeArg args port = case find (findArg port) args of
   Just (SgNamedNode argName argSyntaxNode, _)
     -> Just $ NamedIcon argName (nodeToIcon argSyntaxNode)
 
+makeArg' :: [(SgNamedNode, Edge)] -> Port -> Maybe NodeName
+makeArg' args port = case find (findArg port) args of
+  Nothing -> Nothing
+  Just (SgNamedNode argName _, _)
+    -> Just $ argName
+
 nestedApplySyntaxNodeToIcon :: LikeApplyFlavor
                             -> Int
                             -> [(SgNamedNode, Edge)]
@@ -306,8 +312,8 @@ nestedApplySyntaxNodeToIcon flavor numArgs args =
   where
     dummyNode = ApplyNode flavor numArgs []
     argPorts = take numArgs (argumentPorts dummyNode)
-    headIcon = makeArg args (inputPort dummyNode)
-    argList = fmap (makeArg args) argPorts
+    headIcon = makeArg' args (inputPort dummyNode)
+    argList = fmap (makeArg' args) argPorts
 
 nestedLambdaToIcon :: [String]  -- labels
                    -> [(SgNamedNode, Edge)]  -- embedded icons
@@ -317,7 +323,7 @@ nestedLambdaToIcon labels embeddedNodes =
   LambdaIcon labels embeddedBodyNode
   where
     dummyNode = FunctionDefNode [] [] []
-    embeddedBodyNode = makeArg embeddedNodes (inputPort dummyNode)
+    embeddedBodyNode = makeArg' embeddedNodes (inputPort dummyNode)
 
 nestedCaseOrMultiIfNodeToIcon ::
   CaseOrMultiIfTag

@@ -7,17 +7,20 @@ import qualified Diagrams.Prelude as Dia
 
 import Rendering (renderDrawing)
 import Types (Labeled(..), NodeName(..), Drawing(..), Edge, Icon(..), Port(..)
-             , LikeApplyFlavor(..), SpecialQDiagram, SpecialBackend
+             , SpecialQDiagram, SpecialBackend
              , NamedIcon(..))
 
 import Util(iconToPort, tupleToNamedIcon)
 
+-- TODO Fix these tests such that they test nested icons correctly. Will need to
+-- change the Drawing type.
+
 iconToIntPort :: NodeName -> NodeName -> Int -> Edge
 iconToIntPort x y p = iconToPort x y (Port p)
 
-n0, n1, n2, n3, _n4, n5, _n6, _n7, _n8, _n9, n10 :: NodeName
+n0, n1, _n2, n3, _n4, n5, _n6, _n7, _n8, _n9, n10 :: NodeName
 nodeNames :: [NodeName]
-nodeNames@[n0, n1, n2, n3, _n4, n5, _n6, _n7, _n8, _n9, n10]
+nodeNames@[n0, n1, _n2, n3, _n4, n5, _n6, _n7, _n8, _n9, n10]
   = fmap NodeName [0..10]
 
 ni0, ni1, ni2, ni3, ni4, ni5, ni6, ni7, ni8, ni9, ni10 :: Icon -> NamedIcon
@@ -91,17 +94,19 @@ nestedPAppDia = Drawing icons []
           [Labeled Nothing "bar"])
       ]
 
-nestedApplyDia :: Drawing
-nestedApplyDia = Drawing icons []
-  where
-    icons = [
-      NamedIcon
-      (NodeName 1)
-      (NestedApply
-        ApplyNodeFlavor
-        (Just $ NamedIcon (NodeName 1) (TextBoxIcon "foo"))
-        [])
-      ]
+-- nestedApplyDia :: Drawing
+-- nestedApplyDia = Drawing icons []
+--   where
+--     icons = [
+--       NamedIcon
+--       (NodeName 1)
+--       (NestedApply
+--         ApplyNodeFlavor
+--         -- TODO Uncomment
+--         -- (Just $ NamedIcon (NodeName 1) (TextBoxIcon "foo"))
+--         (Just $ NodeName 2)
+--         [])
+--       ]
 
 lambdaDia :: Drawing
 lambdaDia = Drawing icons []
@@ -112,17 +117,18 @@ lambdaDia = Drawing icons []
       , ni2 $ MultiIfIcon 3
       ]
 
-nestedLambdaDia :: Drawing
-nestedLambdaDia = Drawing icons []
-  where
-    icons = [
-      ni0 $ LambdaIcon
-        ["baz", "cat"]
-        (Just $ NamedIcon n2 (TextBoxIcon "foobar"))
-        [n0, n1]
-      , ni1 CaseResultIcon
-      , ni2 $ MultiIfIcon 3
-      ]
+-- TODO Uncomment
+-- nestedLambdaDia :: Drawing
+-- nestedLambdaDia = Drawing icons []
+--   where
+--     icons = [
+--       ni0 $ LambdaIcon
+--         ["baz", "cat"]
+--         (Just $ NamedIcon n2 (TextBoxIcon "foobar"))
+--         [n0, n1]
+--       , ni1 CaseResultIcon
+--       , ni2 $ MultiIfIcon 3
+--       ]
 
 
 --renderTests :: IO (Diagram B)
@@ -132,13 +138,14 @@ renderTests = do
   let vCattedDrawings = Dia.vsep 0.5 renderedDiagrams
   pure vCattedDrawings
   where
+    -- TODO Re-enable tests
     allDrawings = [
       nestedCaseDrawing
       , nestedMultiIfDrawing
       , flatCaseDrawing
       , flatMultiIfDrawing
       , nestedPAppDia
-      , nestedApplyDia
+      -- , nestedApplyDia
       , lambdaDia
-      , nestedLambdaDia
+      -- , nestedLambdaDia
       ]

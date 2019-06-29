@@ -3,6 +3,7 @@
 
 module Types (
   NamedIcon(..),
+  IconInfo,
   Icon(..),
   SyntaxNode(..),
   NodeName(..),
@@ -24,13 +25,16 @@ module Types (
   EmbedDirection(..),
   EmbedInfo(..),
   AnnotatedGraph,
+  NodeInfo(..),
 ) where
 
 import Diagrams.Prelude(QDiagram, V2, Any, Renderable, Path, IsName)
 import Diagrams.TwoD.Text(Text)
 
 import Control.Applicative(Applicative(..))
+import qualified Data.IntMap as IM
 import Data.Typeable(Typeable)
+
 
 newtype NodeName = NodeName Int deriving (Typeable, Eq, Ord, Show)
 instance IsName NodeName
@@ -48,7 +52,8 @@ instance Applicative Labeled where
   pure x = Labeled x ""
   (Labeled f fStr) <*> (Labeled x xStr) = Labeled (f x) (fStr <> xStr)
 
--- TYPES --
+type IconInfo = IM.IntMap Icon
+
 -- | A datatype that represents an icon.
 -- The TextBoxIcon's data is the text that appears in the text box.
 data Icon = TextBoxIcon String
@@ -56,15 +61,15 @@ data Icon = TextBoxIcon String
     Int  -- Number of alternatives
   | LambdaIcon
     [String]  -- Parameter labels
-    (Maybe NamedIcon)  -- Function body expression
+    (Maybe NodeName)  -- Function body expression
     [NodeName]  -- Nodes inside the lambda
   | CaseIcon Int
   | CaseResultIcon
   | BindTextBoxIcon String
   | NestedApply
     LikeApplyFlavor  -- apply or compose
-    (Maybe NamedIcon)  -- The function for apply, or the argument for compose
-    [Maybe NamedIcon]  -- list of arguments or functions
+    (Maybe NodeName)  -- The function for apply, or the argument for compose
+    [Maybe NodeName]  -- list of arguments or functions
   | NestedPApp
     (Labeled (Maybe NamedIcon))  -- Data constructor
     [Labeled (Maybe NamedIcon)]  -- Arguments
@@ -144,4 +149,10 @@ data EmbedDirection =
 data EmbedInfo a = EmbedInfo {eiEmbedDir :: Maybe EmbedDirection, eiVal :: a}
   deriving (Show, Eq, Functor)
 
-type AnnotatedGraph gr = gr SgNamedNode (EmbedInfo Edge)
+type AnnotatedGraph gr = gr (NodeInfo SgNamedNode) (EmbedInfo Edge)
+
+data NodeInfo a = NodeInfo {
+  niIsChild :: Bool
+  , niVal :: a
+  }
+  deriving (Show, Eq, Functor, Ord)

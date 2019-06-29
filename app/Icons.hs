@@ -23,22 +23,24 @@ module Icons
     ColorStyle(..),
     colorScheme,
     coloredTextBox,
-    circleRadius
+    circleRadius,
+    findIconFromName
     ) where
 
 import Diagrams.Prelude hiding ((&), (#), Name)
 
 import qualified Control.Arrow as Arrow
 import Data.Either(partitionEithers)
+import qualified Data.IntMap as IM
 import Data.List(find)
-import Data.Maybe(catMaybes, listToMaybe, isJust, fromJust)
+import Data.Maybe(listToMaybe, isJust, fromJust, mapMaybe)
 import Data.Typeable(Typeable)
 
 import Constants(pattern InputPortConst, pattern ResultPortConst)
 import DrawingColors(colorScheme, ColorStyle(..))
 import Types(Icon(..), SpecialQDiagram, SpecialBackend, SpecialNum
-            , NodeName, Port(..), LikeApplyFlavor(..),
-            SyntaxNode(..), NamedIcon(..), Labeled(..))
+            , NodeName(..), Port(..), LikeApplyFlavor(..),
+            SyntaxNode(..), NamedIcon(..), Labeled(..), IconInfo)
 
 {-# ANN module "HLint: ignore Use record patterns" #-}
 {-# ANN module "HLint: ignore Unnecessary hiding" #-}
@@ -72,19 +74,38 @@ lineCol = lineC colorScheme
 
 -- BEGIN Exported icon functions --
 
-iconToDiagram :: SpecialBackend b n => Icon -> TransformableDia b n
-iconToDiagram icon = case icon of
+findIconFromName :: IconInfo -> NodeName -> NamedIcon
+findIconFromName icons name@(NodeName nameInt)
+  = NamedIcon name $ IM.findWithDefault
+    (error $ "findIconFromName: icon not found.\nicons="
+      <> show icons <> "\nname=" <> show name)
+    nameInt
+    icons
+
+-- TODO Detect if we are in a loop (have called iconToDiagram on the same node
+-- before)
+iconToDiagram :: SpecialBackend b n
+  => IconInfo
+  -> Icon
+  -> TransformableDia b n
+iconToDiagram iconInfo icon = case icon of
   TextBoxIcon s -> textBox s
   BindTextBoxIcon s -> identDiaFunc $ bindTextBox s
-  MultiIfIcon n -> nestedMultiIfDia $ replicate (1 + (2 * n)) Nothing
-  CaseIcon n -> nestedCaseDia $ replicate (1 + (2 * n)) Nothing
+  MultiIfIcon n -> nestedMultiIfDia iconInfo $ replicate (1 + (2 * n)) Nothing
+  CaseIcon n -> nestedCaseDia iconInfo $ replicate (1 + (2 * n)) Nothing
   CaseResultIcon -> identDiaFunc caseResult
-  LambdaIcon x bodyExp _ -> nestedLambda x bodyExp
-  NestedApply flavor headIcon args -> nestedApplyDia flavor headIcon args
+  LambdaIcon x bodyExp _
+    -> nestedLambda iconInfo x (findIconFromName iconInfo <$> bodyExp)
+  NestedApply flavor headIcon args
+    -> nestedApplyDia
+       iconInfo
+       flavor
+       (fmap (findIconFromName iconInfo) headIcon)
+       ((fmap . fmap) (findIconFromName iconInfo) args)
   NestedPApp constructor args
-    -> nestedPAppDia (repeat $ patternC colorScheme) constructor args
-  NestedCaseIcon args -> nestedCaseDia args
-  NestedMultiIfIcon args -> nestedMultiIfDia args
+    -> nestedPAppDia iconInfo (repeat $ patternC colorScheme) constructor args
+  NestedCaseIcon args -> nestedCaseDia iconInfo args
+  NestedMultiIfIcon args -> nestedMultiIfDia iconInfo args
 
 -- BEGIN getPortAngles --
 
@@ -109,38 +130,44 @@ multiIfPortAngles (Port port) = case port of
                            | even port = [0 @@ turn]
                            | otherwise = [1/2 @@ turn]
 
-findNestedIcon :: NodeName -> Icon -> Maybe Icon
-findNestedIcon name icon = case icon of
-  NestedApply _ headIcon args -> snd <$> findIcon name (headIcon : args)
+findNestedIcon :: IconInfo -> NodeName -> Icon -> Maybe Icon
+findNestedIcon iconInfo name icon = case icon of
+  NestedApply _ headIcon args
+    -> snd
+       <$> findIcon
+       iconInfo
+       name
+       ((fmap . fmap) (findIconFromName iconInfo) (headIcon : args))
   NestedPApp constructor args ->
-    snd <$> findIcon name (fmap laValue (constructor:args))
+    snd <$> findIcon iconInfo name (fmap laValue (constructor:args))
   _ -> Nothing
 
-findIcon :: NodeName -> [Maybe NamedIcon] -> Maybe (Int, Icon)
-findIcon name args = icon where
+findIcon :: IconInfo -> NodeName -> [Maybe NamedIcon] -> Maybe (Int, Icon)
+findIcon iconInfo name args = icon where
   numberedArgs = zip ([0,1..] :: [Int]) args
   filteredArgs = Arrow.second fromJust <$> filter (isJust . snd) numberedArgs
   nameMatches (_, NamedIcon n _) = n == name
   icon = case find nameMatches filteredArgs of
-    Nothing -> listToMaybe $ catMaybes $ fmap findSubSubIcon filteredArgs
+    Nothing -> listToMaybe $ mapMaybe findSubSubIcon filteredArgs
     Just (argNum, NamedIcon _ finalIcon) -> Just (argNum, finalIcon)
     where
       findSubSubIcon (argNum, NamedIcon _ subIcon)
-        = case findNestedIcon name subIcon of
+        = case findNestedIcon iconInfo name subIcon of
             Nothing -> Nothing
             Just x -> Just (argNum, x)
 
 generalNestedPortAngles :: SpecialNum n
-                        => (Port -> [Angle n])
-                        -> Maybe NamedIcon
-                        -> [Maybe NamedIcon]
-                        -> Port -> Maybe NodeName -> [Angle n]
-generalNestedPortAngles defaultAngles headIcon args port maybeNodeName =
+  => IconInfo
+  -> (Port -> [Angle n])
+  -> Maybe NamedIcon
+  -> [Maybe NamedIcon]
+  -> Port -> Maybe NodeName -> [Angle n]
+generalNestedPortAngles iconInfo defaultAngles headIcon args port maybeNodeName =
   case maybeNodeName of
     Nothing -> defaultAngles port
-    Just name -> case findIcon name (headIcon : args) of
+    Just name -> case findIcon iconInfo name (headIcon : args) of
       Nothing -> []
-      Just (_, icon) -> getPortAngles icon port Nothing
+      Just (_, icon) -> getPortAngles iconInfo icon port Nothing
 
 reflectXAngle :: SpecialNum n => Angle n -> Angle n
 reflectXAngle x = reflectedAngle where
@@ -148,14 +175,15 @@ reflectXAngle x = reflectedAngle where
   reflectedAngle = (-) <$> halfTurn <*> normalizedAngle
 
 -- TODO reflect the angles for the right side sub-icons
-nestedMultiIfPortAngles :: SpecialNum n =>
-  [Maybe NamedIcon]
+nestedMultiIfPortAngles :: SpecialNum n
+  => IconInfo
+  -> [Maybe NamedIcon]
   -> Port
   -> Maybe NodeName
   -> [Angle n]
-nestedMultiIfPortAngles args port maybeNodeName = case maybeNodeName of
+nestedMultiIfPortAngles iconInfo args port maybeNodeName = case maybeNodeName of
   Nothing -> multiIfPortAngles port
-  Just name -> case findIcon name args of
+  Just name -> case findIcon iconInfo name args of
     Nothing -> []
     -- TODO Don't use hardcoded numbers
     -- The arguments correspond to ports [0, 2, 3, 4 ...]
@@ -164,23 +192,37 @@ nestedMultiIfPortAngles args port maybeNodeName = case maybeNodeName of
       then fmap reflectXAngle subAngles
       else subAngles
       where
-        subAngles = getPortAngles icon port Nothing
+        subAngles = getPortAngles iconInfo icon port Nothing
 
-getPortAngles :: SpecialNum n => Icon -> Port -> Maybe NodeName -> [Angle n]
-getPortAngles icon port maybeNodeName = case icon of
+getPortAngles :: SpecialNum n => IconInfo -> Icon -> Port -> Maybe NodeName -> [Angle n]
+getPortAngles iconInfo icon port maybeNodeName = case icon of
   TextBoxIcon _ -> []
   BindTextBoxIcon _ -> []
   MultiIfIcon _ -> multiIfPortAngles port
   CaseIcon _ -> multiIfPortAngles port
   CaseResultIcon -> []
   LambdaIcon _ _ _ -> applyPortAngles port
-  NestedApply _ headIcon args ->
-    generalNestedPortAngles applyPortAngles headIcon args port maybeNodeName
-  NestedPApp headIcon args ->
-    generalNestedPortAngles
-    pAppPortAngles (laValue headIcon) (fmap laValue args) port maybeNodeName
-  NestedCaseIcon args -> nestedMultiIfPortAngles args port maybeNodeName
-  NestedMultiIfIcon args -> nestedMultiIfPortAngles args port maybeNodeName
+  NestedApply _ headIcon args
+    -> generalNestedPortAngles
+       iconInfo
+       applyPortAngles
+       -- TODO Refactor with iconToDiagram
+       (fmap (findIconFromName iconInfo) headIcon)
+       ((fmap . fmap) (findIconFromName iconInfo) args)
+       port
+       maybeNodeName
+  NestedPApp headIcon args
+    -> generalNestedPortAngles
+       iconInfo
+       pAppPortAngles
+       (laValue headIcon)
+       (fmap laValue args)
+       port
+       maybeNodeName
+  NestedCaseIcon args
+    -> nestedMultiIfPortAngles iconInfo args port maybeNodeName
+  NestedMultiIfIcon args
+    -> nestedMultiIfPortAngles iconInfo args port maybeNodeName
 
 -- END getPortAngles --
 
@@ -289,29 +331,32 @@ resultIcon =  lw none $ fc (lamArgResC colorScheme) unitSquare
 -- BEGIN Apply like icons
 
 makeAppInnerIcon :: SpecialBackend b n =>
+  IconInfo ->
   TransformParams n ->
   Bool ->  -- If False then add one to the nesting level.
   Port ->  -- Port number (if the NamedIcon is Nothing)
   Labeled (Maybe NamedIcon) ->  -- The icon
   SpecialQDiagram b n
-makeAppInnerIcon (TransformParams name _ reflect angle) _ portNum
+makeAppInnerIcon _iconInfo (TransformParams name _ reflect angle) _ portNum
   (Labeled Nothing str)
   = centerX $ makeLabelledPort name reflect angle str portNum
-makeAppInnerIcon (TransformParams _ nestingLevel reflect angle) func _
+makeAppInnerIcon iconInfo (TransformParams _ nestingLevel reflect angle) func _
   (Labeled (Just (NamedIcon iconNodeName icon)) _)
   = iconToDiagram
+    iconInfo
     icon
     (TransformParams iconNodeName innerLevel reflect angle)
   where
     innerLevel = if func then nestingLevel else nestingLevel + 1
 
-makeTransformedText :: SpecialBackend b n =>
-  TransformParams n
+makeTransformedText :: SpecialBackend b n
+  => IconInfo
+  -> TransformParams n
   -> Labeled (Maybe NamedIcon)
   -> SpecialQDiagram b n
-makeTransformedText tp maybeFunText = case laValue maybeFunText of
+makeTransformedText iconInfo tp maybeFunText = case laValue maybeFunText of
   Just _ ->
-    makeAppInnerIcon tp True InputPortConst maybeFunText
+    makeAppInnerIcon iconInfo tp True InputPortConst maybeFunText
   Nothing -> mempty
 
 appArgBox :: (HasStyle a, Typeable (N a)
@@ -326,12 +371,14 @@ appArgBox borderCol topAndBottomLineWidth portHeight
   where
     verticalSeparation = circleRadius
 
-nestedPAppDia :: SpecialBackend b n =>
-  [Colour Double]
+nestedPAppDia :: SpecialBackend b n
+  => IconInfo
+  -> [Colour Double]
   -> Labeled (Maybe NamedIcon)
   -> [Labeled (Maybe NamedIcon)]
   -> TransformableDia b n
 nestedPAppDia
+  iconInfo
   borderCols
   maybeFunText
   args
@@ -340,7 +387,7 @@ nestedPAppDia
     $ centerY finalDia ||| beside' unitX transformedText resultCircleAndPort
   where
     borderCol = borderCols !! nestingLevel
-    transformedText = makeTransformedText tp maybeFunText
+    transformedText = makeTransformedText iconInfo tp maybeFunText
     separation = circleRadius * 1.5
     resultCircleAndPort
       = makeQualifiedPort name ResultPortConst
@@ -350,7 +397,7 @@ nestedPAppDia
     triangleAndPorts
       = vsep separation $
         rotate quarterTurn (apply0Triangle borderCol) :
-        zipWith (makeAppInnerIcon tp False) argPortsConst args
+        zipWith (makeAppInnerIcon iconInfo tp False) argPortsConst args
     allPorts
       = makeQualifiedPort name InputPortConst <> alignT triangleAndPorts
     argBox = alignT $ appArgBox
@@ -369,12 +416,14 @@ beside' dir dia1 dia2 = juxtapose dir dia1 dia2 <> dia1
 -- ResultPortConst: Result
 -- Ports 2,3..: Arguments
 generalNestedDia :: SpecialBackend b n
-                 => (Colour Double -> SpecialQDiagram b n)
-                 -> [Colour Double]
-                 -> Maybe NamedIcon
-                 -> [Maybe NamedIcon]
-                 -> TransformableDia b n
+  => IconInfo
+  -> (Colour Double -> SpecialQDiagram b n)
+  -> [Colour Double]
+  -> Maybe NamedIcon
+  -> [Maybe NamedIcon]
+  -> TransformableDia b n
 generalNestedDia
+  iconInfo
   dia
   borderCols
   maybeFunText
@@ -383,11 +432,11 @@ generalNestedDia
   = named name $ centerXY $ beside' unitX transformedText finalDia
     where
       borderCol = borderCols !! nestingLevel
-      transformedText = makeTransformedText tp (pure maybeFunText)
+      transformedText = makeTransformedText iconInfo tp (pure maybeFunText)
       separation = circleRadius * 1.5
       trianglePortsCircle = hsep separation $
         reflectX (dia borderCol) :
-        zipWith (makeAppInnerIcon tp False) argPortsConst (fmap pure args) ++
+        zipWith (makeAppInnerIcon iconInfo tp False) argPortsConst (fmap pure args) ++
         [makeQualifiedPort name ResultPortConst
          <> alignR
           (lc borderCol $ lwG defaultLineWidth $ fc borderCol
@@ -403,14 +452,16 @@ generalNestedDia
 
 
 nestedApplyDia :: SpecialBackend b n
-  => LikeApplyFlavor
+  => IconInfo
+  -> LikeApplyFlavor
   -> Maybe NamedIcon
   -> [Maybe NamedIcon]
   -> TransformableDia b n
-nestedApplyDia flavor = case flavor of
-  ApplyNodeFlavor -> generalNestedDia apply0Triangle (nestingC colorScheme)
-  ComposeNodeFlavor ->
-    generalNestedDia composeSemiCircle (repeat $ apply1C colorScheme)
+nestedApplyDia iconInfo flavor = case flavor of
+  ApplyNodeFlavor
+    -> generalNestedDia iconInfo apply0Triangle (nestingC colorScheme)
+  ComposeNodeFlavor
+    -> generalNestedDia iconInfo composeSemiCircle (repeat $ apply1C colorScheme)
 
 -- END Apply like diagrams
 
@@ -542,12 +593,13 @@ multiIfTriangle portDia =
 -- odds -> left
 -- evens -> right
 generalNestedMultiIf :: SpecialBackend b n
-                   => Colour Double
+                   => IconInfo
+                   -> Colour Double
                    -> (SpecialQDiagram b n -> SpecialQDiagram b n)
                    -> SpecialQDiagram b n
                    -> [Maybe NamedIcon]
                    -> TransformableDia b n
-generalNestedMultiIf triangleColor lBracket bottomDia inputAndArgs
+generalNestedMultiIf iconInfo triangleColor lBracket bottomDia inputAndArgs
   (TransformParams name nestingLevel reflect angle)
   = named name $ case inputAndArgs of
   [] -> mempty
@@ -591,11 +643,14 @@ generalNestedMultiIf triangleColor lBracket bottomDia inputAndArgs
         then reflectX dia
         else dia
         where
-          dia = iconToDiagram icon (TransformParams
-                                     iconNodeName
-                                     nestingLevel
-                                     (innerReflected /= reflect)
-                                     angle)
+          dia = iconToDiagram
+                iconInfo
+                icon
+                (TransformParams
+                  iconNodeName
+                  nestingLevel
+                  (innerReflected /= reflect)
+                  angle)
 
 multiIfLBracket :: SpecialBackend b n =>
   SpecialQDiagram b n -> SpecialQDiagram b n
@@ -612,9 +667,10 @@ multiIfLBracket portDia = alignL (alignT ell) <> portDia
 -- Ports 3,5...: The left ports for the booleans
 -- Ports 2,4...: The right ports for the values
 nestedMultiIfDia :: SpecialBackend b n =>
-  [Maybe NamedIcon]
+  IconInfo
+  -> [Maybe NamedIcon]
   -> TransformableDia b n
-nestedMultiIfDia = generalNestedMultiIf lineCol multiIfLBracket mempty
+nestedMultiIfDia iconInfo = generalNestedMultiIf iconInfo lineCol multiIfLBracket mempty
 
 -- TODO Improve design to be more than a circle.
 caseResult :: SpecialBackend b n =>
@@ -632,8 +688,12 @@ caseC portDia = caseResult <> portDia
 -- ResultPortConst: Bottom result port
 -- Ports 3,5...: The left ports for the results
 -- Ports 2,4...: The right ports for the patterns
-nestedCaseDia :: SpecialBackend b n => [Maybe NamedIcon] -> TransformableDia b n
-nestedCaseDia = generalNestedMultiIf (patternC colorScheme) caseC caseResult
+nestedCaseDia :: SpecialBackend b n
+  => IconInfo
+  -> [Maybe NamedIcon]
+  -> TransformableDia b n
+nestedCaseDia iconInfo
+  = generalNestedMultiIf iconInfo (patternC colorScheme) caseC caseResult
 
 -- END MultiIf and case icons
 
@@ -642,10 +702,11 @@ nestedCaseDia = generalNestedMultiIf (patternC colorScheme) caseC caseResult
 -- 1: The lambda function value
 -- 2,3.. : The parameters
 nestedLambda :: SpecialBackend b n
-           => [String]
+           => IconInfo
+           -> [String]
            -> Maybe NamedIcon
            -> TransformableDia b n
-nestedLambda paramNames mBodyExp (TransformParams name level reflect angle)
+nestedLambda iconInfo paramNames mBodyExp (TransformParams name level reflect angle)
   = centerXY $ bodyExpIcon ||| centerY (named name finalDia)
   where
   lambdaCircle
@@ -661,6 +722,7 @@ nestedLambda paramNames mBodyExp (TransformParams name level reflect angle)
     Nothing -> mempty
     Just (NamedIcon bodyNodeName bodyIcon)
       -> iconToDiagram
+         iconInfo
          bodyIcon
          (TransformParams bodyNodeName level reflect angle)
 
