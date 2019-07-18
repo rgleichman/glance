@@ -40,7 +40,8 @@ import Constants(pattern InputPortConst, pattern ResultPortConst)
 import DrawingColors(colorScheme, ColorStyle(..))
 import Types(Icon(..), SpecialQDiagram, SpecialBackend, SpecialNum
             , NodeName(..), Port(..), LikeApplyFlavor(..),
-            SyntaxNode(..), NamedIcon(..), Labeled(..), IconInfo)
+            SyntaxNode(..), NamedIcon, Labeled(..), IconInfo
+            , Named(..))
 
 {-# ANN module "HLint: ignore Use record patterns" #-}
 {-# ANN module "HLint: ignore Unnecessary hiding" #-}
@@ -76,7 +77,7 @@ lineCol = lineC colorScheme
 
 findIconFromName :: IconInfo -> NodeName -> NamedIcon
 findIconFromName icons name@(NodeName nameInt)
-  = NamedIcon name $ IM.findWithDefault
+  = Named name $ IM.findWithDefault
     (error $ "findIconFromName: icon not found.\nicons="
       <> show icons <> "\nname=" <> show name)
     nameInt
@@ -146,12 +147,12 @@ findIcon :: IconInfo -> NodeName -> [Maybe NamedIcon] -> Maybe (Int, Icon)
 findIcon iconInfo name args = icon where
   numberedArgs = zip ([0,1..] :: [Int]) args
   filteredArgs = Arrow.second fromJust <$> filter (isJust . snd) numberedArgs
-  nameMatches (_, NamedIcon n _) = n == name
+  nameMatches (_, Named n _) = n == name
   icon = case find nameMatches filteredArgs of
     Nothing -> listToMaybe $ mapMaybe findSubSubIcon filteredArgs
-    Just (argNum, NamedIcon _ finalIcon) -> Just (argNum, finalIcon)
+    Just (argNum, Named _ finalIcon) -> Just (argNum, finalIcon)
     where
-      findSubSubIcon (argNum, NamedIcon _ subIcon)
+      findSubSubIcon (argNum, Named _ subIcon)
         = case findNestedIcon iconInfo name subIcon of
             Nothing -> Nothing
             Just x -> Just (argNum, x)
@@ -252,9 +253,9 @@ multiIfBoolPorts = caseRhsPorts
 
 argumentPorts :: SyntaxNode -> [Port]
 argumentPorts n = case n of
-  ApplyNode _ _ _ -> defaultPorts
+  (ApplyNode _ _) -> defaultPorts
   PatternApplyNode _ _-> defaultPorts
-  FunctionDefNode _ _ _ -> defaultPorts
+  (FunctionDefNode _ _) -> defaultPorts
   CaseOrMultiIfNode _ _ _-> defaultPorts
   NameNode _ -> []
   BindNameNode _ -> []
@@ -341,7 +342,7 @@ makeAppInnerIcon _iconInfo (TransformParams name _ reflect angle) _ portNum
   (Labeled Nothing str)
   = centerX $ makeLabelledPort name reflect angle str portNum
 makeAppInnerIcon iconInfo (TransformParams _ nestingLevel reflect angle) func _
-  (Labeled (Just (NamedIcon iconNodeName icon)) _)
+  (Labeled (Just (Named iconNodeName icon)) _)
   = iconToDiagram
     iconInfo
     icon
@@ -639,7 +640,7 @@ generalNestedMultiIf iconInfo triangleColor lBracket bottomDia inputAndArgs
 
     makeInnerIcon innerReflected mNameAndIcon = case mNameAndIcon of
       Nothing -> mempty
-      Just (NamedIcon iconNodeName icon) -> if innerReflected
+      Just (Named iconNodeName icon) -> if innerReflected
         then reflectX dia
         else dia
         where
@@ -720,7 +721,7 @@ nestedLambda iconInfo paramNames mBodyExp (TransformParams name level reflect an
         ++ [makeQualifiedPort name ResultPortConst <> alignR lambdaCircle])
   bodyExpIcon = case mBodyExp of
     Nothing -> mempty
-    Just (NamedIcon bodyNodeName bodyIcon)
+    Just (Named bodyNodeName bodyIcon)
       -> iconToDiagram
          iconInfo
          bodyIcon

@@ -37,14 +37,16 @@ import GHC.Stack(HasCallStack)
 --import Data.GraphViz.Commands
 
 import Icons(colorScheme, iconToDiagram, defaultLineWidth, ColorStyle(..)
-            , getPortAngles, TransformParams(..), circleRadius, findIconFromName)
+            , getPortAngles, TransformParams(..), circleRadius
+            , findIconFromName)
 import TranslateCore(nodeToIcon)
 import Types(EmbedInfo(..), AnnotatedGraph, Edge(..)
             , Drawing(..), NameAndPort(..)
             , SpecialQDiagram, SpecialBackend, SpecialNum, NodeName(..)
-            , Port(..), NamedIcon(..), Icon(..), NodeInfo(..), IconInfo)
+            , Port(..), NamedIcon, Icon(..), NodeInfo(..), IconInfo
+            , Named(..))
 
-import Util(nodeNameToInt, fromMaybeError, mapNodeInNamedNode, namedIconToTuple)
+import Util(nodeNameToInt, fromMaybeError, namedToTuple)
 
 -- If the inferred types for these functions becomes unweildy,
 -- try using PartialTypeSignitures.
@@ -76,13 +78,13 @@ drawingToIconGraph (Drawing nodes edges) =
 
     makeLabeledEdge :: Edge -> (NamedIcon, NamedIcon, EmbedInfo Edge)
     makeLabeledEdge e@(Edge _ (NameAndPort n1 _, NameAndPort n2 _))
-      = (NamedIcon n1 (lookupInNodes n1)
-        , NamedIcon n2 (lookupInNodes n2)
+      = (Named n1 (lookupInNodes n1)
+        , Named n2 (lookupInNodes n2)
         , EmbedInfo Nothing e)
       where
         lookupInNodes name = fromMaybeError
                              errorString
-                             (lookup name (fmap namedIconToTuple nodes))
+                             (lookup name (fmap namedToTuple nodes))
           where
             errorString =
               "syntaxGraphToFglGraph edge connects to non-existent node. Node NodeName ="
@@ -182,7 +184,7 @@ nameAndPortToName (NameAndPort name mPort) = case mPort of
 
 findPortAngles :: SpecialNum n
   => IconInfo -> NamedIcon -> NameAndPort -> [Angle n]
-findPortAngles iconInfo (NamedIcon nodeName nodeIcon) (NameAndPort diaName mPort)
+findPortAngles iconInfo (Named nodeName nodeIcon) (NameAndPort diaName mPort)
   = case mPort of
       Nothing -> []
       Just port -> foundAngles where
@@ -333,7 +335,7 @@ bestAngleForIcon :: (HasCallStack, SpecialNum n, ING.Graph gr) =>
   -> NamedIcon
   -> Bool
   -> (Angle n, n)
-bestAngleForIcon iconInfo positionMap graph key@(NamedIcon (NodeName nodeId) _) reflected
+bestAngleForIcon iconInfo positionMap graph key@(Named (NodeName nodeId) _) reflected
   = minimumBy (compare `on` snd)
     ( (\angle -> (angle
                  , scoreAngle iconPosition edges reflected angle))
@@ -396,14 +398,14 @@ drawLambdaRegions iconInfo placedNodes
     findDia :: NodeName -> SpecialQDiagram b Double
     findDia n1
       = maybe mempty snd
-        (find (\(NamedIcon n2 _, _) -> n1 == n2) placedNodes)
+        (find (\(Named n2 _, _) -> n1 == n2) placedNodes)
 
     -- Also draw the region around the icon the lambda is in.
     drawRegion :: [NodeName] -> NamedIcon -> SpecialQDiagram b Double
     drawRegion parentNames icon = case icon of
-      NamedIcon _ (LambdaIcon _ _ enclosedNames)
+      Named _ (LambdaIcon _ _ enclosedNames)
         -> regionRect $ fmap findDia (parentNames <> enclosedNames)
-      NamedIcon parentName (NestedApply _ headIcon icons)
+      Named parentName (NestedApply _ headIcon icons)
         -> mconcat
            $ drawRegion (parentName:parentNames)
            <$> mapMaybe
@@ -431,7 +433,7 @@ placeNodes :: SpecialBackend b Double =>
   -> [(NamedIcon, SpecialQDiagram b Double)]
 placeNodes namedIcons positionMap = fmap placeNode
   where
-    placeNode (key@(NamedIcon name icon), (reflected, angle))
+    placeNode (key@(Named name icon), (reflected, angle))
       = (key, place transformedDia diaPosition)
       where
         origDia = centerXY
@@ -485,7 +487,7 @@ renderIconGraph debugInfo fullGraphWithInfo = do
       = ING.nmap niVal $ ING.labfilter (isNothing . niParent) fullGraphWithInfo
     fullGraph = ING.nmap niVal fullGraphWithInfo
     iconInfo = IM.fromList
-                 $ first nodeNameToInt . namedIconToTuple . snd
+                 $ first nodeNameToInt . namedToTuple . snd
                  <$> ING.labNodes fullGraph
 
     layoutParams :: GV.GraphvizParams Int NamedIcon e () NamedIcon
@@ -494,7 +496,7 @@ renderIconGraph debugInfo fullGraphWithInfo = do
       GV.fmtNode = nodeAttribute
       }
     nodeAttribute :: (Int, NamedIcon) -> [GV.Attribute]
-    nodeAttribute (_, NamedIcon _ nodeIcon) =
+    nodeAttribute (_, Named _ nodeIcon) =
       -- GVA.Width and GVA.Height have a minimum of 0.01
       --[GVA.Width diaWidth, GVA.Height diaHeight]
       [GVA.Width circleDiameter, GVA.Height circleDiameter]
@@ -531,5 +533,4 @@ renderIngSyntaxGraph :: (HasCallStack, SpecialBackend b Double)
   => String -> AnnotatedGraph Gr -> IO (SpecialQDiagram b Double)
 renderIngSyntaxGraph debugInfo gr
   = renderIconGraph debugInfo
-    $ ING.nmap (fmap (mapNodeInNamedNode nodeToIcon)) gr
-    -- $ ING.labfilter (not . niIsChild) gr
+    $ ING.nmap (fmap (fmap nodeToIcon)) gr

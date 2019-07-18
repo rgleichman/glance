@@ -6,6 +6,7 @@ module GraphAlgorithms(
   collapseAnnotatedGraph
   ) where
 
+import Control.Arrow(first)
 import qualified Data.Graph.Inductive as ING
 import Data.List(foldl', find)
 import Data.Tuple(swap)
@@ -13,9 +14,10 @@ import GHC.Stack(HasCallStack)
 
 import Constants(pattern ResultPortConst, pattern InputPortConst)
 import Types(SyntaxNode(..), IngSyntaxGraph, Edge(..),
-             CaseOrMultiIfTag(..), Port(..), NameAndPort(..), SgNamedNode(..)
-            , AnnotatedGraph, EmbedInfo(..), EmbedDirection(..), NodeInfo(..))
-import Util(fromMaybeError, sgNamedNodeToSyntaxNode)
+             CaseOrMultiIfTag(..), Port(..), NameAndPort(..), SgNamedNode
+            , AnnotatedGraph, EmbedInfo(..), EmbedDirection(..), NodeInfo(..)
+            , Embedder(..), Named(..), EmbedderSyntaxNode)
+import Util(fromMaybeError)
 
 {-# ANN module "HLint: ignore Use record patterns" #-}
 
@@ -39,6 +41,7 @@ parentAndChild embedDirection
 -- End helper functions
 -- START annotateGraph --
 
+-- TODO Use pattern synonyms here
 -- | A syntaxNodeIsEmbeddable if it can be collapsed into another node
 syntaxNodeIsEmbeddable :: ParentType
                        -> SyntaxNode
@@ -47,26 +50,26 @@ syntaxNodeIsEmbeddable :: ParentType
                        -> Bool
 syntaxNodeIsEmbeddable parentType syntaxNode mParentPort mChildPort
   = case (parentType, syntaxNode) of
-      (ApplyParent, ApplyNode _ _ _) -> parentPortNotResult
+      (ApplyParent, ApplyNode _ _) -> parentPortNotResult
       (ApplyParent, LiteralNode _) -> parentPortNotResult
-      (ApplyParent, FunctionDefNode _ _ _)
+      (ApplyParent, FunctionDefNode _ _)
         -> isInput mParentPort && isResult mChildPort
 
       -- The match below works, but can make messy drawings with the current
       -- icon for lambdas.
       -- (LambdaParent, ApplyNode _ _ _) -> parentPortIsInput
       (LambdaParent, LiteralNode _) -> parentPortIsInput
-      (LambdaParent, FunctionDefNode _ _ _)
+      (LambdaParent, FunctionDefNode _ _)
         -> parentPortIsInput && isResult mChildPort
 
       (CaseParent, LiteralNode _) -> parentPortNotResult
-      (CaseParent, ApplyNode _ _ _)
+      (CaseParent, ApplyNode _ _)
         -> parentPortNotResult && parentPortNotInput
       (CaseParent, PatternApplyNode _ _)
         -> parentPortNotResult && parentPortNotInput
 
       (MultiIfParent, LiteralNode _) -> parentPortNotResult
-      (MultiIfParent, ApplyNode _ _ _)
+      (MultiIfParent, ApplyNode _ _)
         -> parentPortNotResult && parentPortNotInput
 
       _ -> False
@@ -87,19 +90,19 @@ syntaxNodeIsEmbeddable parentType syntaxNode mParentPort mChildPort
 
 parentTypeForNode :: SyntaxNode -> ParentType
 parentTypeForNode n = case n of
-  ApplyNode _ _ _ -> ApplyParent
+  (ApplyNode _ _) -> ApplyParent
   CaseOrMultiIfNode CaseTag _ _ -> CaseParent
   CaseOrMultiIfNode MultiIfTag _ _ -> MultiIfParent
-  FunctionDefNode _ _ _ -> LambdaParent
+  (FunctionDefNode _ _) -> LambdaParent
   _ -> NotAParent
 
 lookupSyntaxNode :: ING.Graph gr =>
-  IngSyntaxGraph gr -> ING.Node -> Maybe SyntaxNode
-lookupSyntaxNode gr node = sgNamedNodeToSyntaxNode <$> ING.lab gr node
+  IngSyntaxGraph gr -> ING.Node -> Maybe EmbedderSyntaxNode
+lookupSyntaxNode gr node = naVal <$> ING.lab gr node
 
 lookupParentType :: ING.Graph gr => IngSyntaxGraph gr -> ING.Node -> ParentType
 lookupParentType graph node
-  = maybe NotAParent parentTypeForNode $ lookupSyntaxNode graph node
+  = maybe NotAParent parentTypeForNode $ emNode <$> lookupSyntaxNode graph node
 
 {-# ANN edgeIsSingular "HLint: ignore Redundant bracket" #-}
 edgeIsSingular :: ING.Graph gr => gr a Edge -> ING.Node -> Edge -> Bool
@@ -119,7 +122,7 @@ parentCanEmbedChild graph parent child edge embedDirection
         edgeIsSingular graph child edge
         && syntaxNodeIsEmbeddable
         parentType
-        childSyntaxNode
+        (emNode childSyntaxNode)
         parentPort
         childPort
         where
@@ -174,22 +177,16 @@ changeNodeLabel node newLabel graph = case ING.match node graph of
     -> (inEdges, node, newLabel, outEdges) ING.& restOfTheGraph
   (Nothing, _) -> graph
 
--- TODO Wrap the SyntaxNodes in an Embedder type so that this function does not
--- require pattern matching.
-addChildrenToNodeLabel :: [(SgNamedNode, Edge)] -> SyntaxNode -> SyntaxNode
-addChildrenToNodeLabel children oldSyntaxNode = case oldSyntaxNode of
-  ApplyNode flavor x existingNodes
-    -> ApplyNode flavor x
-       (children <> existingNodes)
-  CaseOrMultiIfNode tag x existingNodes
-    -> CaseOrMultiIfNode tag x
-       (children <> existingNodes)
-  FunctionDefNode labels existingNodes innerNodes
-    -> FunctionDefNode
-       labels
-       (children <> existingNodes)
-       innerNodes
-  _ -> oldSyntaxNode
+-- TODO Change CaseOrMultiIfNode to use Embedder, then simplify the
+-- type of children.
+addChildrenToNodeLabel ::
+  [(SgNamedNode, Edge)] -> EmbedderSyntaxNode -> EmbedderSyntaxNode
+addChildrenToNodeLabel children (Embedder existingNodes oldSyntaxNode)
+  = case oldSyntaxNode of
+      CaseOrMultiIfNode tag x caseExistingNodes
+        -> Embedder [] $ CaseOrMultiIfNode tag x
+           (children <> caseExistingNodes)
+      _ -> Embedder (fmap (first naName) children <> existingNodes) oldSyntaxNode
 
 -- | Change the node label of the parent to be nested.
 embedChildSyntaxNode :: ING.DynGraph gr =>
@@ -211,10 +208,10 @@ embedChildSyntaxNode parentNode childNode oldGraph = newGraph
                (NodeInfo (Just parentNode) childNodeLab)
                $ changeNodeLabel parentNode newNodeLabel oldGraph
             where
-              SgNamedNode nodeName oldSyntaxNode = oldNodeLabel
+              Named nodeName oldSyntaxNode = oldNodeLabel
               newSyntaxNode
                 = addChildrenToNodeLabel [(childNodeLab, edge)] oldSyntaxNode
-              newNodeLabel = NodeInfo isChild (SgNamedNode nodeName newSyntaxNode)
+              newNodeLabel = NodeInfo isChild (Named nodeName newSyntaxNode)
 
 collapseEdge :: (HasCallStack, ING.DynGraph gr)
              => AnnotatedGraph gr

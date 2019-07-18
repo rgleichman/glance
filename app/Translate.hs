@@ -13,7 +13,7 @@ import Control.Monad.State(State, evalState)
 import Data.Either(partitionEithers)
 import qualified Data.Graph.Inductive.PatriciaTree as FGR
 import Data.List(unzip5, partition, intercalate)
-import Data.Maybe(catMaybes, fromMaybe)
+import Data.Maybe(fromMaybe, mapMaybe)
 
 import qualified Language.Haskell.Exts as Exts
 import qualified Language.Haskell.Exts.Pretty as PExts
@@ -33,8 +33,9 @@ import TranslateCore(Reference, SyntaxGraph(..), EvalContext, GraphAndRef(..)
                     , getUniqueString, bindsToSyntaxGraph, SgBind(..)
                     , graphAndRefToGraph, initialIdState)
 import Types(AnnotatedGraph, Labeled(..), NameAndPort(..), IDState,
-             Edge, SyntaxNode(..), NodeName, SgNamedNode(..),
-             LikeApplyFlavor(..), CaseOrMultiIfTag(..))
+             Edge, SyntaxNode(..), NodeName, SgNamedNode,
+             LikeApplyFlavor(..), CaseOrMultiIfTag(..), Named(..)
+            , mkEmbedder)
 import Util(makeSimpleEdge, nameAndPort, justName)
 
 {-# ANN module "HLint: ignore Use record patterns" #-}
@@ -50,7 +51,7 @@ import Util(makeSimpleEdge, nameAndPort, justName)
 -- names.
 makeAsBindGraph :: Reference -> [Maybe String] -> SyntaxGraph
 makeAsBindGraph ref asNames
-  = bindsToSyntaxGraph $ catMaybes $ fmap makeBind asNames
+  = bindsToSyntaxGraph $ mapMaybe makeBind asNames
   where
     makeBind mName = case mName of
       Nothing -> Nothing
@@ -168,15 +169,20 @@ makeNestedPatternGraph applyIconName funStr argVals = nestedApplyResult
     combinedGraph = combineExpressions True unnestedArgsAndPort
 
     pAppNode = PatternApplyNode funStr argList
-    icons = [SgNamedNode applyIconName pAppNode]
+    icons = [Named applyIconName (mkEmbedder pAppNode)]
 
-    asNameBinds = catMaybes $ fmap asNameBind argVals
+    asNameBinds = mapMaybe asNameBind argVals
     allBinds = nestedBinds <> asNameBinds
 
-    newEMap = ((\(SgNamedNode n _) -> (n, applyIconName))  <$> nestedArgs)
+    newEMap = ((\(Named n _) -> (n, applyIconName))  <$> nestedArgs)
               <> nestedEMaps
 
-    newGraph = SyntaxGraph icons [] nestedSinks allBinds newEMap
+    newGraph = SyntaxGraph
+               icons
+               []
+               nestedSinks
+               allBinds
+               newEMap
     nestedApplyResult = (newGraph <> combinedGraph
                         , nameAndPort applyIconName (resultPort pAppNode))
 
@@ -453,7 +459,7 @@ evalCaseHelper numAlts caseIconName resultIconNames
     (patRhsConnected, altGraphs, patRefs, rhsRefs, asNames) = unzip5 evaledAlts
     combindedAltGraph = mconcat altGraphs
     caseNode = CaseOrMultiIfNode CaseTag numAlts []
-    icons = [SgNamedNode caseIconName caseNode]
+    icons = [Named caseIconName (mkEmbedder caseNode)]
     caseGraph = syntaxGraphFromNodes icons
     expEdge = (expRef, nameAndPort caseIconName (inputPort caseNode))
     patEdges = zip patRefs $ map (nameAndPort caseIconName) casePatternPorts
@@ -466,7 +472,7 @@ evalCaseHelper numAlts caseIconName resultIconNames
       Left _ -> mempty
       Right rhsPort -> syntaxGraphFromNodesEdges rhsNewIcons rhsNewEdges
         where
-          rhsNewIcons = [SgNamedNode resultIconName CaseResultNode]
+          rhsNewIcons = [Named resultIconName (mkEmbedder CaseResultNode)]
           rhsNewEdges = [makeSimpleEdge (rhsPort, justName resultIconName)]
 
     caseResultGraphs =
@@ -530,15 +536,15 @@ evalLambda _ context patterns expr = do
   GraphAndRef rhsRawGraph rhsRef <- evalExp rhsContext expr
   let
     paramNames = fmap patternName patternValsWithAsNames
-    enclosedNodeNames = snnName <$> sgNodes combinedGraph
-    lambdaNode = FunctionDefNode paramNames [] enclosedNodeNames
+    enclosedNodeNames = naName <$> sgNodes combinedGraph
+    lambdaNode = FunctionDefNode paramNames enclosedNodeNames
     lambdaPorts = map (nameAndPort lambdaName) $ argumentPorts lambdaNode
     patternGraph = mconcat $ fmap graphAndRefToGraph patternVals
 
     (patternEdges, newBinds) =
       partitionEithers $ zipWith makePatternEdges patternVals lambdaPorts
 
-    icons = [SgNamedNode lambdaName lambdaNode]
+    icons = [Named lambdaName (mkEmbedder lambdaNode)]
     returnPort = nameAndPort lambdaName (inputPort lambdaNode)
     (newEdges, newSinks) = case rhsRef of
       Left s -> (patternEdges, [SgSink s returnPort])
@@ -627,7 +633,7 @@ showTopLevelBinds gr = do
     addBind (SgBind patName (Right port)) = do
       uniquePatName <- getUniqueName
       let
-        icons = [SgNamedNode uniquePatName (BindNameNode patName)]
+        icons = [Named uniquePatName $ mkEmbedder (BindNameNode patName)]
         edges = [makeSimpleEdge (port, justName uniquePatName)]
         edgeGraph = syntaxGraphFromNodesEdges icons edges
       pure edgeGraph

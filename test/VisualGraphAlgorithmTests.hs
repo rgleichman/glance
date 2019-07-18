@@ -13,8 +13,8 @@ import qualified Data.GraphViz.Attributes.Complete as GVA
 import qualified Data.Graph.Inductive as ING
 import qualified Data.Graph.Inductive.PatriciaTree as FGR
 
-import Types(SpecialQDiagram, SpecialBackend, SyntaxNode(..), NameAndPort(..)
-            , SgNamedNode(..), Edge(..), NodeInfo(..))
+import Types(SpecialQDiagram, SpecialBackend, SyntaxNode(..), SgNamedNode
+            , NodeInfo(..), Named(..), Embedder(..))
 import Translate(translateStringToSyntaxGraph)
 import TranslateCore(syntaxGraphToFglGraph)
 import GraphAlgorithms(annotateGraph, collapseAnnotatedGraph)
@@ -24,15 +24,14 @@ import Icons(coloredTextBox)
 {-# ANN module "HLint: ignore Unnecessary hiding" #-}
 
 prettyPrintSyntaxNode :: SyntaxNode -> String
-prettyPrintSyntaxNode (ApplyNode _ _ namedNodesAndEdges)
-  = concatMap printNameAndEdge namedNodesAndEdges
-  where
-    printNameAndEdge (namedNode, edge)
-      = "(" ++ prettyPrintNamedNode namedNode ++ "," ++ printEdge edge ++ ")"
-    prettyPrintNamedNode (SgNamedNode name _)
-      = show name --  "(" ++ show name ++ "," ++ prettyPrintSyntaxNode syntaxNode ++ ")"
-    printEdge (Edge _ (NameAndPort n1 _, NameAndPort n2 _)) = show (n1, n2)
-prettyPrintSyntaxNode x = show x
+-- TODO Re-enable
+-- prettyPrintSyntaxNode (Embedder namedNodesAndEdges _)
+--   = concatMap printNameAndEdge namedNodesAndEdges
+--   where
+--     printNameAndEdge (namedNode, edge)
+--       = "(" ++ show namedNode ++ "," ++ printEdge edge ++ ")"
+--     printEdge (Edge _ (NameAndPort n1 _, NameAndPort n2 _)) = show (n1, n2)
+prettyPrintSyntaxNode = show
 
 renderFglGraph :: SpecialBackend b Double
                => FGR.Gr SgNamedNode e
@@ -50,10 +49,10 @@ renderFglGraph fglGraph = do
            (shaftStyle %~ lwG 0.5 $ headLength .~ global 1.5 $ with)
            (scaleFactor *^ point1)
            (scaleFactor *^ point2))
-    layedOutGraph
+    (ING.nmap (fmap (fmap emNode)) layedOutGraph)
   where
     scaleFactor = 0.3
-    nodeFunc (SgNamedNode name syntaxNode) point
+    nodeFunc (Named name syntaxNode) point
       = place (coloredTextBox
                 white
                 (opaque white)

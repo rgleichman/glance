@@ -8,8 +8,8 @@ import Data.List(foldl', sort, sortOn)
 
 import Translate(translateStringToSyntaxGraph)
 import TranslateCore(SyntaxGraph(..), SgBind(..))
-import Types(Labeled(..), SgNamedNode(..), Edge(..), SyntaxNode(..),
-             NodeName(..), NameAndPort(..))
+import Types(Embedder(..), Labeled(..), SgNamedNode, Edge(..), SyntaxNode(..),
+             NodeName(..), NameAndPort(..), Named(..))
 import Util(fromMaybeError)
 
 -- Unit Test Helpers --
@@ -26,13 +26,15 @@ assertEqualSyntaxGraphs ls = assertAllEqual $ fmap (renameGraph . translateStrin
 -- BEGIN renameGraph --
 type NameMap = [(NodeName, NodeName)]
 
+-- TODO Revisit this function
 renameNode
   :: NameMap -> Int -> SgNamedNode -> (SgNamedNode, NameMap, Int)
-renameNode nameMap counter (SgNamedNode nodeName syntaxNode) = (newNamedNode, nameMap3, newCounter) where
+renameNode nameMap counter (Named nodeName syntaxNode)
+  = (fmap (Embedder []) newNamedNode, nameMap3, newCounter) where
   newNodeName = NodeName counter
   nameMap2 = (nodeName, newNodeName) : nameMap
-  (newSyntaxNode, nameMap3, newCounter) = renameSyntaxNode nameMap2 syntaxNode (counter + 1)
-  newNamedNode = SgNamedNode newNodeName newSyntaxNode
+  (newSyntaxNode, nameMap3, newCounter) = renameSyntaxNode nameMap2 (emNode syntaxNode) (counter + 1)
+  newNamedNode = Named newNodeName newSyntaxNode
 
 maybeRenameNodeFolder ::
   ([Labeled (Maybe SgNamedNode)], NameMap, Int)
@@ -60,7 +62,7 @@ renameSyntaxNode nameMap node counter = case node of
   _ -> (node, nameMap, counter)
 
 renameNodeFolder :: ([SgNamedNode], NameMap, Int) -> SgNamedNode -> ([SgNamedNode], NameMap, Int)
-renameNodeFolder state@(renamedNodes, nameMap, counter) node@(SgNamedNode nodeName _) = case lookup nodeName nameMap of
+renameNodeFolder state@(renamedNodes, nameMap, counter) node@(Named nodeName _) = case lookup nodeName nameMap of
   Nothing -> (newNamedNode:renamedNodes, newNameMap, newCounter) where
     (newNamedNode, newNameMap, newCounter) = renameNode nameMap counter node
   Just _ -> error $ "renameNode: node already in name map. State = " ++ show state ++ " Node = " ++ show node
@@ -87,7 +89,7 @@ renameEmbed nameMap (leftName, rightName) = (newLeftName, newRightName) where
 
 -- TODO May want to remove names for sub-nodes
 removeNames :: SgNamedNode -> SyntaxNode
-removeNames (SgNamedNode _ syntaxNode) = syntaxNode
+removeNames (Named _ (Embedder _ syntaxNode)) = syntaxNode
 
 -- TODO Rename sinks
 -- TODO Add unit tests for renameGraph

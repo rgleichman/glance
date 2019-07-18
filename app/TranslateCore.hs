@@ -28,6 +28,7 @@ module TranslateCore(
   initialIdState
 ) where
 
+import Control.Arrow(first)
 import Control.Monad.State(State, state)
 import Data.Either(partitionEithers)
 import qualified Data.Graph.Inductive.Graph as ING
@@ -38,11 +39,12 @@ import Data.Semigroup(Semigroup, (<>))
 import Icons(inputPort, resultPort, argumentPorts, multiIfRhsPorts
             , multiIfBoolPorts)
 import Types(Labeled(..), Icon(..), SyntaxNode(..), Edge(..), EdgeOption(..)
-            , NameAndPort(..), IDState, SgNamedNode(..), NodeName(..), Port
+            , NameAndPort(..), IDState, SgNamedNode, NodeName(..), Port
             , LikeApplyFlavor(..), CaseOrMultiIfTag(..), IDState(..)
-            , NamedIcon(..))
+            , NamedIcon, Embedder(..), mkEmbedder, Named(..)
+            , EmbedderSyntaxNode)
 import Util(nameAndPort, makeSimpleEdge, justName, maybeBoolToBool
-           , mapNodeInNamedNode, nodeNameToInt)
+           , nodeNameToInt)
 
 {-# ANN module "HLint: ignore Use list comprehension" #-}
 
@@ -182,13 +184,13 @@ makeApplyGraph numArgs applyFlavor inPattern applyIconName funVal argVals
     , nameAndPort applyIconName (resultPort applyNode)
     )
   where
-    applyNode = ApplyNode applyFlavor numArgs []
+    applyNode = ApplyNode applyFlavor numArgs
     argumentNamePorts
       = map (nameAndPort applyIconName) (argumentPorts applyNode)
     functionPort = nameAndPort applyIconName (inputPort applyNode)
     combinedGraph = combineExpressions inPattern
                     $ zip (funVal:argVals) (functionPort:argumentNamePorts)
-    icons = [SgNamedNode applyIconName applyNode]
+    icons = [Named applyIconName (mkEmbedder applyNode)]
     newGraph = syntaxGraphFromNodes icons
 
 makeMultiIfGraph ::
@@ -204,7 +206,7 @@ makeMultiIfGraph numPairs multiIfName bools exps
     expsWithPorts = zip exps $ map (nameAndPort multiIfName) multiIfRhsPorts
     boolsWithPorts = zip bools $ map (nameAndPort multiIfName) multiIfBoolPorts
     combindedGraph = combineExpressions False $ expsWithPorts <> boolsWithPorts
-    icons = [SgNamedNode multiIfName multiIfNode]
+    icons = [Named multiIfName (mkEmbedder multiIfNode)]
     newGraph = syntaxGraphFromNodes icons <> combindedGraph
 
 namesInPatternHelper :: GraphAndRef -> [String]
@@ -254,7 +256,8 @@ makeEdges (SyntaxGraph icons edges sinks bindings eMap) = newGraph where
 makeBox :: String -> State IDState (SyntaxGraph, NameAndPort)
 makeBox str = do
   name <- getUniqueName
-  let graph = syntaxGraphFromNodes [SgNamedNode name (LiteralNode str)]
+  let graph
+        = syntaxGraphFromNodes [Named name (mkEmbedder (LiteralNode str))]
   pure (graph, justName name)
 
 nTupleString :: Int -> String
@@ -277,52 +280,51 @@ nListString :: Int -> String
 nListString 1 = "[_]"
 nListString n = '[' : replicate (n -1) ',' ++ "]"
 
-nodeToIcon :: SyntaxNode -> Icon
-nodeToIcon (ApplyNode flavor x edges)
-  = nestedApplySyntaxNodeToIcon flavor x edges
-nodeToIcon (PatternApplyNode s children)
-  = nestedPatternNodeToIcon s children
-nodeToIcon (NameNode s) = TextBoxIcon s
-nodeToIcon (BindNameNode s) = BindTextBoxIcon s
-nodeToIcon (LiteralNode s) = TextBoxIcon s
-nodeToIcon (FunctionDefNode labels embeddedNodes bodyNodes)
-  = nestedLambdaToIcon labels embeddedNodes bodyNodes
-nodeToIcon CaseResultNode = CaseResultIcon
-nodeToIcon (CaseOrMultiIfNode tag x edges)
-  = nestedCaseOrMultiIfNodeToIcon tag x edges
+nodeToIcon :: EmbedderSyntaxNode -> Icon
+nodeToIcon (Embedder embeddedNodes node) = case node of
+  (ApplyNode flavor x)
+    -> nestedApplySyntaxNodeToIcon flavor x embeddedNodes
+  (PatternApplyNode s children)
+    -> nestedPatternNodeToIcon s children
+  (NameNode s) -> TextBoxIcon s
+  (BindNameNode s) -> BindTextBoxIcon s
+  (LiteralNode s) -> TextBoxIcon s
+  (FunctionDefNode labels bodyNodes)
+    -> nestedLambdaToIcon labels embeddedNodes bodyNodes
+  CaseResultNode -> CaseResultIcon
+  (CaseOrMultiIfNode tag x edges)
+    -> nestedCaseOrMultiIfNodeToIcon tag x edges
 
 makeArg :: [(SgNamedNode, Edge)] -> Port -> Maybe NamedIcon
 makeArg args port = case find (findArg port) args of
   Nothing -> Nothing
-  Just (SgNamedNode argName argSyntaxNode, _)
-    -> Just $ NamedIcon argName (nodeToIcon argSyntaxNode)
+  Just (Named argName argSyntaxNode, _)
+    -> Just $ Named argName (nodeToIcon argSyntaxNode)
 
-makeArg' :: [(SgNamedNode, Edge)] -> Port -> Maybe NodeName
-makeArg' args port = case find (findArg port) args of
-  Nothing -> Nothing
-  Just (SgNamedNode argName _, _)
-    -> Just argName
+-- TOOD Change all the types so that makeArg' becomes makeArg.
+makeArg' :: [(NodeName, Edge)] -> Port -> Maybe NodeName
+makeArg' args port = fst <$> find (findArg' port) args
 
 nestedApplySyntaxNodeToIcon :: LikeApplyFlavor
                             -> Int
-                            -> [(SgNamedNode, Edge)]
+                            -> [(NodeName, Edge)]
                             -> Icon
 nestedApplySyntaxNodeToIcon flavor numArgs args =
   NestedApply flavor headIcon argList
   where
-    dummyNode = ApplyNode flavor numArgs []
+    dummyNode = ApplyNode flavor numArgs
     argPorts = take numArgs (argumentPorts dummyNode)
     headIcon = makeArg' args (inputPort dummyNode)
     argList = fmap (makeArg' args) argPorts
 
 nestedLambdaToIcon :: [String]  -- labels
-                   -> [(SgNamedNode, Edge)]  -- embedded icons
+                   -> [(NodeName, Edge)]  -- embedded icons
                    -> [NodeName]  -- body nodes
                    -> Icon
 nestedLambdaToIcon labels embeddedNodes =
   LambdaIcon labels embeddedBodyNode
   where
-    dummyNode = FunctionDefNode [] [] []
+    dummyNode = FunctionDefNode [] []
     embeddedBodyNode = makeArg' embeddedNodes (inputPort dummyNode)
 
 nestedCaseOrMultiIfNodeToIcon ::
@@ -340,21 +342,24 @@ nestedCaseOrMultiIfNodeToIcon tag numArgs args = case tag of
 
 nestedPatternNodeToIcon :: String -> [Labeled (Maybe SgNamedNode)] -> Icon
 nestedPatternNodeToIcon str children = NestedPApp
-  (pure (Just (NamedIcon (NodeName (-1)) (TextBoxIcon str))))
-  (fmap
-    (fmap (fmap (mapNodeInNamedNode nodeToIcon)))
-    children)
+  (pure (Just (Named (NodeName (-1)) (TextBoxIcon str))))
+  -- Why so many fmaps?
+  ( (fmap . fmap . fmap . fmap) nodeToIcon children)
 
 findArg :: Port -> (SgNamedNode, Edge) -> Bool
-findArg currentPort
-  (SgNamedNode argName _
+findArg currentPort arg
+  = findArg' currentPort (first naName arg)
+
+findArg' :: Port -> (NodeName, Edge) -> Bool
+findArg' currentPort
+  (argName
   , Edge _ (NameAndPort fromName fromPort, NameAndPort toName toPort))
   | argName == fromName = maybeBoolToBool $ fmap (== currentPort) toPort
   | argName == toName = maybeBoolToBool $ fmap (== currentPort) fromPort
   | otherwise = False -- This case should never happen
 
 makeLNode :: SgNamedNode -> ING.LNode SgNamedNode
-makeLNode namedNode@(SgNamedNode (NodeName name) _) = (name, namedNode)
+makeLNode namedNode@(Named (NodeName name) _) = (name, namedNode)
 
 lookupInEmbeddingMap :: NodeName -> [(NodeName, NodeName)] -> NodeName
 lookupInEmbeddingMap origName eMap = lookupHelper origName where

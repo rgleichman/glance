@@ -2,7 +2,8 @@
 {-# LANGUAGE DeriveFunctor #-}
 
 module Types (
-  NamedIcon(..),
+  Named(..),
+  NamedIcon,
   IconInfo,
   Icon(..),
   SyntaxNode(..),
@@ -17,7 +18,7 @@ module Types (
   SpecialQDiagram,
   SpecialBackend,
   SpecialNum,
-  SgNamedNode(..),
+  SgNamedNode,
   IngSyntaxGraph,
   LikeApplyFlavor(..),
   CaseOrMultiIfTag(..),
@@ -26,6 +27,9 @@ module Types (
   EmbedInfo(..),
   AnnotatedGraph,
   NodeInfo(..),
+  Embedder(..),
+  mkEmbedder,
+  EmbedderSyntaxNode,
 ) where
 
 import Diagrams.Prelude(QDiagram, V2, Any, Renderable, Path, IsName)
@@ -40,8 +44,10 @@ import Data.Typeable(Typeable)
 newtype NodeName = NodeName Int deriving (Typeable, Eq, Ord, Show)
 instance IsName NodeName
 
-data NamedIcon = NamedIcon {niName :: NodeName, niIcon :: Icon}
-  deriving (Show, Eq, Ord)
+data Named a = Named {naName :: NodeName, naVal :: a}
+  deriving (Show, Eq, Ord, Functor)
+
+type NamedIcon = Named Icon
 
 data Labeled a = Labeled {laValue :: a, laLabel :: String}
   deriving (Show, Eq, Ord)
@@ -83,26 +89,34 @@ data LikeApplyFlavor = ApplyNodeFlavor | ComposeNodeFlavor
 
 data CaseOrMultiIfTag = CaseTag | MultiIfTag deriving (Show, Eq, Ord)
 
-data SgNamedNode = SgNamedNode {
-  snnName :: NodeName
-  , snnNode :: SyntaxNode
+-- TODO The full edge does not need to be included, just the port.
+data Embedder a = Embedder {
+  emEmbedded :: [(NodeName, Edge)]  -- ^ Set of embedded nodes
+  , emNode :: a
   }
-  deriving (Ord, Eq, Show)
+  deriving (Show, Eq, Ord, Functor)
+
+mkEmbedder :: a -> Embedder a
+mkEmbedder = Embedder []
+
+type EmbedderSyntaxNode = Embedder SyntaxNode
+
+type SgNamedNode = Named EmbedderSyntaxNode
 
 -- TODO remove Ints from SyntaxNode data constructors.
 data SyntaxNode =
   -- Function application, composition, and applying to a composition
   -- The list of nodes is unordered (replace with a map?)
-  ApplyNode LikeApplyFlavor Int [(SgNamedNode, Edge)]
+  ApplyNode LikeApplyFlavor Int
   | PatternApplyNode String [Labeled (Maybe SgNamedNode)]
   | NameNode String -- Identifiers or symbols
   | BindNameNode String
   | LiteralNode String -- Literal values like the string "Hello World"
   | FunctionDefNode  -- Function definition (ie. lambda expression)
     [String]  -- Parameter labels
-    [(SgNamedNode, Edge)]  -- Embedded nodes
     [NodeName]  -- Nodes inside the lambda
   | CaseResultNode -- TODO remove caseResultNode
+  -- TODO Move CaseOrMultiIfNode's embedded nodes to Embedder.
   | CaseOrMultiIfNode CaseOrMultiIfTag Int [(SgNamedNode, Edge)]
   deriving (Show, Eq, Ord)
 

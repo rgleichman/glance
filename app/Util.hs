@@ -8,12 +8,10 @@ module Util (
   justName,
   fromMaybeError,
   maybeBoolToBool,
-  mapNodeInNamedNode,
-  sgNamedNodeToSyntaxNode,
   nodeNameToInt,
   customRenderSVG,
-  namedIconToTuple,
-  tupleToNamedIcon
+  namedToTuple,
+  tupleToNamed
   ) where
 
 import Diagrams.Backend.SVG(renderSVG', Options(..), SVG)
@@ -25,8 +23,9 @@ import Data.Text(pack)
 import Data.Typeable(Typeable)
 import qualified Debug.Trace
 
-import Types(Edge(..), NameAndPort(..), Connection, NodeName(..)
-            , Port, SyntaxNode, SgNamedNode(..), NamedIcon(..), Icon(..))
+import Types(Edge(..), NameAndPort(..), Connection, NodeName(..), Port
+            , Named(..))
+
 
 makeSimpleEdge :: Connection -> Edge
 makeSimpleEdge = Edge []
@@ -53,20 +52,14 @@ printSelf a = Debug.Trace.trace (show a ++ "\n\n") a
 maybeBoolToBool :: Maybe Bool -> Bool
 maybeBoolToBool = or
 
-mapNodeInNamedNode :: (SyntaxNode -> Icon) -> SgNamedNode -> NamedIcon
-mapNodeInNamedNode f (SgNamedNode name node) = NamedIcon name (f node)
-
-sgNamedNodeToSyntaxNode :: SgNamedNode -> SyntaxNode
-sgNamedNodeToSyntaxNode (SgNamedNode _ n) = n
-
 nodeNameToInt :: NodeName -> Int
 nodeNameToInt (NodeName x) = x
 
-namedIconToTuple :: NamedIcon -> (NodeName, Icon)
-namedIconToTuple (NamedIcon x y) = (x, y)
+namedToTuple :: Named a -> (NodeName, a)
+namedToTuple (Named x y) = (x, y)
 
-tupleToNamedIcon :: (NodeName, Icon) -> NamedIcon
-tupleToNamedIcon (x, y) = NamedIcon x y
+tupleToNamed :: (NodeName, a) -> Named a
+tupleToNamed (x, y) = Named x y
 
 customRenderSVG :: (Typeable n, Show n, RealFloat n) =>
   FilePath
