@@ -1,7 +1,6 @@
 # Todo
 
 ## Todo Now
-* Refactor out embedded nodes from SyntaxNodes into a common data structure.
 * Redesign case icon to avoid non-locality.
 * Add command line flags for color style, embedding, and whether to draw arrowheads.
 * Add wiki pages discussing: Why a visual language?, History of Glance, How to contribute, Code guide [code style, ...], etc..
