@@ -105,8 +105,12 @@ iconToDiagram iconInfo icon = case icon of
        ((fmap . fmap) (findIconFromName iconInfo) args)
   NestedPApp constructor args
     -> nestedPAppDia iconInfo (repeat $ patternC colorScheme) constructor args
-  NestedCaseIcon args -> nestedCaseDia iconInfo args
-  NestedMultiIfIcon args -> nestedMultiIfDia iconInfo args
+  NestedCaseIcon args -> nestedCaseDia
+                         iconInfo
+                         ((fmap . fmap) (findIconFromName iconInfo) args)
+  NestedMultiIfIcon args -> nestedMultiIfDia
+                            iconInfo
+                            ((fmap . fmap) (findIconFromName iconInfo) args)
 
 -- BEGIN getPortAngles --
 
@@ -221,9 +225,17 @@ getPortAngles iconInfo icon port maybeNodeName = case icon of
        port
        maybeNodeName
   NestedCaseIcon args
-    -> nestedMultiIfPortAngles iconInfo args port maybeNodeName
+    -> nestedMultiIfPortAngles
+       iconInfo
+       ((fmap . fmap) (findIconFromName iconInfo) args)
+       port
+       maybeNodeName
   NestedMultiIfIcon args
-    -> nestedMultiIfPortAngles iconInfo args port maybeNodeName
+    -> nestedMultiIfPortAngles
+       iconInfo
+       ((fmap . fmap) (findIconFromName iconInfo) args)
+       port
+       maybeNodeName
 
 -- END getPortAngles --
 
@@ -256,7 +268,7 @@ argumentPorts n = case n of
   (ApplyNode _ _) -> defaultPorts
   PatternApplyNode _ _-> defaultPorts
   (FunctionDefNode _ _) -> defaultPorts
-  CaseOrMultiIfNode _ _ _-> defaultPorts
+  CaseOrMultiIfNode _ _ -> defaultPorts
   NameNode _ -> []
   BindNameNode _ -> []
   LiteralNode _ -> []

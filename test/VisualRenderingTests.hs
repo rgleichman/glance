@@ -18,41 +18,50 @@ import Util(iconToPort, tupleToNamed)
 iconToIntPort :: NodeName -> NodeName -> Int -> Edge
 iconToIntPort x y p = iconToPort x y (Port p)
 
-n0, n1, _n2, n3, _n4, n5, _n6, _n7, _n8, _n9, n10 :: NodeName
+n0, n1, n2, n3, n4, n5, n6, n7, n8, n9, n10 :: NodeName
 nodeNames :: [NodeName]
-nodeNames@[n0, n1, _n2, n3, _n4, n5, _n6, _n7, _n8, _n9, n10]
+nodeNames@[n0, n1, n2, n3, n4, n5, n6, n7, n8, n9, n10]
   = fmap NodeName [0..10]
 
 ni0, ni1, ni2, ni3, ni4, ni5, ni6, ni7, ni8, ni9, ni10 :: Icon -> NamedIcon
 [ni0, ni1, ni2, ni3, ni4, ni5, ni6, ni7, ni8, ni9, ni10]
   = fmap Named nodeNames
 
+textBoxIcons :: [NamedIcon]
+textBoxIcons =
+  [ ni2 (TextBoxIcon "n2")
+  , ni4 (TextBoxIcon "n4")
+  , ni10 $ TextBoxIcon "n10"
+  , ni6 (TextBoxIcon "n6")
+  , ni7 (TextBoxIcon "n7")
+  , ni8 (TextBoxIcon "n8")
+  , ni9 (TextBoxIcon "n9")]
+
 -- TODO refactor these Drawings
 nestedCaseDrawing :: Drawing
 nestedCaseDrawing = Drawing icons [] where
-  icons = fmap tupleToNamed [
+  icons = textBoxIcons <> fmap tupleToNamed [
     (n0, NestedCaseIcon [Nothing, Nothing, Nothing]),
-    (n1, NestedCaseIcon [Nothing, Just $ ni2 (TextBoxIcon "n2"), Nothing]),
-    (n3, NestedCaseIcon [Nothing, Nothing, Just $ ni4 (TextBoxIcon "n4")]),
+    (n1, NestedCaseIcon [Nothing, Just n2, Nothing]),
+    (n3, NestedCaseIcon [Nothing, Nothing, Just n4]),
     (n5, NestedCaseIcon [Nothing,
-                         Just $ ni6 (TextBoxIcon "n6"),
-                         Just $ ni7 (TextBoxIcon "n7"),
-                         Just $ ni8 (TextBoxIcon "n8"),
-                         Just $ ni9 (TextBoxIcon "n9")])
+                         Just n6,
+                         Just n7,
+                         Just n8,
+                         Just n9])
     ]
 
 nestedMultiIfDrawing :: Drawing
 nestedMultiIfDrawing = Drawing icons edges where
-  icons = [
-    ni10 $ TextBoxIcon "n10"
-    , ni0 $ NestedMultiIfIcon [Nothing, Nothing, Nothing]
-    , ni1 $ NestedMultiIfIcon [Nothing, Just $ ni2 (TextBoxIcon "n2"), Nothing]
-    , ni3 $ NestedMultiIfIcon [Nothing, Nothing, Just $ ni4 (TextBoxIcon "n4")]
+  icons = textBoxIcons <>
+    [ ni0 $ NestedMultiIfIcon [Nothing, Nothing, Nothing]
+    , ni1 $ NestedMultiIfIcon [Nothing, Just n2, Nothing]
+    , ni3 $ NestedMultiIfIcon [Nothing, Nothing, Just n4]
     , ni5 $ NestedMultiIfIcon [Nothing,
-                         Just $ ni6 (TextBoxIcon "n6"),
-                         Just $ ni7 (TextBoxIcon "n7"),
-                         Just $ ni8 (TextBoxIcon "n8"),
-                         Just $ ni9 (TextBoxIcon "n9")]
+                         Just n6,
+                         Just n7,
+                         Just n8,
+                         Just n9]
     ]
   edges = [
     iconToIntPort n10 n5 0

@@ -6,7 +6,6 @@ module GraphAlgorithms(
   collapseAnnotatedGraph
   ) where
 
-import Control.Arrow(first)
 import qualified Data.Graph.Inductive as ING
 import Data.List(foldl', find)
 import Data.Tuple(swap)
@@ -16,7 +15,7 @@ import Constants(pattern ResultPortConst, pattern InputPortConst)
 import Types(SyntaxNode(..), IngSyntaxGraph, Edge(..),
              CaseOrMultiIfTag(..), Port(..), NameAndPort(..), SgNamedNode
             , AnnotatedGraph, EmbedInfo(..), EmbedDirection(..), NodeInfo(..)
-            , Embedder(..), Named(..), EmbedderSyntaxNode)
+            , Embedder(..), Named(..), EmbedderSyntaxNode, NodeName)
 import Util(fromMaybeError)
 
 {-# ANN module "HLint: ignore Use record patterns" #-}
@@ -91,8 +90,8 @@ syntaxNodeIsEmbeddable parentType syntaxNode mParentPort mChildPort
 parentTypeForNode :: SyntaxNode -> ParentType
 parentTypeForNode n = case n of
   (ApplyNode _ _) -> ApplyParent
-  CaseOrMultiIfNode CaseTag _ _ -> CaseParent
-  CaseOrMultiIfNode MultiIfTag _ _ -> MultiIfParent
+  CaseOrMultiIfNode CaseTag _ -> CaseParent
+  CaseOrMultiIfNode MultiIfTag _ -> MultiIfParent
   (FunctionDefNode _ _) -> LambdaParent
   _ -> NotAParent
 
@@ -177,16 +176,10 @@ changeNodeLabel node newLabel graph = case ING.match node graph of
     -> (inEdges, node, newLabel, outEdges) ING.& restOfTheGraph
   (Nothing, _) -> graph
 
--- TODO Change CaseOrMultiIfNode to use Embedder, then simplify the
--- type of children.
 addChildrenToNodeLabel ::
-  [(SgNamedNode, Edge)] -> EmbedderSyntaxNode -> EmbedderSyntaxNode
+  [(NodeName, Edge)] -> EmbedderSyntaxNode -> EmbedderSyntaxNode
 addChildrenToNodeLabel children (Embedder existingNodes oldSyntaxNode)
-  = case oldSyntaxNode of
-      CaseOrMultiIfNode tag x caseExistingNodes
-        -> Embedder [] $ CaseOrMultiIfNode tag x
-           (children <> caseExistingNodes)
-      _ -> Embedder (fmap (first naName) children <> existingNodes) oldSyntaxNode
+  = Embedder (children <> existingNodes) oldSyntaxNode
 
 -- | Change the node label of the parent to be nested.
 embedChildSyntaxNode :: ING.DynGraph gr =>
@@ -209,8 +202,9 @@ embedChildSyntaxNode parentNode childNode oldGraph = newGraph
                $ changeNodeLabel parentNode newNodeLabel oldGraph
             where
               Named nodeName oldSyntaxNode = oldNodeLabel
-              newSyntaxNode
-                = addChildrenToNodeLabel [(childNodeLab, edge)] oldSyntaxNode
+              newSyntaxNode = addChildrenToNodeLabel
+                              [(naName childNodeLab, edge)]
+                              oldSyntaxNode
               newNodeLabel = NodeInfo isChild (Named nodeName newSyntaxNode)
 
 collapseEdge :: (HasCallStack, ING.DynGraph gr)

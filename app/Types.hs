@@ -80,8 +80,8 @@ data Icon = TextBoxIcon String
   | NestedPApp
     (Labeled (Maybe NamedIcon))  -- Data constructor
     [Labeled (Maybe NamedIcon)]  -- Arguments
-  | NestedCaseIcon [Maybe NamedIcon]
-  | NestedMultiIfIcon [Maybe NamedIcon]
+  | NestedCaseIcon [Maybe NodeName]
+  | NestedMultiIfIcon [Maybe NodeName]
   deriving (Show, Eq, Ord)
 
 data LikeApplyFlavor = ApplyNodeFlavor | ComposeNodeFlavor
@@ -116,8 +116,7 @@ data SyntaxNode =
     [String]  -- Parameter labels
     [NodeName]  -- Nodes inside the lambda
   | CaseResultNode -- TODO remove caseResultNode
-  -- TODO Move CaseOrMultiIfNode's embedded nodes to Embedder.
-  | CaseOrMultiIfNode CaseOrMultiIfTag Int [(SgNamedNode, Edge)]
+  | CaseOrMultiIfNode CaseOrMultiIfTag Int
   deriving (Show, Eq, Ord)
 
 newtype Port = Port Int deriving (Typeable, Eq, Ord, Show)

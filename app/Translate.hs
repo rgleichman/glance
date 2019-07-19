@@ -458,7 +458,7 @@ evalCaseHelper numAlts caseIconName resultIconNames
   where
     (patRhsConnected, altGraphs, patRefs, rhsRefs, asNames) = unzip5 evaledAlts
     combindedAltGraph = mconcat altGraphs
-    caseNode = CaseOrMultiIfNode CaseTag numAlts []
+    caseNode = CaseOrMultiIfNode CaseTag numAlts
     icons = [Named caseIconName (mkEmbedder caseNode)]
     caseGraph = syntaxGraphFromNodes icons
     expEdge = (expRef, nameAndPort caseIconName (inputPort caseNode))
