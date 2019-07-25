@@ -176,10 +176,10 @@ changeNodeLabel node newLabel graph = case ING.match node graph of
     -> (inEdges, node, newLabel, outEdges) ING.& restOfTheGraph
   (Nothing, _) -> graph
 
-addChildrenToNodeLabel ::
-  [(NodeName, Edge)] -> EmbedderSyntaxNode -> EmbedderSyntaxNode
-addChildrenToNodeLabel children (Embedder existingNodes oldSyntaxNode)
-  = Embedder (children <> existingNodes) oldSyntaxNode
+addChildToNodeLabel ::
+  (NodeName, Edge) -> EmbedderSyntaxNode -> EmbedderSyntaxNode
+addChildToNodeLabel child (Embedder existingNodes oldSyntaxNode)
+  = Embedder (child : existingNodes) oldSyntaxNode
 
 -- | Change the node label of the parent to be nested.
 embedChildSyntaxNode :: ING.DynGraph gr =>
@@ -202,8 +202,8 @@ embedChildSyntaxNode parentNode childNode oldGraph = newGraph
                $ changeNodeLabel parentNode newNodeLabel oldGraph
             where
               Named nodeName oldSyntaxNode = oldNodeLabel
-              newSyntaxNode = addChildrenToNodeLabel
-                              [(naName childNodeLab, edge)]
+              newSyntaxNode = addChildToNodeLabel
+                              (naName childNodeLab, edge)
                               oldSyntaxNode
               newNodeLabel = NodeInfo isChild (Named nodeName newSyntaxNode)
 
