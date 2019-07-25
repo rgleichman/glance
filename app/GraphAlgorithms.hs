@@ -8,6 +8,7 @@ module GraphAlgorithms(
 
 import qualified Data.Graph.Inductive as ING
 import Data.List(foldl', find)
+import qualified Data.Set as Set
 import Data.Tuple(swap)
 import GHC.Stack(HasCallStack)
 
@@ -179,7 +180,7 @@ changeNodeLabel node newLabel graph = case ING.match node graph of
 addChildToNodeLabel ::
   (NodeName, Edge) -> EmbedderSyntaxNode -> EmbedderSyntaxNode
 addChildToNodeLabel child (Embedder existingNodes oldSyntaxNode)
-  = Embedder (child : existingNodes) oldSyntaxNode
+  = Embedder (Set.insert child existingNodes) oldSyntaxNode
 
 -- | Change the node label of the parent to be nested.
 embedChildSyntaxNode :: ING.DynGraph gr =>

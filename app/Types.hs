@@ -38,8 +38,8 @@ import Diagrams.TwoD.Text(Text)
 import Control.Applicative(Applicative(..))
 import qualified Data.Graph.Inductive as ING
 import qualified Data.IntMap as IM
+import Data.Set(Set, empty)
 import Data.Typeable(Typeable)
-
 
 newtype NodeName = NodeName Int deriving (Typeable, Eq, Ord, Show)
 instance IsName NodeName
@@ -91,13 +91,13 @@ data CaseOrMultiIfTag = CaseTag | MultiIfTag deriving (Show, Eq, Ord)
 
 -- TODO The full edge does not need to be included, just the port.
 data Embedder a = Embedder {
-  emEmbedded :: [(NodeName, Edge)]  -- ^ Set of embedded nodes
+  emEmbedded :: Set (NodeName, Edge)  -- ^ Set of embedded nodes
   , emNode :: a
   }
   deriving (Show, Eq, Ord, Functor)
 
 mkEmbedder :: a -> Embedder a
-mkEmbedder = Embedder []
+mkEmbedder = Embedder empty
 
 type EmbedderSyntaxNode = Embedder SyntaxNode
 

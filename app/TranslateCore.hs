@@ -34,6 +34,7 @@ import qualified Data.Graph.Inductive.Graph as ING
 import qualified Data.Graph.Inductive.PatriciaTree as FGR
 import Data.List(find)
 import Data.Semigroup(Semigroup, (<>))
+import qualified Data.Set as Set
 
 import Icons(inputPort, resultPort, argumentPorts, multiIfRhsPorts
             , multiIfBoolPorts)
@@ -303,12 +304,12 @@ findArg currentPort
   | argName == toName = maybeBoolToBool $ fmap (== currentPort) fromPort
   | otherwise = False -- This case should never happen
 
-makeArg :: [(NodeName, Edge)] -> Port -> Maybe NodeName
+makeArg :: Set.Set (NodeName, Edge) -> Port -> Maybe NodeName
 makeArg args port = fst <$> find (findArg port) args
 
 nestedApplySyntaxNodeToIcon :: LikeApplyFlavor
                             -> Int
-                            -> [(NodeName, Edge)]
+                            -> Set.Set (NodeName, Edge)
                             -> Icon
 nestedApplySyntaxNodeToIcon flavor numArgs args =
   NestedApply flavor headIcon argList
@@ -319,7 +320,7 @@ nestedApplySyntaxNodeToIcon flavor numArgs args =
     argList = fmap (makeArg args) argPorts
 
 nestedLambdaToIcon :: [String]  -- labels
-                   -> [(NodeName, Edge)]  -- embedded icons
+                   -> Set.Set (NodeName, Edge)  -- embedded icons
                    -> [NodeName]  -- body nodes
                    -> Icon
 nestedLambdaToIcon labels embeddedNodes =
@@ -331,7 +332,7 @@ nestedLambdaToIcon labels embeddedNodes =
 nestedCaseOrMultiIfNodeToIcon ::
   CaseOrMultiIfTag
   -> Int
-  -> [(NodeName, Edge)]
+  -> Set.Set (NodeName, Edge)
   -> Icon
 nestedCaseOrMultiIfNodeToIcon tag numArgs args = case tag of
   CaseTag -> NestedCaseIcon argList

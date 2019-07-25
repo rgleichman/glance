@@ -9,7 +9,7 @@ import Data.List(foldl', sort, sortOn)
 import Translate(translateStringToSyntaxGraph)
 import TranslateCore(SyntaxGraph(..), SgBind(..))
 import Types(Embedder(..), Labeled(..), SgNamedNode, Edge(..), SyntaxNode(..),
-             NodeName(..), NameAndPort(..), Named(..))
+             NodeName(..), NameAndPort(..), Named(..), mkEmbedder)
 import Util(fromMaybeError)
 
 -- Unit Test Helpers --
@@ -30,7 +30,7 @@ type NameMap = [(NodeName, NodeName)]
 renameNode
   :: NameMap -> Int -> SgNamedNode -> (SgNamedNode, NameMap, Int)
 renameNode nameMap counter (Named nodeName syntaxNode)
-  = (fmap (Embedder []) newNamedNode, nameMap3, newCounter) where
+  = (fmap mkEmbedder newNamedNode, nameMap3, newCounter) where
   newNodeName = NodeName counter
   nameMap2 = (nodeName, newNodeName) : nameMap
   (newSyntaxNode, nameMap3, newCounter) = renameSyntaxNode nameMap2 (emNode syntaxNode) (counter + 1)
