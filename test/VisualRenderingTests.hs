@@ -4,6 +4,7 @@ module VisualRenderingTests (
   renderTests
   ) where
 import qualified Diagrams.Prelude as Dia
+import qualified Data.Set as Set
 
 import Rendering (renderDrawing)
 import Types (Labeled(..), NodeName(..), Drawing(..), Edge, Icon(..), Port(..)
@@ -122,7 +123,7 @@ lambdaDia :: Drawing
 lambdaDia = Drawing icons []
   where
     icons = [
-      ni0 $ LambdaIcon ["foo", "bar"] Nothing [n0, n1]
+      ni0 $ LambdaIcon ["foo", "bar"] Nothing (Set.fromList [n0, n1])
       , ni1 CaseResultIcon
       , ni2 $ MultiIfIcon 3
       ]

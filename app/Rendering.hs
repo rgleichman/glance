@@ -23,6 +23,7 @@ import qualified Data.GraphViz as GV
 import qualified Data.GraphViz.Attributes.Complete as GVA
 import qualified Data.IntMap as IM
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 import Control.Arrow(first)
 import Data.Function(on)
@@ -393,7 +394,7 @@ drawLambdaRegions :: forall b . SpecialBackend b Double =>
   -> [(NamedIcon, SpecialQDiagram b Double)]
   -> SpecialQDiagram b Double
 drawLambdaRegions iconInfo placedNodes
-  = mconcat $ fmap (drawRegion [] . fst) placedNodes
+  = mconcat $ fmap (drawRegion Set.empty . fst) placedNodes
   where
     findDia :: NodeName -> SpecialQDiagram b Double
     findDia n1
@@ -401,13 +402,13 @@ drawLambdaRegions iconInfo placedNodes
         (find (\(Named n2 _, _) -> n1 == n2) placedNodes)
 
     -- Also draw the region around the icon the lambda is in.
-    drawRegion :: [NodeName] -> NamedIcon -> SpecialQDiagram b Double
+    drawRegion :: Set.Set NodeName -> NamedIcon -> SpecialQDiagram b Double
     drawRegion parentNames icon = case icon of
       Named _ (LambdaIcon _ _ enclosedNames)
-        -> regionRect $ fmap findDia (parentNames <> enclosedNames)
+        -> regionRect $ findDia <$> Set.toList (parentNames <> enclosedNames)
       Named parentName (NestedApply _ headIcon icons)
         -> mconcat
-           $ drawRegion (parentName:parentNames)
+           $ drawRegion (Set.insert parentName parentNames)
            <$> mapMaybe
            (fmap (findIconFromName iconInfo))
            (headIcon:icons)

@@ -14,6 +14,7 @@ import Data.Either(partitionEithers)
 import qualified Data.Graph.Inductive.PatriciaTree as FGR
 import Data.List(unzip5, partition, intercalate)
 import Data.Maybe(fromMaybe, mapMaybe)
+import qualified Data.Set as Set
 
 import qualified Language.Haskell.Exts as Exts
 import qualified Language.Haskell.Exts.Pretty as PExts
@@ -536,7 +537,7 @@ evalLambda _ context patterns expr = do
   GraphAndRef rhsRawGraph rhsRef <- evalExp rhsContext expr
   let
     paramNames = fmap patternName patternValsWithAsNames
-    enclosedNodeNames = naName <$> sgNodes combinedGraph
+    enclosedNodeNames = Set.fromList $ naName <$> sgNodes combinedGraph
     lambdaNode = FunctionDefNode paramNames enclosedNodeNames
     lambdaPorts = map (nameAndPort lambdaName) $ argumentPorts lambdaNode
     patternGraph = mconcat $ fmap graphAndRefToGraph patternVals

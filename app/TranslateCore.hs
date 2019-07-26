@@ -321,12 +321,12 @@ nestedApplySyntaxNodeToIcon flavor numArgs args =
 
 nestedLambdaToIcon :: [String]  -- labels
                    -> Set.Set (NodeName, Edge)  -- embedded icons
-                   -> [NodeName]  -- body nodes
+                   -> Set.Set NodeName  -- body nodes
                    -> Icon
 nestedLambdaToIcon labels embeddedNodes =
   LambdaIcon labels embeddedBodyNode
   where
-    dummyNode = FunctionDefNode [] []
+    dummyNode = FunctionDefNode [] Set.empty
     embeddedBodyNode = makeArg embeddedNodes (inputPort dummyNode)
 
 nestedCaseOrMultiIfNodeToIcon ::
