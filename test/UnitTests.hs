@@ -5,6 +5,7 @@ module UnitTests(
 import Test.HUnit
 
 import Data.List(foldl', sort, sortOn)
+import qualified Data.Map as Map
 
 import Translate(translateStringToSyntaxGraph)
 import TranslateCore(SyntaxGraph(..), SgBind(..))
@@ -100,7 +101,8 @@ renameGraph (SyntaxGraph nodes edges sinks sources embedMap) =
     (renamedNodes, nameMap, _) = foldl' renameNodeFolder ([], [], 0) $ sortOn removeNames nodes
     renamedEdges = sort $ fmap (renameEdge nameMap) edges
     renamedSources = sort $ fmap (renameSource nameMap) sources
-    renamedEmbedMap = sort $ fmap (renameEmbed nameMap) embedMap
+    renamedEmbedMap
+      = Map.fromList $ sort $ renameEmbed nameMap <$> Map.toList embedMap
 
 -- END renameGraph
 

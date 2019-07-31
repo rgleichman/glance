@@ -13,6 +13,7 @@ import Control.Monad.State(State, evalState)
 import Data.Either(partitionEithers)
 import qualified Data.Graph.Inductive.PatriciaTree as FGR
 import Data.List(unzip5, partition, intercalate)
+import qualified Data.Map as Map
 import Data.Maybe(fromMaybe, mapMaybe)
 import qualified Data.Set as Set
 
@@ -132,13 +133,14 @@ patternArgumentMapper (asGraphAndRef@(graphAndRef, _), port)
 
 graphToTuple ::
   SyntaxGraph
-  -> ([SgNamedNode], [Edge], [SgSink], [SgBind], [(NodeName, NodeName)])
+  -> ([SgNamedNode], [Edge], [SgSink], [SgBind], Map.Map NodeName NodeName)
 graphToTuple (SyntaxGraph a b c d e) = (a, b, c, d, e)
 
 graphsToComponents ::
   [SyntaxGraph]
-  -> ([SgNamedNode], [Edge], [SgSink], [SgBind], [(NodeName, NodeName)])
-graphsToComponents graphs = (concat a, concat b, concat c, concat d, concat e)
+  -> ([SgNamedNode], [Edge], [SgSink], [SgBind], Map.Map NodeName NodeName)
+graphsToComponents graphs
+  = (mconcat a, mconcat b, mconcat c, mconcat d, mconcat e)
   where
     (a, b, c, d, e) = unzip5 $ fmap graphToTuple graphs
 
@@ -175,7 +177,8 @@ makeNestedPatternGraph applyIconName funStr argVals = nestedApplyResult
     asNameBinds = mapMaybe asNameBind argVals
     allBinds = nestedBinds <> asNameBinds
 
-    newEMap = ((\(Named n _) -> (n, applyIconName))  <$> nestedArgs)
+    newEMap = Map.fromList
+              ((\(Named n _) -> (n, applyIconName))  <$> nestedArgs)
               <> nestedEMaps
 
     newGraph = SyntaxGraph

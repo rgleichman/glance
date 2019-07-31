@@ -33,6 +33,7 @@ import Data.Either(partitionEithers)
 import qualified Data.Graph.Inductive.Graph as ING
 import qualified Data.Graph.Inductive.PatriciaTree as FGR
 import Data.List(find)
+import qualified Data.Map as Map
 import Data.Semigroup(Semigroup, (<>))
 import qualified Data.Set as Set
 
@@ -71,7 +72,7 @@ data SyntaxGraph = SyntaxGraph {
   sgBinds :: [SgBind],
   -- sgEmbedMap keeps track of nodes embedded in other nodes. If (child, parent)
   -- is in the Map, then child is embedded inside parent.
-  sgEmbedMap :: [(NodeName, NodeName)]
+  sgEmbedMap :: Map.Map NodeName NodeName
   } deriving (Show, Eq)
 
 instance Semigroup SyntaxGraph where
@@ -351,9 +352,9 @@ nestedPatternNodeToIcon str children = NestedPApp
 makeLNode :: SgNamedNode -> ING.LNode SgNamedNode
 makeLNode namedNode@(Named (NodeName name) _) = (name, namedNode)
 
-lookupInEmbeddingMap :: NodeName -> [(NodeName, NodeName)] -> NodeName
+lookupInEmbeddingMap :: NodeName -> Map.Map NodeName NodeName -> NodeName
 lookupInEmbeddingMap origName eMap = lookupHelper origName where
-  lookupHelper name = case lookup name eMap of
+  lookupHelper name = case Map.lookup name eMap of
     Nothing -> name
     Just parent -> if parent == origName
       then error $ "lookupInEmbeddingMap: Found cycle. Node = "
