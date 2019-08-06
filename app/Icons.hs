@@ -68,6 +68,9 @@ defaultLineWidth = 0.15
 circleRadius :: (Fractional a) => a
 circleRadius = 0.5
 
+defaultOpacity :: (Fractional a) => a
+defaultOpacity = 0.4
+
 -- COLORS --
 lineCol :: Colour Double
 lineCol = lineC colorScheme
@@ -117,6 +120,17 @@ iconToDiagram iconInfo icon = case icon of
 applyPortAngles :: Floating n => Port -> [Angle n]
 applyPortAngles (Port x) = fmap (@@ turn) $ case x of
   0 -> [3/8, 1/2, 5/8] -- TODO Don't use angle of 1/2 for nested icons here
+  --1 -> [1/8, 7/8, 0]
+  1 -> [0]
+  _ -> [1/4, 3/4]
+
+lambdaPortAngles :: Floating n => Bool -> Port -> [Angle n]
+lambdaPortAngles embedded (Port x) = fmap (@@ turn) $ case x of
+  -- 0 == lambda return value Icon
+  0 -> if embedded
+       then [1/4, 3/4]
+       else [3/8, 1/2, 5/8]
+  -- 1 == value port
   --1 -> [1/8, 7/8, 0]
   1 -> [0]
   _ -> [1/4, 3/4]
@@ -172,7 +186,7 @@ generalNestedPortAngles iconInfo defaultAngles headIcon args port maybeNodeName 
     Nothing -> defaultAngles port
     Just name -> case findIcon iconInfo name (headIcon : args) of
       Nothing -> []
-      Just (_, icon) -> getPortAngles iconInfo icon port Nothing
+      Just (_, icon) -> getPortAnglesHelper True iconInfo icon port Nothing
 
 reflectXAngle :: SpecialNum n => Angle n -> Angle n
 reflectXAngle x = reflectedAngle where
@@ -197,16 +211,21 @@ nestedMultiIfPortAngles iconInfo args port maybeNodeName = case maybeNodeName of
       then fmap reflectXAngle subAngles
       else subAngles
       where
-        subAngles = getPortAngles iconInfo icon port Nothing
+        subAngles = getPortAnglesHelper True iconInfo icon port Nothing
 
-getPortAngles :: SpecialNum n => IconInfo -> Icon -> Port -> Maybe NodeName -> [Angle n]
-getPortAngles iconInfo icon port maybeNodeName = case icon of
+getPortAngles :: SpecialNum n
+  => IconInfo -> Icon -> Port -> Maybe NodeName -> [Angle n]
+getPortAngles = getPortAnglesHelper False
+
+getPortAnglesHelper :: SpecialNum n
+  => Bool -> IconInfo -> Icon -> Port -> Maybe NodeName -> [Angle n]
+getPortAnglesHelper embedded iconInfo icon port maybeNodeName = case icon of
   TextBoxIcon _ -> []
   BindTextBoxIcon _ -> []
   MultiIfIcon _ -> multiIfPortAngles port
   CaseIcon _ -> multiIfPortAngles port
   CaseResultIcon -> []
-  LambdaIcon _ _ _ -> applyPortAngles port
+  LambdaIcon _ _ _ -> lambdaPortAngles embedded port
   NestedApply _ headIcon args
     -> generalNestedPortAngles
        iconInfo
@@ -376,7 +395,7 @@ appArgBox :: (HasStyle a, Typeable (N a)
              , TrailLike a, RealFloat (N a), V a ~ V2)
           => Colour Double -> N a -> N a -> a
 appArgBox borderCol topAndBottomLineWidth portHeight
-  = lwG defaultLineWidth $ lc borderCol
+  = lwG defaultLineWidth $ lcA (withOpacity borderCol defaultOpacity)
     $ roundedRect
     topAndBottomLineWidth
     (portHeight + verticalSeparation)
@@ -540,7 +559,8 @@ coloredTextBox textColor boxColor t =
   <> lwG
   (0.6 * defaultLineWidth)
   (lcA boxColor
-    $ fcA (withOpacity (backgroundC colorScheme) 0.5) $ rectForText (length t))
+    $ fcA (withOpacity (backgroundC colorScheme) 0.5)
+    $ rectForText (length t))
 
 transformCorrectedTextBox :: SpecialBackend b n =>
   String
@@ -725,7 +745,7 @@ nestedLambda iconInfo paramNames mBodyExp (TransformParams name level reflect an
   lambdaCircle
     = lwG defaultLineWidth
       $ lc (regionPerimC colorScheme)
-      $ fc (regionPerimC colorScheme) $ circle (1.5 * circleRadius)
+      $ fc (regionPerimC colorScheme) $ circle (1.85 * circleRadius)
   lambdaParts
     = (makeQualifiedPort name InputPortConst <> resultIcon)
       :
@@ -746,8 +766,9 @@ nestedLambda iconInfo paramNames mBodyExp (TransformParams name level reflect an
   topAndBottomLine
     = alignL
       $ lwG defaultLineWidth
-      $ lc (regionPerimC colorScheme) $ hrule topAndBottomLineWidth
-  finalDia = topAndBottomLine <> alignB (topAndBottomLine <> alignT middle)
+      $ lcA (withOpacity (regionPerimC colorScheme) defaultOpacity)
+      $ hrule topAndBottomLineWidth
+  finalDia = vcat [topAndBottomLine, middle, topAndBottomLine]
 
 -- END Main icons
 -- END Icons

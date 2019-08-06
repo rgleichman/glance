@@ -56,7 +56,7 @@ colorOnBlackScheme = ColorStyle {
   where
     slightlyGreenYellow = sRGB24 212 255 0
     lightMagenta = sRGB24 255 94 255
-    lightSlightlyPurpleBlue = sRGB24 67 38 255
+    lightSlightlyPurpleBlue = sRGB24 109 87 255
     reddishOrange = sRGB24 255 119 0
     --lightBlue = sRGB24 126 127 255
     lightBlue = sRGB24 35 156 255

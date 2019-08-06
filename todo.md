@@ -2,6 +2,7 @@
 
 ## Todo Now
 * Redesign case icon to avoid non-locality.
+* Move @ pattern circles so that they are on the same side as the variables.
 * Add command line flags for color style, embedding, and whether to draw arrowheads.
 * Add wiki pages discussing: Why a visual language?, History of Glance, How to contribute, Code guide [code style, ...], etc..
 
