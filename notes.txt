@@ -21,3 +21,6 @@ stack build --test --no-run-tests --ghc-options -Wall
 
 To open documentation for other libraries:
 stack haddock --open <package-name>
+
+To build and run in a loop
+watch -n2 stack build --exec \"glance-exe examples/fact.hs examples/fact.svg 500\"
