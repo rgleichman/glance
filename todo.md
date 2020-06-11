@@ -1,6 +1,9 @@
 # Todo
 
 ## Todo Now
+* Make a GUI. One approach is to render individual icons with diagrams using the
+Cairo or GTK backend. The rendering would be in a separate process so that
+interacting and dragging nodes is not slowed down by rendering.
 * Redesign case icon to avoid non-locality.
 * Move @ pattern circles so that they are on the same side as the variables.
 * Add command line flags for color style, embedding, and whether to draw arrowheads.

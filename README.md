@@ -17,7 +17,7 @@ sudo apt install graphviz
 
 Then build and execute glance:
 ```
-stack build
+stack build :glance-exe
 stack exec glance-exe -- examples/fact.hs images/fact.svg 500
 ```
 To see the command line options run
