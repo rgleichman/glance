@@ -24,3 +24,8 @@ stack haddock --open <package-name>
 
 To build and run in a loop
 watch -n2 stack build --exec \"glance-exe examples/fact.hs examples/fact.svg 500\"
+
+
+GUI:
+To build the GUI, first install the system dependencies (follow the directions
+here: https://github.com/haskell-gi/haskell-gi#installation)
