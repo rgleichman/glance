@@ -70,6 +70,7 @@ executable glance-gui
                      , gi-gtk
                      , gi-gtk-declarative
                      , gi-gtk-declarative-app-simple
+                     , gi-gdk
                      , text
                      , pipes
                      , pipes-extras
