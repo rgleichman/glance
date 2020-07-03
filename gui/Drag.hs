@@ -1,28 +1,28 @@
 {-# LANGUAGE OverloadedStrings, OverloadedLabels, FlexibleContexts #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 
-module Main where
+module Drag (mainDrag) where
 
--- import Data.Int
--- import qualified Data.Text as T
-import Data.Text ()
--- import Debug.Trace (trace, traceIO)
--- import System.Environment (getProgName, getArgs)
-import Data.Maybe
+import Control.Monad
 import Data.IORef
 
 import Data.GI.Base
+import qualified GI.Gdk as Gdk
 import qualified GI.Gio as Gio
 import qualified GI.Gtk as Gtk
-import qualified GI.Gdk as Gdk
 
 data AppState = AppState
-  { _asMoveBtn :: Bool
+  { _asMoveBtn :: Maybe Gtk.Button
   }
 
-activateApp :: Gtk.Application -> IO ()
-activateApp app = do
-  state <- newIORef (AppState{_asMoveBtn=False})
+-- TODO Add type signature
+getXandY event =
+  (\x y -> (x, y)) <$> get event #x <*> get event #y
+
+startApp :: Gtk.Application -> IO ()
+startApp app = do
+  state <- newIORef (AppState{_asMoveBtn=Nothing})
   w <- new Gtk.ApplicationWindow
     [ #application := app
     , #title := "Glance"
@@ -37,15 +37,15 @@ activateApp app = do
     [ Gdk.EventMaskPointerMotionMask
     , Gdk.EventMaskButtonPressMask]
   #add scrolledWindow layout
-  btn0 <- new Gtk.Button [ #label := "_Hello World!", #useUnderline := True ]
+
   let
-    motionCallback btn eventMotion
+    motionCallback eventMotion
       = do
-      moveBtn <- _asMoveBtn <$> readIORef state
-      if moveBtn
-        then (do
-          x <- get eventMotion #x
-          y <- get eventMotion #y
+      mMoveBtn <- _asMoveBtn <$> readIORef state
+      case mMoveBtn of
+        Nothing -> pure ()
+        Just btn -> (do
+          (x, y) <- getXandY eventMotion
           btnWidth <- Gtk.widgetGetAllocatedWidth btn
           btnHeight <- Gtk.widgetGetAllocatedHeight btn
           Gtk.layoutMove
@@ -53,43 +53,68 @@ activateApp app = do
             btn
             ((truncate x) - (btnWidth `div` 2))
             ((truncate y) - (btnHeight `div` 2)))
-         else (pure ())
       pure False
-  Gtk.layoutPut layout btn0 0 0
-  on layout #motionNotifyEvent (motionCallback btn0)
+  _ <- on layout #motionNotifyEvent motionCallback
 
   let
     btnClicked btn
       = do
-      modifyIORef state (\s@AppState{_asMoveBtn} -> s{_asMoveBtn=not _asMoveBtn})
+      modifyIORef state
+        (\s@AppState{_asMoveBtn}
+          -> case _asMoveBtn of
+            Nothing -> s{_asMoveBtn=Just btn}
+            _ -> s{_asMoveBtn=Nothing}
+        )
       btnWidth <- Gtk.widgetGetAllocatedWidth btn
       btnHeight <- Gtk.widgetGetAllocatedHeight btn
       btnAlloc <- Gtk.widgetGetAllocation btn
-      x <- get btnAlloc #x
-      y <- get btnAlloc #y
+      (x, y) <- getXandY btnAlloc
       layoutWidth <- Gtk.getLayoutWidth layout
       layoutHeight <- Gtk.getLayoutHeight layout
-      Gtk.setLayoutWidth layout (fromIntegral (x + btnWidth))
-      Gtk.setLayoutHeight layout (fromIntegral (y + btnHeight))
+      Gtk.setLayoutWidth layout (max layoutWidth (fromIntegral (x + btnWidth)))
+      Gtk.setLayoutHeight
+        layout
+        (max layoutHeight (fromIntegral (y + btnHeight)))
 
   -- buttonPressEvent and buttonReleaseEvent don't seem to be triggered by the
   -- mneumonic.
-  on btn0 #clicked (btnClicked btn0)
-  on layout #buttonPressEvent $ \ _layout -> do
-    putStrLn "layout clicked, adding btn"
-    -- newBtn <- new Gtk.Button [ #label := "_New!", #useUnderline := True ]
-    -- Gtk.layoutPut layout newBtn 0 0
-    pure False
-
+  _ <- on layout #buttonPressEvent $ \ eventButton ->
+    do
+      mouseBtn <- get eventButton #button
+      -- button 3 is usally right mouse button
+      (when (mouseBtn == 3)
+        (do
+            (x, y) <- getXandY eventButton
+            newBtn <- new
+              Gtk.Button [ #label := "_Node", #useUnderline := True ]
+            -- Gtk.widgetAddEvents newBtn
+            --   [ Gdk.EventMaskButtonPressMask]
+            (#show newBtn)
+            (btnWidth, _) <- Gtk.widgetGetPreferredWidth newBtn
+            (btnHeight, _) <- Gtk.widgetGetPreferredHeight newBtn
+            Gtk.layoutPut
+              layout
+              newBtn
+              ((truncate x) - (btnWidth `div` 2))
+              ((truncate y) - (btnHeight `div` 2))
+            _ <- on newBtn #clicked (btnClicked newBtn)
+            -- Uncomment to stop right clicking on buttons from
+            -- creating new buttons at (0, 0). But buttonPressEvent
+            -- and buttonReleaseEvent don't seem to be triggered by
+            -- the mneumonic.
+            --
+            -- _ <- on newBtn #buttonPressEvent (\_btn -> btnClicked
+            -- newBtn >> pure True)
+            (#show newBtn)
+            pure ()))
+      pure False
   #showAll w
   pure ()
 
-main :: IO ()
-main = do
+mainDrag :: IO ()
+mainDrag = do
   app <- new Gtk.Application []
-  on app #activate $ do
-    activateApp app
-    pure ()
+  _ <- on app #activate (startApp app)
   status <- Gio.applicationRun app Nothing
-  print status
+  putStrLn ("Application status is " <> show status)
   pure ()

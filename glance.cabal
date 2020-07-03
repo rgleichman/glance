@@ -68,13 +68,12 @@ executable glance-gui
                        -Wpartial-fields
   build-depends:       base
                      , gi-gtk
-                     , gi-gtk-declarative
-                     , gi-gtk-declarative-app-simple
                      , gi-gdk
+                     , haskell-gi-base
+                     , gi-gio
                      , text
-                     , pipes
-                     , pipes-extras
   default-language:    Haskell2010
+  Other-modules: Drag
 
 test-suite glance-test
   type:                exitcode-stdio-1.0
