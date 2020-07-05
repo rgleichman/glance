@@ -67,11 +67,17 @@ executable glance-gui
                        -Widentities
                        -Wpartial-fields
   build-depends:       base
+                     , gi-glib
                      , gi-gtk
                      , gi-gdk
+                     , gi-cairo
+                     , gi-gdkpixbuf
+                     , cairo
                      , haskell-gi-base
                      , gi-gio
                      , text
+                     , transformers
+                     , old-time
   default-language:    Haskell2010
   Other-modules: Drag
 
