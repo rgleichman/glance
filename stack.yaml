@@ -12,6 +12,8 @@ extra-deps: [
 "diagrams-graphviz-1.4.1.1"
 , "gi-gtk-declarative-0.6.3"
 , "gi-gtk-declarative-app-simple-0.6.3"
+, "cairo-0.13.8.1"
+, "gtk2hs-buildtools-0.13.8.0"
 ]
 
 # Override default flag values for local packages and extra-deps
