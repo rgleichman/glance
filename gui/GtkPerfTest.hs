@@ -35,6 +35,7 @@ getXandY event =
   (\x y -> (x, y)) <$> get event #x <*> get event #y
 
 -- updateCanvas :: WidgetClass widget => widget -> PangoLayout -> Render ()
+
 drawLine (fromX, fromY) (toX, toY) = do
   setSourceRGB 0 1 0
   setLineWidth 5
@@ -47,9 +48,8 @@ updateCanvas canvas state = do
   width  <- realToFrac <$> (liftIO $ Gtk.widgetGetAllocatedWidth  canvas)
   height <- realToFrac <$> (liftIO $ Gtk.widgetGetAllocatedHeight canvas)
 
-  -- TODO This should be moved into the setup phase
-  setSourceRGB 0 0 0
-  paint
+  -- setSourceRGB 0 0 0
+  -- paint
 
   (btnX, btnY) <- liftIO $ do
     mMoveBtn <- _asMoveBtn <$> readIORef state
@@ -78,6 +78,9 @@ startApp app = do
     , #defaultHeight := 500
     , #borderWidth := 0
     ]
+  -- scrolledWindow <- new Gtk.ScrolledWindow [#minContentWidth := 800, #minContentHeight := 800]
+  -- #add window scrolledWindow
+  -- Gtk.overlayAddOverlay overlay scrolledWindow
   overlay <- new Gtk.Overlay []
   backgroundArea <- new Gtk.DrawingArea []
   layout <- new Gtk.Layout []
@@ -96,7 +99,7 @@ startApp app = do
   -- #setVisual window rgbaVisual
 
   -- No noticable change with setting this to GLib.PRIORITY_DEFAULT
-  -- GLib.timeoutAdd GLib.PRIORITY_LOW 10 (#queueDraw backgroundArea >> pure True)
+  GLib.timeoutAdd GLib.PRIORITY_LOW 200 (#queueDraw backgroundArea >> pure True)
 
   surfaceRef <- newIORef (Nothing)
 
@@ -146,7 +149,6 @@ startApp app = do
     btnClicked btn
       = do
       putStrLn "Button clicked"
-      -- Gtk.widgetQueueDraw backgroundArea
       modifyIORef state
         (\s@AppState{_asMoveBtn}
           -> case _asMoveBtn of
@@ -163,6 +165,7 @@ startApp app = do
       Gtk.setLayoutHeight
         layout
         (max layoutHeight (fromIntegral (y + btnHeight)))
+      -- Gtk.widgetQueueDraw backgroundArea
 
   -- buttonPressEvent and buttonReleaseEvent don't seem to be triggered by the
   -- mneumonic.
