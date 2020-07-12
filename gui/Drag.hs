@@ -24,7 +24,9 @@ import Graphics.Rendering.Cairo.Internal (Render(runRender))
 import Graphics.Rendering.Cairo.Types (Cairo(Cairo))
 
 data AppState = AppState
-  { _asMoveBtn :: Maybe Gtk.Button
+  { _asMovingNode :: Maybe Gtk.ListBox
+  , _asOutBtn :: Maybe Gtk.Button
+  , _asEdges :: [(Gtk.Button, Gtk.Button)]
   }
 
 renderCairo c r = withManagedPtr c $ \pointer ->
@@ -43,7 +45,7 @@ drawLine (fromX, fromY) (toX, toY) = do
   lineTo toX toY
   stroke
 
-updateCanvas canvas state = do
+updateBackground canvas state = do
   width  <- realToFrac <$> (liftIO $ Gtk.widgetGetAllocatedWidth  canvas)
   height <- realToFrac <$> (liftIO $ Gtk.widgetGetAllocatedHeight canvas)
 
@@ -52,7 +54,7 @@ updateCanvas canvas state = do
   paint
 
   (btnX, btnY) <- liftIO $ do
-    mMoveBtn <- _asMoveBtn <$> readIORef state
+    mMoveBtn <- _asMovingNode <$> readIORef state
     case mMoveBtn of
         Nothing -> pure (0, 0)
         Just btn -> (do
@@ -70,7 +72,7 @@ updateCanvas canvas state = do
 
 startApp :: Gtk.Application -> IO ()
 startApp app = do
-  state <- newIORef (AppState{_asMoveBtn=Nothing})
+  state <- newIORef (AppState{_asMovingNode=Nothing, _asOutBtn=Nothing, _asEdges=[]})
   window <- new Gtk.ApplicationWindow
     [ #application := app
     , #title := "Glance"
@@ -113,7 +115,7 @@ startApp app = do
         pure surf
       Just surface -> pure surface
 
-    renderCairo context (updateCanvas backgroundArea state)
+    renderCairo context (updateBackground backgroundArea state)
     -- #showAll backgroundArea
     pure True)
 
@@ -123,16 +125,16 @@ startApp app = do
   let
     motionCallback eventMotion
       = do
-      mMoveBtn <- _asMoveBtn <$> readIORef state
-      case mMoveBtn of
+      mMoveNode <- _asMovingNode <$> readIORef state
+      case mMoveNode of
         Nothing -> pure ()
-        Just btn -> (do
+        Just node -> (do
           (x, y) <- getXandY eventMotion
-          btnWidth <- Gtk.widgetGetAllocatedWidth btn
-          btnHeight <- Gtk.widgetGetAllocatedHeight btn
+          btnWidth <- Gtk.widgetGetAllocatedWidth node
+          btnHeight <- Gtk.widgetGetAllocatedHeight node
           Gtk.layoutMove
             layout
-            btn
+            node
             ((truncate x) - (btnWidth `div` 2))
             ((truncate y) - (btnHeight `div` 2))
           -- #queueDraw backgroundArea
@@ -143,26 +145,32 @@ startApp app = do
   _ <- on layout #motionNotifyEvent motionCallback
 
   let
-    btnClicked btn
+    moveBtnClicked node
       = do
-      putStrLn "Button clicked"
-      -- Gtk.widgetQueueDraw backgroundArea
+      putStrLn "Move button clicked"
+
+      mMoveNode <- _asMovingNode <$> readIORef state
+      case mMoveNode of
+        Just _ ->
+          Gtk.widgetQueueDraw backgroundArea
+        _ -> pure ()
+
       modifyIORef state
-        (\s@AppState{_asMoveBtn}
-          -> case _asMoveBtn of
-            Nothing -> s{_asMoveBtn=Just btn}
-            _ -> s{_asMoveBtn=Nothing}
+        (\s@AppState{_asMovingNode}
+          -> case _asMovingNode of
+            Nothing -> s{_asMovingNode=Just node}
+            _ -> s{_asMovingNode=Nothing}
         )
-      btnWidth <- Gtk.widgetGetAllocatedWidth btn
-      btnHeight <- Gtk.widgetGetAllocatedHeight btn
-      btnAlloc <- Gtk.widgetGetAllocation btn
-      (x, y) <- getXandY btnAlloc
-      layoutWidth <- Gtk.getLayoutWidth layout
-      layoutHeight <- Gtk.getLayoutHeight layout
-      Gtk.setLayoutWidth layout (max layoutWidth (fromIntegral (x + btnWidth)))
-      Gtk.setLayoutHeight
-        layout
-        (max layoutHeight (fromIntegral (y + btnHeight)))
+      -- nodeWidth <- Gtk.widgetGetAllocatedWidth node
+      -- nodeHeight <- Gtk.widgetGetAllocatedHeight node
+      -- nodeAlloc <- Gtk.widgetGetAllocation node
+      -- (x, y) <- getXandY nodeAlloc
+      -- layoutWidth <- Gtk.getLayoutWidth layout
+      -- layoutHeight <- Gtk.getLayoutHeight layout
+      -- Gtk.setLayoutWidth layout (max layoutWidth (fromIntegral (x + nodeWidth)))
+      -- Gtk.setLayoutHeight
+      --   layout
+      --   (max layoutHeight (fromIntegral (y + nodeHeight)))
 
   -- buttonPressEvent and buttonReleaseEvent don't seem to be triggered by the
   -- mneumonic.
@@ -174,27 +182,36 @@ startApp app = do
       (when (mouseBtn == 3)
         (do
             (x, y) <- getXandY eventButton
-            newBtn <- new
-              Gtk.Button [ #label := "_Node", #useUnderline := True ]
+            moveBtn <- new
+              Gtk.Button [ #label := "_Move", #useUnderline := True ]
+            outBtn <- new
+              Gtk.Button [ #label := "_Out", #useUnderline := True ]
+            inBtn <- new
+              Gtk.Button [ #label := "_In", #useUnderline := True ]
             -- Gtk.widgetAddEvents newBtn
             --   [ Gdk.EventMaskButtonPressMask]
-            (#show newBtn)
-            (btnWidth, _) <- Gtk.widgetGetPreferredWidth newBtn
-            (btnHeight, _) <- Gtk.widgetGetPreferredHeight newBtn
+            listBox <- new Gtk.ListBox []
+            #add listBox inBtn
+            #add listBox moveBtn
+            #add listBox outBtn
+
+            (#showAll listBox)
+            (listBoxWidth, _) <- Gtk.widgetGetPreferredWidth listBox
+            (listBoxHeight, _) <- Gtk.widgetGetPreferredHeight listBox
             Gtk.layoutPut
               layout
-              newBtn
-              ((truncate x) - (btnWidth `div` 2))
-              ((truncate y) - (btnHeight `div` 2))
-            _ <- on newBtn #clicked (btnClicked newBtn)
+              listBox
+              ((truncate x) - (listBoxWidth `div` 2))
+              ((truncate y) - (listBoxHeight `div` 2))
+            _ <- on moveBtn #clicked (moveBtnClicked listBox)
             -- Uncomment to stop right clicking on buttons from
             -- creating new buttons at (0, 0). But buttonPressEvent
             -- and buttonReleaseEvent don't seem to be triggered by
             -- the mneumonic.
             --
-            -- _ <- on newBtn #buttonPressEvent (\_btn -> btnClicked
+            -- _ <- on newBtn #buttonPressEvent (\_btn -> moveBtnClicked
             -- newBtn >> pure True)
-            (#show newBtn)
+            (#showAll listBox)
             pure ()))
       pure False
   #showAll window
