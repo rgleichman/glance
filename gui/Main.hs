@@ -2,6 +2,8 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Main (main) where
 
@@ -10,8 +12,8 @@ import Control.Monad
 import Control.Monad (when)
 import Control.Monad.Trans.Reader (runReaderT)
 import Data.IORef
-import qualified Data.IntMap as IntMap
-import Data.Maybe (fromJust)
+import qualified Data.IntMap.Strict as IntMap
+import Data.Maybe (fromJust, fromMaybe)
 
 import Data.GI.Base
 import qualified GI.Cairo as GI.Cairo
@@ -26,10 +28,12 @@ import Graphics.Rendering.Cairo
 import Graphics.Rendering.Cairo.Internal (Render(runRender))
 import Graphics.Rendering.Cairo.Types (Cairo(Cairo))
 
+nodeSize = (100, 40)
+
 -- | A graphical element that can be clicked
 data Element = Element
-  { _elPosition :: !(Int, Int) -- ^ (x, y) of top left corner
-  , _elSize :: !(Int, Int)  -- ^ (width, height)
+  { _elPosition :: !(Double, Double) -- ^ (x, y) of top left corner
+  , _elSize :: !(Double, Double)  -- ^ (width, height)
   , _elZ :: Int -- ^ Depth. Higher values are drawn on top
   }
 
@@ -72,6 +76,16 @@ drawCircle (x, y) = do
   arc x y radius 0 tau
   stroke
 
+drawNode Element{..} = do
+  let
+    (x, y) = _elPosition
+    (width, height) = _elSize
+
+  setSourceRGB 1 0 0
+  setLineWidth 1
+  rectangle x y width height
+  stroke
+
 updateBackground canvas state = do
   width  <- realToFrac <$> (liftIO $ Gtk.widgetGetAllocatedWidth  canvas)
   height <- realToFrac <$> (liftIO $ Gtk.widgetGetAllocatedHeight canvas)
@@ -82,7 +96,7 @@ updateBackground canvas state = do
 
   stateVal <- liftIO $ readIORef state
   setSourceRGB 1 0 0
-  drawCircle (_asMouseXandY stateVal)
+  traverse drawNode (_asElements stateVal)
 
 startApp :: Gtk.Application -> IO ()
 startApp app = do
@@ -136,26 +150,41 @@ startApp app = do
       device <- Gdk.deviceManagerGetClientPointer deviceManager
       gdkDevicePosition <- Gdk.windowGetDevicePositionDouble gdkWindow device
       let (_, x, y, _) = gdkDevicePosition
-      print (x, y)
+
+      modifyIORef' state
+        (\s@AppState{_asMouseXandY}
+         -> s{_asMouseXandY=(x, y)}
+        )
+      -- print (x, y)
+
       #queueDraw backgroundArea
       pure True
 
   GLib.timeoutAdd GLib.PRIORITY_LOW 1 (timeoutCallback)
 
   let
-    motionCallback eventMotion = do
-      -- print "motion callback"
-      mousePosition <- getXandY eventMotion
-      -- print mousePosition
-      modifyIORef' state
-        (\s@AppState{_asMouseXandY}
-         -> s{_asMouseXandY=mousePosition}
-        )
-      pure False
-  _ <- on backgroundArea #motionNotifyEvent motionCallback
+    backgroundPress eventButton = do
+      mouseBtn <- get eventButton #button
+      (when (mouseBtn == 3)
+        (do
+          (x, y) <- getXandY eventButton
 
-  let
-    backgroundPress _ = do
+          modifyIORef' state
+            (\s@AppState{_asElements}
+            ->
+              let
+                key = fromMaybe 0 (fst <$> IntMap.lookupMax _asElements)
+                newNode = Element
+                  { _elPosition = (x, y)
+                  , _elSize = nodeSize
+                  , _elZ = 0
+                  }
+                newElements = IntMap.insert (key + 1) newNode _asElements
+              in
+                s{_asElements=newElements}
+            )
+          pure ()))
+
       putStrLn "backgroundPressed"
       pure True
   on backgroundArea #buttonPressEvent backgroundPress
