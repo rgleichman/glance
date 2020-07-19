@@ -78,8 +78,9 @@ executable glance-gui
                      , text
                      , transformers
                      , old-time
+                     , containers
   default-language:    Haskell2010
-  Other-modules: Drag
+  Other-modules:
 
 test-suite glance-test
   type:                exitcode-stdio-1.0
