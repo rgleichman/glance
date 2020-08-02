@@ -79,6 +79,7 @@ executable glance-gui
                      , transformers
                      , old-time
                      , containers
+                     , time
   default-language:    Haskell2010
   Other-modules:
 
