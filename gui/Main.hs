@@ -12,9 +12,12 @@ import Control.Monad
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans.Reader (runReaderT)
 import Data.IORef
+import Data.List
 import qualified Data.IntMap.Strict as IntMap
 import Data.Maybe (fromJust, fromMaybe)
 import Data.Time.Clock.System
+import Foreign.Ptr (castPtr)
+import GHC.Word (Word32)
 
 import Data.GI.Base
 import qualified GI.Cairo as GI.Cairo
@@ -24,10 +27,15 @@ import qualified GI.Gdk as Gdk
 import qualified GI.Gio as Gio
 import qualified GI.Gtk as Gtk
 
-import Foreign.Ptr (castPtr)
 import Graphics.Rendering.Cairo
 import Graphics.Rendering.Cairo.Internal (Render(runRender))
 import Graphics.Rendering.Cairo.Types (Cairo(Cairo))
+
+leftMouseButton :: Word32
+leftMouseButton = 1
+
+rightMouseButton :: Word32
+rightMouseButton = 3
 
 nodeSize :: (Double, Double)
 nodeSize = (100, 40)
@@ -194,7 +202,7 @@ startApp app = do
   let
     backgroundPress eventButton = do
       mouseBtn <- get eventButton #button
-      (when (mouseBtn == 3)
+      (when (mouseBtn == rightMouseButton)
         (do
           (x, y) <- getXandY eventButton
 
@@ -212,7 +220,28 @@ startApp app = do
               in
                 s{_asElements=newElements}
             )
-          pure ()))
+          pure ()
+        )
+        )
+      (when (mouseBtn == leftMouseButton)
+        (do
+          putStrLn "Left click"
+          mousePosition <- getXandY eventButton
+          -- print (x, y)
+
+          modifyIORef' state
+            (\s@AppState{_asMovingNode, _asElements}
+            ->
+              let
+                newMovingNode = findElementByPosition _asElements mousePosition
+              in
+                s{_asMovingNode=newMovingNode}
+            )
+
+          movingNode <- fmap _asMovingNode $ readIORef state
+          print movingNode
+        )
+        )
 
       putStrLn "backgroundPressed"
       pure True
@@ -220,6 +249,19 @@ startApp app = do
 
   #showAll window
   pure ()
+
+findElementByPosition :: IntMap.IntMap Element -> (Double, Double) -> Maybe (Int)
+findElementByPosition elements (mouseX, mouseY) =
+  let
+    mouseInElement (elementId, Element{_elPosition, _elSize}) =
+      let
+        (x, y) = _elPosition
+        (width, height) = _elSize
+      in
+        mouseX >= x && mouseX <= (x + width) &&
+        mouseY >= y && mouseY <= (y + height)
+  in
+    fst <$> find mouseInElement (IntMap.toList elements)
 
 main :: IO ()
 main = do
