@@ -7,19 +7,20 @@
 
 module Main (main) where
 
-import Control.Concurrent
+import Data.Coerce
 import Control.Monad
-import Control.Monad (when)
+import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans.Reader (runReaderT)
 import Data.IORef
 import qualified Data.IntMap.Strict as IntMap
 import Data.Maybe (fromJust, fromMaybe)
+import Data.Time.Clock.System
 
 import Data.GI.Base
 import qualified GI.Cairo as GI.Cairo
 import qualified GI.GLib as GLib
 import qualified GI.Gdk as Gdk
-import qualified GI.GdkPixbuf as GP
+-- import qualified GI.GdkPixbuf as GP
 import qualified GI.Gio as Gio
 import qualified GI.Gtk as Gtk
 
@@ -28,6 +29,7 @@ import Graphics.Rendering.Cairo
 import Graphics.Rendering.Cairo.Internal (Render(runRender))
 import Graphics.Rendering.Cairo.Types (Cairo(Cairo))
 
+nodeSize :: (Double, Double)
 nodeSize = (100, 40)
 
 -- | A graphical element that can be clicked
@@ -42,24 +44,32 @@ data AppState = AppState
   , _asEdges :: [(Element, Element)]
   , _asMouseXandY :: !(Double, Double)
   , _asElements :: IntMap.IntMap Element
+  , _asTime :: SystemTime
+  , _asFPSr :: Double -- ^ FPS rouned down to nearest hundred if over 200 fps.
   }
 
+emptyAppState :: AppState
 emptyAppState = AppState
   { _asMovingNode = Nothing
   , _asEdges = []
   , _asMouseXandY = (0, 0)
   , _asElements = mempty
+  , _asTime = MkSystemTime 0 0
+  , _asFPSr = 0
   }
 
+renderCairo :: Coercible a (ManagedPtr ()) => a -> Render c -> IO c
 renderCairo c r = withManagedPtr c $ \pointer ->
   runReaderT (runRender r) (Cairo (castPtr pointer))
 
--- TODO Add type signature
+getXandY
+  :: MonadIO f
+  => Gdk.EventButton -> f (Double, Double)
 getXandY event =
-  (\x y -> (x, y)) <$> get event #x <*> get event #y
+  (\x y -> (x, y)) <$> Gdk.getEventButtonX event <*> Gdk.getEventButtonY event
 
--- updateCanvas :: WidgetClass widget => widget -> PangoLayout -> Render ()
-drawLine (fromX, fromY) (toX, toY) = do
+_drawLine :: (Double, Double) -> (Double, Double) -> Render ()
+_drawLine (fromX, fromY) (toX, toY) = do
   setSourceRGB 0 1 0
   setLineWidth 5
 
@@ -67,7 +77,8 @@ drawLine (fromX, fromY) (toX, toY) = do
   lineTo toX toY
   stroke
 
-drawCircle (x, y) = do
+_drawCircle :: (Double, Double) -> Render ()
+_drawCircle (x, y) = do
 --   setSourceRGB 1 0 0
   setLineWidth 1
   -- moveTo x y
@@ -76,6 +87,7 @@ drawCircle (x, y) = do
   arc x y radius 0 tau
   stroke
 
+drawNode :: Element -> Render ()
 drawNode Element{..} = do
   let
     (x, y) = _elPosition
@@ -86,15 +98,21 @@ drawNode Element{..} = do
   rectangle x y width height
   stroke
 
-updateBackground canvas state = do
-  width  <- realToFrac <$> (liftIO $ Gtk.widgetGetAllocatedWidth  canvas)
-  height <- realToFrac <$> (liftIO $ Gtk.widgetGetAllocatedHeight canvas)
+updateBackground :: p -> IORef AppState -> Render (IntMap.IntMap ())
+updateBackground _canvas state = do
+  -- width  <- (realToFrac <$> (liftIO $ Gtk.widgetGetAllocatedWidth  canvas)
+  --             :: Render Double)
+  -- height <- (realToFrac <$> (liftIO $ Gtk.widgetGetAllocatedHeight canvas)
+  --             :: Render Double)
 
   -- TODO This should be moved into the setup phase
   setSourceRGB 0 0 0
   paint
 
   stateVal <- liftIO $ readIORef state
+  setSourceRGB 1 1 1
+  moveTo 10 10
+  showText ("fps=" <> show (_asFPSr stateVal))
   setSourceRGB 1 0 0
   traverse drawNode (_asElements stateVal)
 
@@ -114,53 +132,64 @@ startApp app = do
     , Gdk.EventMaskButtonPressMask]
   #add window backgroundArea
 
-  geometry <- new Gdk.Geometry [ #minWidth := 500, #minHeight := 500]
+  -- geometry <- new Gdk.Geometry [ #minWidth := 500, #minHeight := 500]
 
   -- screen <- get window #screen
   -- rgbaVisual <- #getRgbaVisual screen
   -- #setVisual window rgbaVisual
 
-  -- No noticable change with setting this to GLib.PRIORITY_DEFAULT
-  -- GLib.timeoutAdd GLib.PRIORITY_LOW 1 (#queueDraw backgroundArea >> pure True)
-
-  surfaceRef <- newIORef (Nothing)
+  -- surfaceRef <- newIORef (Nothing)
 
   _ <- on backgroundArea #draw (\context -> do
-    mSurface <- readIORef surfaceRef
-    surface <- case mSurface of
-      Nothing -> do
-        (width, height) <- #getSize window
-        surf <- createImageSurface
-          FormatARGB32
-          (fromIntegral width)
-          (fromIntegral height)
-        writeIORef surfaceRef $ Just $ surf
-        pure surf
-      Just surface -> pure surface
+    -- mSurface <- readIORef surfaceRef
+    -- surface <- case mSurface of
+    --   Nothing -> do
+    --     (width, height) <- #getSize window
+    --     surf <- createImageSurface
+    --       FormatARGB32
+    --       (fromIntegral width)
+    --       (fromIntegral height)
+    --     writeIORef surfaceRef $ Just $ surf
+    --     pure surf
+    --   Just surface -> pure surface
 
-    renderCairo context (updateBackground backgroundArea state)
+    _ <- renderCairo context (updateBackground backgroundArea state)
     pure True)
 
+  #showAll window
+  gdkWindow <- fromJust <$> #getWindow window
+  display <- fmap fromJust Gdk.displayGetDefault -- TODO unsafe
+  deviceManager <- fromJust <$> Gdk.displayGetDeviceManager display -- TODO deprecated
+  device <- Gdk.deviceManagerGetClientPointer deviceManager
   let
     timeoutCallback :: IO Bool
     timeoutCallback = do
-      gdkWindow <- fromJust <$> #getWindow window
-      display <- fmap fromJust Gdk.displayGetDefault -- TODO unsafe
-      deviceManager <- fromJust <$> Gdk.displayGetDeviceManager display -- TODO deprecated
-      device <- Gdk.deviceManagerGetClientPointer deviceManager
+      newTime@(MkSystemTime seconds nanoseconds) <- getSystemTime
+      oldState <- readIORef state
+      let
+        (MkSystemTime oldSeconds oldNanoseconds) = _asTime oldState
+        secondsDiff = seconds - oldSeconds
+        nanosecondDiff = nanoseconds - oldNanoseconds
+        fps = if secondsDiff == 0
+          then fromIntegral (div (10^(9 :: Int)) nanosecondDiff)
+          else 1 / (fromIntegral secondsDiff)
+        truncatedFps = if fps >= 200
+          then fromIntegral $ (div (truncate fps) 100) * (100 :: Int)
+          else fps
       gdkDevicePosition <- Gdk.windowGetDevicePositionDouble gdkWindow device
       let (_, x, y, _) = gdkDevicePosition
 
       modifyIORef' state
         (\s@AppState{_asMouseXandY}
-         -> s{_asMouseXandY=(x, y)}
+         -> s{_asMouseXandY=(x, y)
+             , _asTime=newTime
+             , _asFPSr=truncatedFps}
         )
-      -- print (x, y)
 
       #queueDraw backgroundArea
       pure True
 
-  GLib.timeoutAdd GLib.PRIORITY_LOW 1 (timeoutCallback)
+  _ <- GLib.timeoutAdd GLib.PRIORITY_DEFAULT 1 (timeoutCallback)
 
   let
     backgroundPress eventButton = do
@@ -187,7 +216,7 @@ startApp app = do
 
       putStrLn "backgroundPressed"
       pure True
-  on backgroundArea #buttonPressEvent backgroundPress
+  _ <- on backgroundArea #buttonPressEvent backgroundPress
 
   #showAll window
   pure ()
@@ -196,6 +225,6 @@ main :: IO ()
 main = do
   app <- new Gtk.Application []
   _ <- on app #activate (startApp app)
-  status <- Gio.applicationRun app Nothing
-  putStrLn ("Application status is " <> show status)
+  appStatus <- Gio.applicationRun app Nothing
+  putStrLn ("Application status is " <> show appStatus)
   pure ()
