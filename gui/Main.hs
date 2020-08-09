@@ -264,13 +264,15 @@ startApp app = do
         (do
           putStrLn "Left click"
           mousePosition <- getXandY eventButton
-          -- print (x, y)
 
           modifyIORef' stateRef
             (\s@AppState{_asMovingNode, _asElements}
             ->
               let
-                newMovingNode = findElementByPosition _asElements mousePosition
+                -- toggle _asMovingNode when clicked
+                newMovingNode = case _asMovingNode of
+                  Nothing -> findElementByPosition _asElements mousePosition
+                  Just _ -> Nothing
               in
                 s{_asMovingNode=newMovingNode}
             )
