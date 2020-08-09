@@ -108,7 +108,7 @@ drawNode Element{..} = do
   stroke
 
 updateBackground :: p -> IORef AppState -> Render (IntMap.IntMap ())
-updateBackground _canvas state = do
+updateBackground _canvas stateRef = do
   -- width  <- (realToFrac <$> (liftIO $ Gtk.widgetGetAllocatedWidth  canvas)
   --             :: Render Double)
   -- height <- (realToFrac <$> (liftIO $ Gtk.widgetGetAllocatedHeight canvas)
@@ -118,7 +118,7 @@ updateBackground _canvas state = do
   setSourceRGB 0 0 0
   paint
 
-  stateVal <- liftIO $ readIORef state
+  stateVal <- liftIO $ readIORef stateRef
   setSourceRGB 1 1 1
   moveTo 10 10
   showText ("fps=" <> show (_asFPSr stateVal))
@@ -151,7 +151,7 @@ updateState oldState@AppState{..} =
 
 startApp :: Gtk.Application -> IO ()
 startApp app = do
-  state <- newIORef emptyAppState
+  stateRef <- newIORef emptyAppState
   window <- new Gtk.ApplicationWindow
     [ #application := app
     , #title := "Glance"
@@ -186,7 +186,7 @@ startApp app = do
     --     pure surf
     --   Just surface -> pure surface
 
-    _ <- renderCairo context (updateBackground backgroundArea state)
+    _ <- renderCairo context (updateBackground backgroundArea stateRef)
     pure True)
 
   #showAll window
@@ -199,7 +199,7 @@ startApp app = do
     timeoutCallback = do
       -- TODO Move this time stuff into a function.
       newTime@(MkSystemTime seconds nanoseconds) <- getSystemTime
-      oldState <- readIORef state
+      oldState <- readIORef stateRef
       let
         (MkSystemTime oldSeconds oldNanoseconds) = _asTime oldState
         secondsDiff = seconds - oldSeconds
@@ -213,13 +213,13 @@ startApp app = do
       gdkDevicePosition <- Gdk.windowGetDevicePositionDouble gdkWindow device
       let (_, x, y, _) = gdkDevicePosition
 
-      modifyIORef' state
+      modifyIORef' stateRef
         (\s@AppState{_asMouseXandY}
          -> s{_asMouseXandY=(x, y)
              , _asTime=newTime
              , _asFPSr=truncatedFps}
         )
-      modifyIORef' state updateState
+      modifyIORef' stateRef updateState
 
       #queueDraw backgroundArea
       pure True
@@ -233,7 +233,7 @@ startApp app = do
         (do
           (x, y) <- getXandY eventButton
 
-          modifyIORef' state
+          modifyIORef' stateRef
             (\s@AppState{_asElements}
             ->
               let
@@ -256,7 +256,7 @@ startApp app = do
           mousePosition <- getXandY eventButton
           -- print (x, y)
 
-          modifyIORef' state
+          modifyIORef' stateRef
             (\s@AppState{_asMovingNode, _asElements}
             ->
               let
@@ -265,7 +265,7 @@ startApp app = do
                 s{_asMovingNode=newMovingNode}
             )
 
-          movingNode <- fmap _asMovingNode $ readIORef state
+          movingNode <- fmap _asMovingNode $ readIORef stateRef
           print movingNode
         )
         )
