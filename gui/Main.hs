@@ -48,12 +48,15 @@ data Element = Element
   -- _elZ is currently ignored
   }
 
+data Inputs = Inputs
+  { _asMouseXandY :: !(Double, Double)
+  , _asTime :: SystemTime
+  }
+
 data AppState = AppState
   { _asMovingNode :: Maybe Int -- ^ _asElements key
   , _asEdges :: [(Element, Element)]
-  , _asMouseXandY :: !(Double, Double)
   , _asElements :: IntMap.IntMap Element
-  , _asTime :: SystemTime
   , _asFPSr :: Double -- ^ FPS rouned down to nearest hundred if over 200 fps.
   }
 
@@ -61,10 +64,14 @@ emptyAppState :: AppState
 emptyAppState = AppState
   { _asMovingNode = Nothing
   , _asEdges = []
-  , _asMouseXandY = (0, 0)
   , _asElements = mempty
-  , _asTime = MkSystemTime 0 0
   , _asFPSr = 0
+  }
+
+emptyInputs :: Inputs
+emptyInputs = Inputs
+  { _asMouseXandY = (0, 0)
+  , _asTime = MkSystemTime 0 0
   }
 
 renderCairo :: Coercible a (ManagedPtr ()) => a -> Render c -> IO c
@@ -141,8 +148,8 @@ findElementByPosition elements (mouseX, mouseY) =
 -- Update the state based on the old state and the mouse
 -- position. Consider moving inputs like mouse position into a
 -- separate input struct.
-updateState :: AppState -> AppState
-updateState oldState@AppState{_asMouseXandY, _asElements, _asMovingNode} =
+updateState :: Inputs -> AppState -> AppState
+updateState Inputs{_asMouseXandY} oldState@AppState{_asElements, _asMovingNode} =
   let
     -- Move the asMovingNode to MouseXandY
     newElements = case _asMovingNode of
@@ -163,6 +170,7 @@ updateState oldState@AppState{_asMouseXandY, _asElements, _asMovingNode} =
 startApp :: Gtk.Application -> IO ()
 startApp app = do
   stateRef <- newIORef emptyAppState
+  inputsRef <- newIORef emptyInputs
   window <- new Gtk.ApplicationWindow
     [ #application := app
     , #title := "Glance"
@@ -210,9 +218,9 @@ startApp app = do
     timeoutCallback = do
       -- TODO Move this time stuff into a function.
       newTime@(MkSystemTime seconds nanoseconds) <- getSystemTime
-      oldState <- readIORef stateRef
+      oldInputs <- readIORef inputsRef
       let
-        (MkSystemTime oldSeconds oldNanoseconds) = _asTime oldState
+        (MkSystemTime oldSeconds oldNanoseconds) = _asTime oldInputs
         secondsDiff = seconds - oldSeconds
         nanosecondDiff = nanoseconds - oldNanoseconds
         fps = if secondsDiff == 0
@@ -224,13 +232,12 @@ startApp app = do
       gdkDevicePosition <- Gdk.windowGetDevicePositionDouble gdkWindow device
       let (_, x, y, _) = gdkDevicePosition
 
-      modifyIORef' stateRef
-        (\s@AppState{_asMouseXandY}
-         -> s{_asMouseXandY=(x, y)
-             , _asTime=newTime
-             , _asFPSr=truncatedFps}
-        )
-      modifyIORef' stateRef updateState
+      modifyIORef' inputsRef (\inputs -> inputs{_asMouseXandY=(x, y), _asTime=newTime})
+
+      modifyIORef' stateRef (\state -> state{_asFPSr=truncatedFps})
+
+      inputs <- readIORef inputsRef
+      modifyIORef' stateRef (updateState inputs)
 
       #queueDraw backgroundArea
       pure True
