@@ -125,6 +125,19 @@ updateBackground _canvas state = do
   setSourceRGB 1 0 0
   traverse drawNode (_asElements stateVal)
 
+findElementByPosition :: IntMap.IntMap Element -> (Double, Double) -> Maybe (Int)
+findElementByPosition elements (mouseX, mouseY) =
+  let
+    mouseInElement (_elementId, Element{_elPosition, _elSize}) =
+      let
+        (x, y) = _elPosition
+        (width, height) = _elSize
+      in
+        mouseX >= x && mouseX <= (x + width) &&
+        mouseY >= y && mouseY <= (y + height)
+  in
+    fst <$> find mouseInElement (IntMap.toList elements)
+
 startApp :: Gtk.Application -> IO ()
 startApp app = do
   state <- newIORef emptyAppState
@@ -250,19 +263,6 @@ startApp app = do
 
   #showAll window
   pure ()
-
-findElementByPosition :: IntMap.IntMap Element -> (Double, Double) -> Maybe (Int)
-findElementByPosition elements (mouseX, mouseY) =
-  let
-    mouseInElement (_elementId, Element{_elPosition, _elSize}) =
-      let
-        (x, y) = _elPosition
-        (width, height) = _elSize
-      in
-        mouseX >= x && mouseX <= (x + width) &&
-        mouseY >= y && mouseY <= (y + height)
-  in
-    fst <$> find mouseInElement (IntMap.toList elements)
 
 main :: IO ()
 main = do
