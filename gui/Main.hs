@@ -142,10 +142,16 @@ findElementByPosition elements (mouseX, mouseY) =
 -- position. Consider moving inputs like mouse position into a
 -- separate input struct.
 updateState :: AppState -> AppState
-updateState oldState@AppState{..} =
+updateState oldState@AppState{_asMouseXandY, _asElements, _asMovingNode} =
   let
-    -- TODO Finish
-    newState = oldState
+    -- Move the asMovingNode to MouseXandY
+    newElements = case _asMovingNode of
+      Nothing -> _asElements
+      Just nodeId -> IntMap.adjust
+        (\oldNode@Element{_elPosition} -> oldNode{_elPosition=_asMouseXandY})
+        nodeId
+        _asElements
+    newState = oldState{_asElements=newElements}
   in
     newState
 
