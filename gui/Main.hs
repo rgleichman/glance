@@ -148,7 +148,12 @@ updateState oldState@AppState{_asMouseXandY, _asElements, _asMovingNode} =
     newElements = case _asMovingNode of
       Nothing -> _asElements
       Just nodeId -> IntMap.adjust
-        (\oldNode@Element{_elPosition} -> oldNode{_elPosition=_asMouseXandY})
+        (\oldNode@Element{_elPosition, _elSize} ->
+          let
+            newX = fst _asMouseXandY - (fst _elSize / 2)
+            newY = snd _asMouseXandY - (snd _elSize / 2)
+          in
+            oldNode{_elPosition=(newX, newY)})
         nodeId
         _asElements
     newState = oldState{_asElements=newElements}
