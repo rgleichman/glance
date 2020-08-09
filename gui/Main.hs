@@ -14,7 +14,7 @@ import Control.Monad.Trans.Reader (runReaderT)
 import Data.IORef
 import Data.List
 import qualified Data.IntMap.Strict as IntMap
-import Data.Maybe (fromJust, fromMaybe)
+import Data.Maybe (fromJust)
 import Data.Time.Clock.System
 import Foreign.Ptr (castPtr)
 import GHC.Word (Word32)
@@ -167,6 +167,39 @@ updateState Inputs{_asMouseXandY} oldState@AppState{_asElements, _asMovingNode} 
   in
     newState
 
+timeoutCallback ::
+  IORef Inputs
+  -> IORef AppState
+  -> Gdk.Window
+  -> Gdk.Device
+  -> Gtk.DrawingArea
+  -> IO Bool
+timeoutCallback inputsRef stateRef gdkWindow device backgroundArea = do
+  newTime@(MkSystemTime seconds nanoseconds) <- getSystemTime
+  oldInputs <- readIORef inputsRef
+  let
+    (MkSystemTime oldSeconds oldNanoseconds) = _asTime oldInputs
+    secondsDiff = seconds - oldSeconds
+    nanosecondDiff = nanoseconds - oldNanoseconds
+    fps = if secondsDiff == 0
+      then fromIntegral (div (10^(9 :: Int)) nanosecondDiff)
+      else 1 / fromIntegral secondsDiff
+    truncatedFps = if fps >= 200
+      then fromIntegral $ div (truncate fps) 100 * (100 :: Int)
+      else fps
+  gdkDevicePosition <- Gdk.windowGetDevicePositionDouble gdkWindow device
+  let (_, x, y, _) = gdkDevicePosition
+
+  modifyIORef' inputsRef (\inputs -> inputs{_asMouseXandY=(x, y), _asTime=newTime})
+
+  modifyIORef' stateRef (\state -> state{_asFPSr=truncatedFps})
+
+  inputs <- readIORef inputsRef
+  modifyIORef' stateRef (updateState inputs)
+
+  Gtk.widgetQueueDraw backgroundArea
+  pure True
+
 startApp :: Gtk.Application -> IO ()
 startApp app = do
   stateRef <- newIORef emptyAppState
@@ -213,36 +246,7 @@ startApp app = do
   display <- fmap fromJust Gdk.displayGetDefault -- TODO unsafe
   deviceManager <- fromJust <$> Gdk.displayGetDeviceManager display -- TODO deprecated
   device <- Gdk.deviceManagerGetClientPointer deviceManager
-  let
-    timeoutCallback :: IO Bool
-    timeoutCallback = do
-      -- TODO Move this time stuff into a function.
-      newTime@(MkSystemTime seconds nanoseconds) <- getSystemTime
-      oldInputs <- readIORef inputsRef
-      let
-        (MkSystemTime oldSeconds oldNanoseconds) = _asTime oldInputs
-        secondsDiff = seconds - oldSeconds
-        nanosecondDiff = nanoseconds - oldNanoseconds
-        fps = if secondsDiff == 0
-          then fromIntegral (div (10^(9 :: Int)) nanosecondDiff)
-          else 1 / fromIntegral secondsDiff
-        truncatedFps = if fps >= 200
-          then fromIntegral $ div (truncate fps) 100 * (100 :: Int)
-          else fps
-      gdkDevicePosition <- Gdk.windowGetDevicePositionDouble gdkWindow device
-      let (_, x, y, _) = gdkDevicePosition
-
-      modifyIORef' inputsRef (\inputs -> inputs{_asMouseXandY=(x, y), _asTime=newTime})
-
-      modifyIORef' stateRef (\state -> state{_asFPSr=truncatedFps})
-
-      inputs <- readIORef inputsRef
-      modifyIORef' stateRef (updateState inputs)
-
-      #queueDraw backgroundArea
-      pure True
-
-  _ <- GLib.timeoutAdd GLib.PRIORITY_DEFAULT 1 timeoutCallback
+  _ <- GLib.timeoutAdd GLib.PRIORITY_DEFAULT 1 (timeoutCallback inputsRef stateRef gdkWindow device backgroundArea)
 
   let
     backgroundPress eventButton = do
