@@ -45,6 +45,7 @@ data Element = Element
   { _elPosition :: !(Double, Double) -- ^ (x, y) of top left corner
   , _elSize :: !(Double, Double)  -- ^ (width, height)
   , _elZ :: Int -- ^ Depth. Higher values are drawn on top
+  -- _elZ is currently ignored
   }
 
 data AppState = AppState
@@ -253,7 +254,7 @@ startApp app = do
 findElementByPosition :: IntMap.IntMap Element -> (Double, Double) -> Maybe (Int)
 findElementByPosition elements (mouseX, mouseY) =
   let
-    mouseInElement (elementId, Element{_elPosition, _elSize}) =
+    mouseInElement (_elementId, Element{_elPosition, _elSize}) =
       let
         (x, y) = _elPosition
         (width, height) = _elSize
