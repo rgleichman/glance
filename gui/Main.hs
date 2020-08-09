@@ -138,6 +138,17 @@ findElementByPosition elements (mouseX, mouseY) =
   in
     fst <$> find mouseInElement (IntMap.toList elements)
 
+-- Update the state based on the old state and the mouse
+-- position. Consider moving inputs like mouse position into a
+-- separate input struct.
+updateState :: AppState -> AppState
+updateState oldState@AppState{..} =
+  let
+    -- TODO Finish
+    newState = oldState
+  in
+    newState
+
 startApp :: Gtk.Application -> IO ()
 startApp app = do
   state <- newIORef emptyAppState
@@ -186,6 +197,7 @@ startApp app = do
   let
     timeoutCallback :: IO Bool
     timeoutCallback = do
+      -- TODO Move this time stuff into a function.
       newTime@(MkSystemTime seconds nanoseconds) <- getSystemTime
       oldState <- readIORef state
       let
@@ -207,6 +219,7 @@ startApp app = do
              , _asTime=newTime
              , _asFPSr=truncatedFps}
         )
+      modifyIORef' state updateState
 
       #queueDraw backgroundArea
       pure True
