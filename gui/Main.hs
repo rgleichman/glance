@@ -20,7 +20,7 @@ import Foreign.Ptr (castPtr)
 import GHC.Word (Word32)
 
 import Data.GI.Base
-import qualified GI.Cairo as GI.Cairo
+import qualified GI.Cairo
 import qualified GI.GLib as GLib
 import qualified GI.Gdk as Gdk
 -- import qualified GI.GdkPixbuf as GP
@@ -125,7 +125,7 @@ updateBackground _canvas stateRef = do
   setSourceRGB 1 0 0
   traverse drawNode (_asElements stateVal)
 
-findElementByPosition :: IntMap.IntMap Element -> (Double, Double) -> Maybe (Int)
+findElementByPosition :: IntMap.IntMap Element -> (Double, Double) -> Maybe Int
 findElementByPosition elements (mouseX, mouseY) =
   let
     mouseInElement (_elementId, Element{_elPosition, _elSize}) =
@@ -212,9 +212,9 @@ startApp app = do
         nanosecondDiff = nanoseconds - oldNanoseconds
         fps = if secondsDiff == 0
           then fromIntegral (div (10^(9 :: Int)) nanosecondDiff)
-          else 1 / (fromIntegral secondsDiff)
+          else 1 / fromIntegral secondsDiff
         truncatedFps = if fps >= 200
-          then fromIntegral $ (div (truncate fps) 100) * (100 :: Int)
+          then fromIntegral $ div (truncate fps) 100 * (100 :: Int)
           else fps
       gdkDevicePosition <- Gdk.windowGetDevicePositionDouble gdkWindow device
       let (_, x, y, _) = gdkDevicePosition
@@ -230,12 +230,12 @@ startApp app = do
       #queueDraw backgroundArea
       pure True
 
-  _ <- GLib.timeoutAdd GLib.PRIORITY_DEFAULT 1 (timeoutCallback)
+  _ <- GLib.timeoutAdd GLib.PRIORITY_DEFAULT 1 timeoutCallback
 
   let
     backgroundPress eventButton = do
       mouseBtn <- get eventButton #button
-      (when (mouseBtn == rightMouseButton)
+      when (mouseBtn == rightMouseButton)
         (do
           (x, y) <- getXandY eventButton
 
@@ -243,7 +243,7 @@ startApp app = do
             (\s@AppState{_asElements}
             ->
               let
-                key = fromMaybe 0 (fst <$> IntMap.lookupMax _asElements)
+                key = maybe 0 fst (IntMap.lookupMax _asElements)
                 newNode = Element
                   { _elPosition = (x, y)
                   , _elSize = nodeSize
@@ -255,8 +255,7 @@ startApp app = do
             )
           pure ()
         )
-        )
-      (when (mouseBtn == leftMouseButton)
+      when (mouseBtn == leftMouseButton)
         (do
           putStrLn "Left click"
           mousePosition <- getXandY eventButton
@@ -271,9 +270,8 @@ startApp app = do
                 s{_asMovingNode=newMovingNode}
             )
 
-          movingNode <- fmap _asMovingNode $ readIORef stateRef
+          movingNode <- _asMovingNode <$> readIORef stateRef
           print movingNode
-        )
         )
 
       putStrLn "backgroundPressed"
