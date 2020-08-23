@@ -40,6 +40,8 @@ rightMouseButton = 3
 nodeSize :: (Double, Double)
 nodeSize = (100, 40)
 
+-- TODO USE newtype for element ID.
+
 -- | A graphical element that can be clicked
 data Element = Element
   { _elPosition :: !(Double, Double) -- ^ (x, y) of top left corner
@@ -52,6 +54,7 @@ data Inputs = Inputs
   { _inMouseXandY :: !(Double, Double)
   , _inTime :: SystemTime
   , _inPrevTime :: SystemTime
+  , _inEvents :: [InputEvents]
   }
 
 data AppState = AppState
@@ -60,6 +63,10 @@ data AppState = AppState
   , _asElements :: IntMap.IntMap Element
   , _asFPSr :: Double -- ^ FPS rouned down to nearest hundred if over 200 fps.
   }
+
+data InputEvents =
+  -- Which node was clicked and the relative click position within a node.
+  LeftClickOnNode Int (Double, Double)
 
 emptyAppState :: AppState
 emptyAppState = AppState
@@ -74,6 +81,7 @@ emptyInputs = Inputs
   { _inMouseXandY = (0, 0)
   , _inTime = MkSystemTime 0 0
   , _inPrevTime = MkSystemTime 0 0
+  , _inEvents = mempty
   }
 
 renderCairo :: Coercible a (ManagedPtr ()) => a -> Render c -> IO c
@@ -110,11 +118,15 @@ drawNode (elemId, Element{..}) = do
   let
     (x, y) = _elPosition
     (width, height) = _elSize
+    halfWidth = width / 2
 
   setSourceRGB 1 0 0
   setLineWidth 1
-  rectangle x y width height
+  rectangle x y halfWidth height
   showText (show elemId)
+  stroke
+  setSourceRGB 0 1 0
+  rectangle (x + halfWidth) y halfWidth height
   stroke
 
 updateBackground :: p -> IORef AppState -> Render (())
