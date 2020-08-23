@@ -7,13 +7,14 @@
 
 module Main (main) where
 
-import Data.Coerce
 import Control.Monad
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans.Reader (runReaderT)
+import Data.Coerce
+import Data.Foldable(traverse_)
 import Data.IORef
-import Data.List
 import qualified Data.IntMap.Strict as IntMap
+import Data.List
 import Data.Maybe (fromJust)
 import Data.Time.Clock.System
 import Foreign.Ptr (castPtr)
@@ -55,7 +56,7 @@ data Inputs = Inputs
   { _inMouseXandY :: !(Double, Double)
   , _inTime :: SystemTime
   , _inPrevTime :: SystemTime
-  , _inEvents :: [InputEvents]
+  , _inEvents :: [InputEvent]
   }
 
 data AppState = AppState
@@ -65,7 +66,7 @@ data AppState = AppState
   , _asFPSr :: Double -- ^ FPS rouned down to nearest hundred if over 200 fps.
   }
 
-data InputEvents =
+data InputEvent =
   -- Which node was clicked and the relative click position within a node.
   ClickOnNode
     ElemId
@@ -133,7 +134,7 @@ drawNode (elemId, Element{..}) = do
   rectangle (x + halfWidth) y halfWidth height
   stroke
 
-updateBackground :: p -> IORef AppState -> Render (())
+updateBackground :: p -> IORef AppState -> Render ()
 updateBackground _canvas stateRef = do
   -- width  <- (realToFrac <$> (liftIO $ Gtk.widgetGetAllocatedWidth  canvas)
   --             :: Render Double)
@@ -149,8 +150,7 @@ updateBackground _canvas stateRef = do
   moveTo 10 10
   showText ("fps=" <> show (_asFPSr stateVal))
   setSourceRGB 1 0 0
-  _ <- traverse drawNode (IntMap.toList (_asElements stateVal))
-  pure ()
+  traverse_ drawNode (IntMap.toList (_asElements stateVal))
 
 findElementByPosition :: IntMap.IntMap Element -> (Double, Double) -> Maybe (Int, Element)
 findElementByPosition elements (mouseX, mouseY) =
@@ -188,7 +188,7 @@ processInputs Inputs{_inEvents} oldState@AppState{_asElements, _asMovingNode} =
   in
     compose (fmap processInput _inEvents) oldState
 
-processInput :: InputEvents -> AppState -> AppState
+processInput :: InputEvent -> AppState -> AppState
 processInput inputEvent oldState@AppState{_asElements, _asMovingNode} =
   case inputEvent of
     -- TODO only change movingNode if mouseBtn is leftClick
@@ -347,22 +347,12 @@ startApp app = do
                       (mouseX, mouseY) = mousePosition
                     in
                       s{_inEvents
-                        =ClickOnNode (ElemId elemId) (mouseX - elementX, mouseY - elementY) mouseBtn
+                        =ClickOnNode
+                           (ElemId elemId)
+                           (mouseX - elementX, mouseY - elementY)
+                           mouseBtn
                          : _inEvents}
             )
-            -- (\s@AppState{_asMovingNode, _asElements}
-            -- ->
-            --   let
-            --     -- toggle _asMovingNode when clicked
-            --     newMovingNode = case _asMovingNode of
-            --       Nothing -> findElementByPosition _asElements mousePosition
-            --       Just _ -> Nothing
-            --   in
-            --     s{_asMovingNode=newMovingNode}
-            -- )
-
-          -- movingNode <- _asMovingNode <$> readIORef stateRef
-          -- print movingNode
         )
 
       putStrLn "backgroundPressed"
