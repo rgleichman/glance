@@ -105,8 +105,8 @@ _drawCircle (x, y) = do
   arc x y radius 0 tau
   stroke
 
-drawNode :: Element -> Render ()
-drawNode Element{..} = do
+drawNode :: (Int, Element) -> Render ()
+drawNode (elemId, Element{..}) = do
   let
     (x, y) = _elPosition
     (width, height) = _elSize
@@ -114,9 +114,10 @@ drawNode Element{..} = do
   setSourceRGB 1 0 0
   setLineWidth 1
   rectangle x y width height
+  showText (show elemId)
   stroke
 
-updateBackground :: p -> IORef AppState -> Render (IntMap.IntMap ())
+updateBackground :: p -> IORef AppState -> Render (())
 updateBackground _canvas stateRef = do
   -- width  <- (realToFrac <$> (liftIO $ Gtk.widgetGetAllocatedWidth  canvas)
   --             :: Render Double)
@@ -132,7 +133,8 @@ updateBackground _canvas stateRef = do
   moveTo 10 10
   showText ("fps=" <> show (_asFPSr stateVal))
   setSourceRGB 1 0 0
-  traverse drawNode (_asElements stateVal)
+  _ <- traverse drawNode (IntMap.toList (_asElements stateVal))
+  pure ()
 
 findElementByPosition :: IntMap.IntMap Element -> (Double, Double) -> Maybe Int
 findElementByPosition elements (mouseX, mouseY) =
