@@ -67,10 +67,10 @@ data AppState = AppState
 
 data InputEvents =
   -- Which node was clicked and the relative click position within a node.
-  LeftClickOnNode
+  ClickOnNode
     ElemId
     (Double, Double) -- relative mouse position
-    Int -- mouse button
+    Word32 -- mouse button
 
 emptyAppState :: AppState
 emptyAppState = AppState
@@ -152,7 +152,7 @@ updateBackground _canvas stateRef = do
   _ <- traverse drawNode (IntMap.toList (_asElements stateVal))
   pure ()
 
-findElementByPosition :: IntMap.IntMap Element -> (Double, Double) -> Maybe ElemId
+findElementByPosition :: IntMap.IntMap Element -> (Double, Double) -> Maybe (Int, Element)
 findElementByPosition elements (mouseX, mouseY) =
   let
     mouseInElement (_elementId, Element{_elPosition, _elSize}) =
@@ -163,7 +163,7 @@ findElementByPosition elements (mouseX, mouseY) =
         mouseX >= x && mouseX <= (x + width) &&
         mouseY >= y && mouseY <= (y + height)
   in
-    ElemId . fst <$> find mouseInElement (IntMap.toList elements)
+    find mouseInElement (IntMap.toList elements)
 
 getFps :: Inputs -> Double
 getFps inputs =
@@ -180,11 +180,31 @@ getFps inputs =
       then fromIntegral $ div (truncate fps) 100 * (100 :: Int)
       else fps
 
+
+processInputs :: Inputs -> AppState -> AppState
+processInputs Inputs{_inEvents} oldState@AppState{_asElements, _asMovingNode} =
+  let
+    compose = foldr (.) id
+  in
+    compose (fmap processInput _inEvents) oldState
+
+processInput :: InputEvents -> AppState -> AppState
+processInput inputEvent oldState@AppState{_asElements, _asMovingNode} =
+  case inputEvent of
+    -- TODO only change movingNode if mouseBtn is leftClick
+    ClickOnNode elemId _relativePosition _mouseBtn ->
+      let
+        newMovingNodeId = case _asMovingNode of
+          Nothing -> Just elemId
+          Just _ -> Nothing
+      in
+        oldState{_asMovingNode=newMovingNodeId}
+
 -- Update the state based on the old state and the mouse
 -- position. Consider moving inputs like mouse position into a
 -- separate input struct.
 updateState :: Inputs -> AppState -> AppState
-updateState inputs@Inputs{_inMouseXandY} oldState@AppState{_asElements, _asMovingNode} =
+updateState inputs@Inputs{_inMouseXandY, _inEvents} oldState@AppState{_asElements, _asMovingNode} =
   let
     -- Move the asMovingNode to MouseXandY
     newElements = case _asMovingNode of
@@ -198,6 +218,8 @@ updateState inputs@Inputs{_inMouseXandY} oldState@AppState{_asElements, _asMovin
             oldNode{_elPosition=(newX, newY)})
         (_unElemId nodeId)
         _asElements
+
+
     newState = oldState
       { _asElements=newElements
       , _asFPSr=getFps inputs
@@ -225,7 +247,10 @@ timeoutCallback inputsRef stateRef gdkWindow device backgroundArea = do
                })
 
   inputs <- readIORef inputsRef
+
+  modifyIORef' stateRef (processInputs inputs)
   modifyIORef' stateRef (updateState inputs)
+  modifyIORef' inputsRef (\i -> i{_inEvents=[]})
 
   Gtk.widgetQueueDraw backgroundArea
   pure True
@@ -306,20 +331,38 @@ startApp app = do
           putStrLn "Left click"
           mousePosition <- getXandY eventButton
 
-          modifyIORef' stateRef
-            (\s@AppState{_asMovingNode, _asElements}
+          state <- readIORef stateRef
+
+          modifyIORef' inputsRef
+            (\s@Inputs{_inEvents}
             ->
               let
-                -- toggle _asMovingNode when clicked
-                newMovingNode = case _asMovingNode of
-                  Nothing -> findElementByPosition _asElements mousePosition
-                  Just _ -> Nothing
+                mElem = findElementByPosition (_asElements state) mousePosition
               in
-                s{_asMovingNode=newMovingNode}
+                case mElem of
+                  Nothing -> s
+                  Just (elemId, element) ->
+                    let
+                      (elementX, elementY) = _elPosition element
+                      (mouseX, mouseY) = mousePosition
+                    in
+                      s{_inEvents
+                        =ClickOnNode (ElemId elemId) (mouseX - elementX, mouseY - elementY) mouseBtn
+                         : _inEvents}
             )
+            -- (\s@AppState{_asMovingNode, _asElements}
+            -- ->
+            --   let
+            --     -- toggle _asMovingNode when clicked
+            --     newMovingNode = case _asMovingNode of
+            --       Nothing -> findElementByPosition _asElements mousePosition
+            --       Just _ -> Nothing
+            --   in
+            --     s{_asMovingNode=newMovingNode}
+            -- )
 
-          movingNode <- _asMovingNode <$> readIORef stateRef
-          print movingNode
+          -- movingNode <- _asMovingNode <$> readIORef stateRef
+          -- print movingNode
         )
 
       putStrLn "backgroundPressed"
