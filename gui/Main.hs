@@ -41,6 +41,7 @@ nodeSize :: (Double, Double)
 nodeSize = (100, 40)
 
 -- TODO USE newtype for element ID.
+newtype ElemId = ElemId { _unElemId :: Int } deriving (Show, Eq, Ord)
 
 -- | A graphical element that can be clicked
 data Element = Element
@@ -58,7 +59,7 @@ data Inputs = Inputs
   }
 
 data AppState = AppState
-  { _asMovingNode :: Maybe Int -- ^ _asElements key
+  { _asMovingNode :: Maybe ElemId -- ^ _asElements key
   , _asEdges :: [(Element, Element)]
   , _asElements :: IntMap.IntMap Element
   , _asFPSr :: Double -- ^ FPS rouned down to nearest hundred if over 200 fps.
@@ -66,7 +67,10 @@ data AppState = AppState
 
 data InputEvents =
   -- Which node was clicked and the relative click position within a node.
-  LeftClickOnNode Int (Double, Double)
+  LeftClickOnNode
+    ElemId
+    (Double, Double) -- relative mouse position
+    Int -- mouse button
 
 emptyAppState :: AppState
 emptyAppState = AppState
@@ -148,7 +152,7 @@ updateBackground _canvas stateRef = do
   _ <- traverse drawNode (IntMap.toList (_asElements stateVal))
   pure ()
 
-findElementByPosition :: IntMap.IntMap Element -> (Double, Double) -> Maybe Int
+findElementByPosition :: IntMap.IntMap Element -> (Double, Double) -> Maybe ElemId
 findElementByPosition elements (mouseX, mouseY) =
   let
     mouseInElement (_elementId, Element{_elPosition, _elSize}) =
@@ -159,7 +163,7 @@ findElementByPosition elements (mouseX, mouseY) =
         mouseX >= x && mouseX <= (x + width) &&
         mouseY >= y && mouseY <= (y + height)
   in
-    fst <$> find mouseInElement (IntMap.toList elements)
+    ElemId . fst <$> find mouseInElement (IntMap.toList elements)
 
 getFps :: Inputs -> Double
 getFps inputs =
@@ -192,7 +196,7 @@ updateState inputs@Inputs{_inMouseXandY} oldState@AppState{_asElements, _asMovin
             newY = snd _inMouseXandY - (snd _elSize / 2)
           in
             oldNode{_elPosition=(newX, newY)})
-        nodeId
+        (_unElemId nodeId)
         _asElements
     newState = oldState
       { _asElements=newElements
