@@ -49,9 +49,9 @@ data Element = Element
   }
 
 data Inputs = Inputs
-  { _asMouseXandY :: !(Double, Double)
-  , _asTime :: SystemTime
-  , _asPrevTime :: SystemTime
+  { _inMouseXandY :: !(Double, Double)
+  , _inTime :: SystemTime
+  , _inPrevTime :: SystemTime
   }
 
 data AppState = AppState
@@ -71,9 +71,9 @@ emptyAppState = AppState
 
 emptyInputs :: Inputs
 emptyInputs = Inputs
-  { _asMouseXandY = (0, 0)
-  , _asTime = MkSystemTime 0 0
-  , _asPrevTime = MkSystemTime 0 0
+  { _inMouseXandY = (0, 0)
+  , _inTime = MkSystemTime 0 0
+  , _inPrevTime = MkSystemTime 0 0
   }
 
 renderCairo :: Coercible a (ManagedPtr ()) => a -> Render c -> IO c
@@ -152,8 +152,8 @@ findElementByPosition elements (mouseX, mouseY) =
 getFps :: Inputs -> Double
 getFps inputs =
   let
-    (MkSystemTime seconds nanoseconds) = _asTime inputs
-    (MkSystemTime oldSeconds oldNanoseconds) = _asPrevTime inputs
+    (MkSystemTime seconds nanoseconds) = _inTime inputs
+    (MkSystemTime oldSeconds oldNanoseconds) = _inPrevTime inputs
     secondsDiff = seconds - oldSeconds
     nanosecondDiff = nanoseconds - oldNanoseconds
     fps = if secondsDiff == 0
@@ -168,7 +168,7 @@ getFps inputs =
 -- position. Consider moving inputs like mouse position into a
 -- separate input struct.
 updateState :: Inputs -> AppState -> AppState
-updateState inputs@Inputs{_asMouseXandY} oldState@AppState{_asElements, _asMovingNode} =
+updateState inputs@Inputs{_inMouseXandY} oldState@AppState{_asElements, _asMovingNode} =
   let
     -- Move the asMovingNode to MouseXandY
     newElements = case _asMovingNode of
@@ -176,8 +176,8 @@ updateState inputs@Inputs{_asMouseXandY} oldState@AppState{_asElements, _asMovin
       Just nodeId -> IntMap.adjust
         (\oldNode@Element{_elPosition, _elSize} ->
           let
-            newX = fst _asMouseXandY - (fst _elSize / 2)
-            newY = snd _asMouseXandY - (snd _elSize / 2)
+            newX = fst _inMouseXandY - (fst _elSize / 2)
+            newY = snd _inMouseXandY - (snd _elSize / 2)
           in
             oldNode{_elPosition=(newX, newY)})
         nodeId
@@ -202,10 +202,10 @@ timeoutCallback inputsRef stateRef gdkWindow device backgroundArea = do
   let (_, x, y, _) = gdkDevicePosition
 
   modifyIORef' inputsRef
-    (\inputs@Inputs{_asTime}
-      -> inputs{_asMouseXandY=(x, y)
-               , _asTime=newTime
-               , _asPrevTime=_asTime
+    (\inputs@Inputs{_inTime}
+      -> inputs{_inMouseXandY=(x, y)
+               , _inTime=newTime
+               , _inPrevTime=_inTime
                })
 
   inputs <- readIORef inputsRef
