@@ -1,3 +1,4 @@
+-- This file is formatted with Ormolu
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
