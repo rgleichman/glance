@@ -10,26 +10,26 @@
 
 module Main (main) where
 
-import Control.Monad
+import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans.Reader (runReaderT)
-import Data.Coerce
+import Data.Coerce (Coercible)
 import Data.Foldable (traverse_)
-import Data.GI.Base
-import Data.IORef
+import Data.GI.Base (AttrOp ((:=)), get, new, on, withManagedPtr)
+import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
 import qualified Data.IntMap.Strict as IntMap
-import Data.List
+-- import qualified GI.GdkPixbuf as GP
+import Data.List (find)
 import Data.Maybe (fromJust)
-import Data.Time.Clock.System
+import Data.Time.Clock.System (SystemTime (MkSystemTime), getSystemTime)
 import Foreign.Ptr (castPtr)
 import GHC.Word (Word32)
-import qualified GI.Cairo
+import qualified GI.Cairo (Context (..))
 import qualified GI.GLib as GLib
 import qualified GI.Gdk as Gdk
--- import qualified GI.GdkPixbuf as GP
 import qualified GI.Gio as Gio
 import qualified GI.Gtk as Gtk
-import Graphics.Rendering.Cairo
+import qualified Graphics.Rendering.Cairo as Cairo
 import Graphics.Rendering.Cairo.Internal (Render (runRender))
 import Graphics.Rendering.Cairo.Types (Cairo (Cairo))
 
@@ -97,7 +97,8 @@ emptyInputs =
       _inEvents = mempty
     }
 
-renderCairo :: Coercible a (ManagedPtr ()) => a -> Render c -> IO c
+renderCairo :: Coercible a (GI.Cairo.Context) => a -> Render c -> IO c
+-- renderCairo :: Coercible a (ManagedPtr ()) => a -> Render c -> IO c
 renderCairo c r = withManagedPtr c $ \pointer ->
   runReaderT (runRender r) (Cairo (castPtr pointer))
 
@@ -110,22 +111,22 @@ getXandY event =
 
 _drawLine :: (Double, Double) -> (Double, Double) -> Render ()
 _drawLine (fromX, fromY) (toX, toY) = do
-  setSourceRGB 0 1 0
-  setLineWidth 5
+  Cairo.setSourceRGB 0 1 0
+  Cairo.setLineWidth 5
 
-  moveTo fromX fromY
-  lineTo toX toY
-  stroke
+  Cairo.moveTo fromX fromY
+  Cairo.lineTo toX toY
+  Cairo.stroke
 
 _drawCircle :: (Double, Double) -> Render ()
 _drawCircle (x, y) = do
   --   setSourceRGB 1 0 0
-  setLineWidth 1
+  Cairo.setLineWidth 1
   -- moveTo x y
   let radius = 20
   let tau = 2 * pi
-  arc x y radius 0 tau
-  stroke
+  Cairo.arc x y radius 0 tau
+  Cairo.stroke
 
 drawNode :: (Int, Element) -> Render ()
 drawNode (elemId, Element {..}) = do
@@ -133,14 +134,14 @@ drawNode (elemId, Element {..}) = do
       (width, height) = _elSize
       halfWidth = width / 2
 
-  setSourceRGB 1 0 0
-  setLineWidth 1
-  rectangle x y halfWidth height
-  showText (show elemId)
-  stroke
-  setSourceRGB 0 1 0
-  rectangle (x + halfWidth) y halfWidth height
-  stroke
+  Cairo.setSourceRGB 1 0 0
+  Cairo.setLineWidth 1
+  Cairo.rectangle x y halfWidth height
+  Cairo.showText (show elemId)
+  Cairo.stroke
+  Cairo.setSourceRGB 0 1 0
+  Cairo.rectangle (x + halfWidth) y halfWidth height
+  Cairo.stroke
 
 updateBackground :: p -> IORef AppState -> Render ()
 updateBackground _canvas stateRef = do
@@ -150,14 +151,14 @@ updateBackground _canvas stateRef = do
   --             :: Render Double)
 
   -- TODO This should be moved into the setup phase
-  setSourceRGB 0 0 0
-  paint
+  Cairo.setSourceRGB 0 0 0
+  Cairo.paint
 
-  stateVal <- liftIO $ readIORef stateRef
-  setSourceRGB 1 1 1
-  moveTo 10 10
-  showText ("fps=" <> show (_asFPSr stateVal))
-  setSourceRGB 1 0 0
+  stateVal <- Cairo.liftIO $ readIORef stateRef
+  Cairo.setSourceRGB 1 1 1
+  Cairo.moveTo 10 10
+  Cairo.showText ("fps=" <> show (_asFPSr stateVal))
+  Cairo.setSourceRGB 1 0 0
   traverse_ drawNode (IntMap.toList (_asElements stateVal))
 
 findElementByPosition ::
@@ -313,8 +314,8 @@ startApp app = do
   #showAll window
   gdkWindow <- fromJust <$> #getWindow window
   display <- fmap fromJust Gdk.displayGetDefault -- TODO unsafe
-  deviceManager <- fromJust <$> Gdk.displayGetDeviceManager display -- TODO deprecated
-  device <- Gdk.deviceManagerGetClientPointer deviceManager
+  seat <- Gdk.displayGetDefaultSeat display
+  device <- fromJust <$> Gdk.seatGetPointer seat -- TODO unsafe
   _ <-
     GLib.timeoutAdd
       GLib.PRIORITY_DEFAULT
