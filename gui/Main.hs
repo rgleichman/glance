@@ -33,11 +33,17 @@ import qualified Graphics.Rendering.Cairo as Cairo
 import Graphics.Rendering.Cairo.Internal (Render (runRender))
 import Graphics.Rendering.Cairo.Types (Cairo (Cairo))
 
-leftMouseButton :: Word32
-leftMouseButton = 1
+-- | An Enum of mouse buttons, so order is important!
+data MouseButtons
+  = LeftMouseButton
+  | MiddleMouseButton
+  | RightMouseButton
+  deriving (Eq, Ord, Enum)
 
-rightMouseButton :: Word32
-rightMouseButton = 3
+-- | A mapping between mouse button names and the GTK
+-- mouse button numbers via Enum, so order is important!
+mouseButtonNum :: MouseButtons -> Word32
+mouseButtonNum = fromIntegral . (+ 1) . fromEnum
 
 nodeSize :: (Double, Double)
 nodeSize = (100, 40)
@@ -97,7 +103,7 @@ emptyInputs =
       _inEvents = mempty
     }
 
-renderCairo :: Coercible a (GI.Cairo.Context) => a -> Render c -> IO c
+renderCairo :: Coercible a GI.Cairo.Context => a -> Render c -> IO c
 renderCairo c r = withManagedPtr c $ \pointer ->
   runReaderT (runRender r) (Cairo (castPtr pointer))
 
@@ -324,7 +330,7 @@ startApp app = do
   let backgroundPress eventButton = do
         mouseBtn <- get eventButton #button
         when
-          (mouseBtn == rightMouseButton)
+          (mouseBtn == mouseButtonNum RightMouseButton)
           ( do
               (x, y) <- getXandY eventButton
 
@@ -345,7 +351,7 @@ startApp app = do
               pure ()
           )
         when
-          (mouseBtn == leftMouseButton)
+          (mouseBtn == mouseButtonNum LeftMouseButton)
           ( do
               putStrLn "Left click"
               mousePosition <- getXandY eventButton
