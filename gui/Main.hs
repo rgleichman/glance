@@ -98,7 +98,6 @@ emptyInputs =
     }
 
 renderCairo :: Coercible a (GI.Cairo.Context) => a -> Render c -> IO c
--- renderCairo :: Coercible a (ManagedPtr ()) => a -> Render c -> IO c
 renderCairo c r = withManagedPtr c $ \pointer ->
   runReaderT (runRender r) (Cairo (castPtr pointer))
 
