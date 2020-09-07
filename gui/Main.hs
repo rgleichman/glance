@@ -8,9 +8,8 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Main (main) where
+module Main (main, mouseButtonNum) where
 
-import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans.Reader (runReaderT)
 import Data.Coerce (Coercible)
@@ -34,21 +33,24 @@ import Graphics.Rendering.Cairo.Internal (Render (runRender))
 import Graphics.Rendering.Cairo.Types (Cairo (Cairo))
 
 -- | An Enum of mouse buttons, so order is important!
-data MouseButtons
+data MouseButton
   = LeftMouseButton
   | MiddleMouseButton
   | RightMouseButton
-  deriving (Eq, Ord, Enum)
+  deriving (Eq, Ord, Enum, Show)
 
 -- | A mapping between mouse button names and the GTK
 -- mouse button numbers via Enum, so order is important!
-mouseButtonNum :: MouseButtons -> Word32
+mouseButtonNum :: MouseButton -> Word32
 mouseButtonNum = fromIntegral . (+ 1) . fromEnum
+
+-- | Convert a GDK mouse button number to a MouseButton
+toMouseButton :: Word32 -> MouseButton
+toMouseButton = toEnum . fromIntegral . (subtract 1)
 
 nodeSize :: (Double, Double)
 nodeSize = (100, 40)
 
--- TODO USE newtype for element ID.
 newtype ElemId = ElemId {_unElemId :: Int} deriving (Show, Eq, Ord)
 
 -- | A graphical element that can be clicked
@@ -208,7 +210,7 @@ processInput inputEvent oldState@AppState {_asElements, _asMovingNode} =
             Just _ -> Nothing
        in oldState {_asMovingNode = newMovingNodeId}
 
--- Update the state based on the old state and the mouse
+-- | Update the state based on the old state and the mouse
 -- position. Consider moving inputs like mouse position into a
 -- separate input struct.
 updateState :: Inputs -> AppState -> AppState
@@ -227,13 +229,10 @@ updateState
               )
               (_unElemId nodeId)
               _asElements
-
-        newState =
-          oldState
-            { _asElements = newElements,
-              _asFPSr = getFps inputs
-            }
-     in newState
+     in oldState
+          { _asElements = newElements,
+            _asFPSr = getFps inputs
+          }
 
 timeoutCallback ::
   IORef Inputs ->
@@ -259,11 +258,87 @@ timeoutCallback inputsRef stateRef gdkWindow device backgroundArea = do
 
   inputs <- readIORef inputsRef
 
+  -- TODO Refactor processInputs and updateState so that there is a
+  -- single event stream. Events are processed in order. Processing an
+  -- event may modify the state.
   modifyIORef' stateRef (processInputs inputs)
   modifyIORef' stateRef (updateState inputs)
   modifyIORef' inputsRef (\i -> i {_inEvents = []})
 
   Gtk.widgetQueueDraw backgroundArea
+  pure True
+
+-- TODO NOW Refactor leftClickAction and rightClickAction
+leftClickAction ::
+  IORef Inputs ->
+  IORef AppState ->
+  Gdk.EventButton ->
+  Word32 ->
+  IO ()
+leftClickAction inputsRef stateRef eventButton mouseBtn =
+  do
+    mousePosition <- getXandY eventButton
+
+    state <- readIORef stateRef
+
+    modifyIORef'
+      inputsRef
+      ( \s@Inputs {_inEvents} ->
+          let mElem =
+                findElementByPosition (_asElements state) mousePosition
+           in case mElem of
+                Nothing -> s
+                Just (elemId, element) ->
+                  let (elementX, elementY) = _elPosition element
+                      (mouseX, mouseY) = mousePosition
+                   in s
+                        { _inEvents =
+                            ClickOnNode
+                              (ElemId elemId)
+                              (mouseX - elementX, mouseY - elementY)
+                              mouseBtn :
+                            _inEvents
+                        }
+      )
+
+rightClickAction ::
+  IORef AppState ->
+  Gdk.EventButton ->
+  IO ()
+rightClickAction stateRef eventButton =
+  do
+    (x, y) <- getXandY eventButton
+
+    modifyIORef'
+      stateRef
+      ( \s@AppState {_asElements} ->
+          let key = maybe 0 fst (IntMap.lookupMax _asElements)
+              newNode =
+                Element
+                  { _elPosition = (x, y),
+                    _elSize = nodeSize,
+                    _elZ = 0
+                  }
+              newElements =
+                IntMap.insert (key + 1) newNode _asElements
+           in s {_asElements = newElements}
+      )
+    pure ()
+
+backgroundPress ::
+  IORef Inputs ->
+  IORef AppState ->
+  Gdk.EventButton ->
+  IO Bool
+backgroundPress inputsRef stateRef eventButton = do
+  mouseBtnNum <- get eventButton #button
+  let mouseButton = toMouseButton mouseBtnNum
+  putStrLn ("Background pressed by " <> show mouseButton)
+  case toMouseButton mouseBtnNum of
+    RightMouseButton -> rightClickAction stateRef eventButton
+    LeftMouseButton ->
+      leftClickAction inputsRef stateRef eventButton mouseBtnNum
+    _ -> mempty
   pure True
 
 startApp :: Gtk.Application -> IO ()
@@ -299,21 +374,9 @@ startApp app = do
     on
       backgroundArea
       #draw
-      ( \context -> do
-          -- mSurface <- readIORef surfaceRef
-          -- surface <- case mSurface of
-          --   Nothing -> do
-          --     (width, height) <- #getSize window
-          --     surf <- createImageSurface
-          --       FormatARGB32
-          --       (fromIntegral width)
-          --       (fromIntegral height)
-          --     writeIORef surfaceRef $ Just $ surf
-          --     pure surf
-          --   Just surface -> pure surface
-
-          _ <- renderCairo context (updateBackground backgroundArea stateRef)
-          pure True
+      ( \context ->
+          renderCairo context (updateBackground backgroundArea stateRef)
+            >> pure True
       )
 
   #showAll window
@@ -327,61 +390,7 @@ startApp app = do
       1
       (timeoutCallback inputsRef stateRef gdkWindow device backgroundArea)
 
-  let backgroundPress eventButton = do
-        mouseBtn <- get eventButton #button
-        when
-          (mouseBtn == mouseButtonNum RightMouseButton)
-          ( do
-              (x, y) <- getXandY eventButton
-
-              modifyIORef'
-                stateRef
-                ( \s@AppState {_asElements} ->
-                    let key = maybe 0 fst (IntMap.lookupMax _asElements)
-                        newNode =
-                          Element
-                            { _elPosition = (x, y),
-                              _elSize = nodeSize,
-                              _elZ = 0
-                            }
-                        newElements =
-                          IntMap.insert (key + 1) newNode _asElements
-                     in s {_asElements = newElements}
-                )
-              pure ()
-          )
-        when
-          (mouseBtn == mouseButtonNum LeftMouseButton)
-          ( do
-              putStrLn "Left click"
-              mousePosition <- getXandY eventButton
-
-              state <- readIORef stateRef
-
-              modifyIORef'
-                inputsRef
-                ( \s@Inputs {_inEvents} ->
-                    let mElem =
-                          findElementByPosition (_asElements state) mousePosition
-                     in case mElem of
-                          Nothing -> s
-                          Just (elemId, element) ->
-                            let (elementX, elementY) = _elPosition element
-                                (mouseX, mouseY) = mousePosition
-                             in s
-                                  { _inEvents =
-                                      ClickOnNode
-                                        (ElemId elemId)
-                                        (mouseX - elementX, mouseY - elementY)
-                                        mouseBtn :
-                                      _inEvents
-                                  }
-                )
-          )
-
-        putStrLn "backgroundPressed"
-        pure True
-  _ <- on backgroundArea #buttonPressEvent backgroundPress
+  _ <- on backgroundArea #buttonPressEvent (backgroundPress inputsRef stateRef)
 
   #showAll window
   pure ()
