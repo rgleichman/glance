@@ -95,6 +95,7 @@ data InputEvent
       ElemId
       (Double, Double) -- relative mouse position
       Word32 -- mouse button
+  | AddNode (Double, Double) -- where to add the node
 
 emptyAppState :: AppState
 emptyAppState =
@@ -202,22 +203,36 @@ getFps inputs =
         then fromIntegral $ div (truncate fps) 100 * (100 :: Int)
         else fps
 
+-- | Add a node to the canvas at the given position.
+addNode :: (Double, Double) -> AppState -> AppState
+addNode addPosition s@AppState {_asElements} =
+  let biggestKey = maybe 0 fst (IntMap.lookupMax _asElements)
+      newNode =
+        Element
+          { _elPosition = addPosition,
+            _elSize = nodeSize,
+            _elZ = 0
+          }
+      newElements =
+        IntMap.insert (biggestKey + 1) newNode _asElements
+   in s {_asElements = newElements}
+
+processInput :: InputEvent -> AppState -> AppState
+processInput inputEvent oldState@AppState {_asMovingNode} =
+  case inputEvent of
+    ClickOnNode elemId _relativePosition _mouseBtn ->
+      let newMovingNodeId = case _asMovingNode of
+            Nothing -> Just elemId
+            Just _ -> Nothing
+       in oldState {_asMovingNode = newMovingNodeId}
+    AddNode addPosition -> addNode addPosition oldState
+
 processInputs :: Inputs -> AppState -> AppState
 processInputs
   Inputs {_inEvents}
   oldState@AppState {_asElements, _asMovingNode} =
     let compose = foldr (.) id
      in compose (fmap processInput _inEvents) oldState
-
-processInput :: InputEvent -> AppState -> AppState
-processInput inputEvent oldState@AppState {_asElements, _asMovingNode} =
-  case inputEvent of
-    -- TODO only change movingNode if mouseBtn is leftClick
-    ClickOnNode elemId _relativePosition _mouseBtn ->
-      let newMovingNodeId = case _asMovingNode of
-            Nothing -> Just elemId
-            Just _ -> Nothing
-       in oldState {_asMovingNode = newMovingNodeId}
 
 -- | Update the state based on the old state and the mouse
 -- position. Consider moving inputs like mouse position into a
@@ -277,7 +292,11 @@ timeoutCallback inputsRef stateRef gdkWindow device backgroundArea = do
   Gtk.widgetQueueDraw backgroundArea
   pure True
 
--- TODO NOW Refactor leftClickAction and rightClickAction
+-- TODO NOW Refactor code to use this.
+elementwiseOp :: (a -> b -> c) -> (a, a) -> (b, b) -> (c, c)
+elementwiseOp f (x0, x1) (y0, y1) =
+  (f x0 y0, f x1 y1)
+
 leftClickAction ::
   IORef Inputs ->
   IORef AppState ->
@@ -287,50 +306,39 @@ leftClickAction ::
 leftClickAction inputsRef stateRef eventButton mouseBtn =
   do
     mousePosition <- getXandY eventButton
-
     state <- readIORef stateRef
 
+    let mElem = findElementByPosition (_asElements state) mousePosition
+
+        addClickEvent inputs@Inputs {_inEvents} =
+          case mElem of
+            Nothing -> inputs
+            Just (elemId, element) ->
+              -- TODO NOW Make function to add to event queue.
+              inputs
+                { _inEvents =
+                    ClickOnNode
+                      (ElemId elemId)
+                      (elementwiseOp (-) mousePosition (_elPosition element))
+                      mouseBtn :
+                    _inEvents
+                }
     modifyIORef'
       inputsRef
-      ( \s@Inputs {_inEvents} ->
-          let mElem =
-                findElementByPosition (_asElements state) mousePosition
-           in case mElem of
-                Nothing -> s
-                Just (elemId, element) ->
-                  let (elementX, elementY) = _elPosition element
-                      (mouseX, mouseY) = mousePosition
-                   in s
-                        { _inEvents =
-                            ClickOnNode
-                              (ElemId elemId)
-                              (mouseX - elementX, mouseY - elementY)
-                              mouseBtn :
-                            _inEvents
-                        }
-      )
+      addClickEvent
 
 rightClickAction ::
-  IORef AppState ->
+  IORef Inputs ->
   Gdk.EventButton ->
   IO ()
-rightClickAction stateRef eventButton =
+rightClickAction inputsRef eventButton =
   do
     (x, y) <- getXandY eventButton
 
     modifyIORef'
-      stateRef
-      ( \s@AppState {_asElements} ->
-          let key = maybe 0 fst (IntMap.lookupMax _asElements)
-              newNode =
-                Element
-                  { _elPosition = (x, y),
-                    _elSize = nodeSize,
-                    _elZ = 0
-                  }
-              newElements =
-                IntMap.insert (key + 1) newNode _asElements
-           in s {_asElements = newElements}
+      inputsRef
+      ( \inputs@Inputs {_inEvents} ->
+          inputs {_inEvents = AddNode (x, y) : _inEvents}
       )
     pure ()
 
@@ -344,7 +352,7 @@ backgroundPress inputsRef stateRef eventButton = do
   let mouseButton = toMouseButton mouseBtnNum
   putStrLn ("Background pressed by " <> show mouseButton)
   case toMouseButton mouseBtnNum of
-    RightMouseButton -> rightClickAction stateRef eventButton
+    RightMouseButton -> rightClickAction inputsRef eventButton
     LeftMouseButton ->
       leftClickAction inputsRef stateRef eventButton mouseBtnNum
     _ -> mempty
