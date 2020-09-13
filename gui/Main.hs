@@ -37,16 +37,25 @@ data MouseButton
   = LeftMouseButton
   | MiddleMouseButton
   | RightMouseButton
-  deriving (Eq, Ord, Enum, Show)
+  | UnknownMouseButton
+  deriving (Eq, Ord, Enum, Bounded, Show)
 
 -- | A mapping between mouse button names and the GTK
 -- mouse button numbers via Enum, so order is important!
 mouseButtonNum :: MouseButton -> Word32
 mouseButtonNum = fromIntegral . (+ 1) . fromEnum
 
--- | Convert a GDK mouse button number to a MouseButton
+-- | Convert a GDK mouse button number to a MouseButton. If the button
+-- is not recognized, return UnknownMouseButton.
 toMouseButton :: Word32 -> MouseButton
-toMouseButton = toEnum . fromIntegral . (subtract 1)
+toMouseButton gtkMouseButton =
+  if enumNum < fromEnum (minBound :: MouseButton)
+    || enumNum > fromEnum (maxBound :: MouseButton)
+    then UnknownMouseButton
+    else --  toEnum will cause an exception if enumNum is out bounds.
+      toEnum enumNum
+  where
+    enumNum = fromIntegral (gtkMouseButton - 1)
 
 nodeSize :: (Double, Double)
 nodeSize = (100, 40)
