@@ -95,7 +95,6 @@ data InputEvent
     ClickOnNode
       ElemId
       (Double, Double) -- relative mouse position
-      Word32 -- mouse button
   | AddNode (Double, Double) -- where to add the node
 
 emptyAppState :: AppState
@@ -115,6 +114,10 @@ emptyInputs =
       _inPrevTime = MkSystemTime 0 0,
       _inEvents = mempty
     }
+
+-- | Add an event to the event queue in Inputs.
+addEvent :: InputEvent -> Inputs -> Inputs
+addEvent event inputs@Inputs {_inEvents} = inputs {_inEvents = event : _inEvents}
 
 -- | Uses the argument function to combine the tuples.
 elementwiseOp :: (a -> b -> c) -> (a, a) -> (b, b) -> (c, c)
@@ -226,7 +229,7 @@ addNode addPosition s@AppState {_asElements} =
 processInput :: InputEvent -> AppState -> AppState
 processInput inputEvent oldState@AppState {_asMovingNode} =
   case inputEvent of
-    ClickOnNode elemId _relativePosition _mouseBtn ->
+    ClickOnNode elemId _relativePosition ->
       let newMovingNodeId = case _asMovingNode of
             Nothing -> Just elemId
             Just _ -> Nothing
@@ -305,9 +308,8 @@ leftClickAction ::
   IORef Inputs ->
   IORef AppState ->
   Gdk.EventButton ->
-  Word32 ->
   IO ()
-leftClickAction inputsRef stateRef eventButton mouseBtn =
+leftClickAction inputsRef stateRef eventButton =
   do
     mousePosition <- getXandY eventButton
     state <- readIORef stateRef
@@ -318,15 +320,12 @@ leftClickAction inputsRef stateRef eventButton mouseBtn =
           case mElem of
             Nothing -> inputs
             Just (elemId, element) ->
-              -- TODO NOW Make function to add to event queue.
-              inputs
-                { _inEvents =
-                    ClickOnNode
-                      (ElemId elemId)
-                      (elementwiseOp (-) mousePosition (_elPosition element))
-                      mouseBtn :
-                    _inEvents
-                }
+              addEvent
+                ( ClickOnNode
+                    (ElemId elemId)
+                    (elementwiseOp (-) mousePosition (_elPosition element))
+                )
+                inputs
     modifyIORef'
       inputsRef
       addClickEvent
@@ -337,13 +336,11 @@ rightClickAction ::
   IO ()
 rightClickAction inputsRef eventButton =
   do
-    (x, y) <- getXandY eventButton
+    clickPosition <- getXandY eventButton
 
     modifyIORef'
       inputsRef
-      ( \inputs@Inputs {_inEvents} ->
-          inputs {_inEvents = AddNode (x, y) : _inEvents}
-      )
+      (addEvent (AddNode clickPosition))
     pure ()
 
 backgroundPress ::
@@ -358,7 +355,7 @@ backgroundPress inputsRef stateRef eventButton = do
   case toMouseButton mouseBtnNum of
     RightMouseButton -> rightClickAction inputsRef eventButton
     LeftMouseButton ->
-      leftClickAction inputsRef stateRef eventButton mouseBtnNum
+      leftClickAction inputsRef stateRef eventButton
     _ -> mempty
   pure True
 
