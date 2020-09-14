@@ -297,9 +297,8 @@ timeoutCallback inputsRef stateRef gdkWindow device backgroundArea = do
   modifyIORef' stateRef (updateState inputs . processInputs inputs)
   modifyIORef' inputsRef (\i -> i {_inEvents = []}) -- Clear the event queue.
   Gtk.widgetQueueDraw backgroundArea
-  -- TODO Replace GTK callback return values with constants to avoid
-  -- boolean blindness.
-  pure True
+  -- Use Gdk.EVENT_PROPAGATE to continue propagating the event.
+  pure Gdk.EVENT_STOP
 
 leftClickAction ::
   IORef Inputs ->
@@ -354,7 +353,7 @@ backgroundPress inputsRef stateRef eventButton = do
     LeftMouseButton ->
       leftClickAction inputsRef stateRef eventButton
     _ -> mempty
-  pure True
+  pure Gdk.EVENT_STOP
 
 startApp :: Gtk.Application -> IO ()
 startApp app = do
@@ -391,7 +390,7 @@ startApp app = do
       #draw
       ( \context ->
           renderCairo context (updateBackground backgroundArea stateRef)
-            >> pure True
+            >> pure Gdk.EVENT_STOP
       )
 
   #showAll window
