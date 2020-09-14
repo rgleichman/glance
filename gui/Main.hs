@@ -21,6 +21,7 @@ import qualified Data.IntMap.Strict as IntMap
 import Data.List (find)
 import Data.Maybe (fromJust)
 import Data.Time.Clock.System (SystemTime (MkSystemTime), getSystemTime)
+import qualified Data.Tuple.Extra as Tuple
 import Foreign.Ptr (castPtr)
 import GHC.Word (Word32)
 import qualified GI.Cairo (Context (..))
@@ -114,6 +115,11 @@ emptyInputs =
       _inPrevTime = MkSystemTime 0 0,
       _inEvents = mempty
     }
+
+-- | Uses the argument function to combine the tuples.
+elementwiseOp :: (a -> b -> c) -> (a, a) -> (b, b) -> (c, c)
+elementwiseOp f (x0, x1) (y0, y1) =
+  (f x0 y0, f x1 y1)
 
 renderCairo :: Coercible a GI.Cairo.Context => a -> Render c -> IO c
 renderCairo c r = withManagedPtr c $ \pointer ->
@@ -247,9 +253,12 @@ updateState
           Just nodeId ->
             IntMap.adjust
               ( \oldNode@Element {_elPosition, _elSize} ->
-                  let newX = fst _inMouseXandY - (fst _elSize / 2)
-                      newY = snd _inMouseXandY - (snd _elSize / 2)
-                   in oldNode {_elPosition = (newX, newY)}
+                  let newPosition =
+                        elementwiseOp
+                          (-)
+                          _inMouseXandY
+                          (Tuple.both (/ 2) _elSize)
+                   in oldNode {_elPosition = newPosition}
               )
               (_unElemId nodeId)
               _asElements
@@ -291,11 +300,6 @@ timeoutCallback inputsRef stateRef gdkWindow device backgroundArea = do
 
   Gtk.widgetQueueDraw backgroundArea
   pure True
-
--- TODO NOW Refactor code to use this.
-elementwiseOp :: (a -> b -> c) -> (a, a) -> (b, b) -> (c, c)
-elementwiseOp f (x0, x1) (y0, y1) =
-  (f x0 y0, f x1 y1)
 
 leftClickAction ::
   IORef Inputs ->

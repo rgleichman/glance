@@ -80,6 +80,7 @@ executable glance-gui
                      , old-time
                      , containers
                      , time
+                     , extra
   default-language:    Haskell2010
   Other-modules:
 
