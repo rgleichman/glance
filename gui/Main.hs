@@ -294,14 +294,11 @@ timeoutCallback inputsRef stateRef gdkWindow device backgroundArea = do
 
   inputs <- readIORef inputsRef
 
-  -- TODO Refactor processInputs and updateState so that there is a
-  -- single event stream. Events are processed in order. Processing an
-  -- event may modify the state.
-  modifyIORef' stateRef (processInputs inputs)
-  modifyIORef' stateRef (updateState inputs)
-  modifyIORef' inputsRef (\i -> i {_inEvents = []})
-
+  modifyIORef' stateRef (updateState inputs . processInputs inputs)
+  modifyIORef' inputsRef (\i -> i {_inEvents = []}) -- Clear the event queue.
   Gtk.widgetQueueDraw backgroundArea
+  -- TODO Replace GTK callback return values with constants to avoid
+  -- boolean blindness.
   pure True
 
 leftClickAction ::
