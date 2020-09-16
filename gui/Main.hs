@@ -14,7 +14,7 @@ import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans.Reader (runReaderT)
 import Data.Coerce (Coercible)
 import Data.Foldable (traverse_)
-import Data.GI.Base (AttrOp ((:=)), get, new, on, withManagedPtr)
+import Data.GI.Base (AttrOp ((:=)), new, on, withManagedPtr)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
 import qualified Data.IntMap.Strict as IntMap
 -- import qualified GI.GdkPixbuf as GP
@@ -82,11 +82,11 @@ data Inputs = Inputs
   }
 
 data AppState = AppState
-  { -- | _asElements key
+  { -- | This is a key for _asElements
     _asMovingNode :: Maybe ElemId,
     _asEdges :: [(Element, Element)],
     _asElements :: IntMap.IntMap Element,
-    -- | FPS rouned down to nearest hundred if over 200 fps.
+    -- | FPS rounded down to nearest hundred if over 200 fps.
     _asFPSr :: Double
   }
 
@@ -243,9 +243,7 @@ processInputs
     let compose = foldr (.) id
      in compose (fmap processInput _inEvents) oldState
 
--- | Update the state based on the old state and the mouse
--- position. Consider moving inputs like mouse position into a
--- separate input struct.
+-- | Update the state based on the inputs and the old state.
 updateState :: Inputs -> AppState -> AppState
 updateState
   inputs@Inputs {_inMouseXandY, _inEvents}
@@ -280,13 +278,13 @@ timeoutCallback ::
 timeoutCallback inputsRef stateRef gdkWindow device backgroundArea = do
   newTime <- getSystemTime
   gdkDevicePosition <- Gdk.windowGetDevicePositionDouble gdkWindow device
-  let (_, x, y, _) = gdkDevicePosition
+  let (_, mouseX, mouseY, _) = gdkDevicePosition
 
   modifyIORef'
     inputsRef
     ( \inputs@Inputs {_inTime} ->
         inputs
-          { _inMouseXandY = (x, y),
+          { _inMouseXandY = (mouseX, mouseY),
             _inTime = newTime,
             _inPrevTime = _inTime
           }
@@ -345,10 +343,9 @@ backgroundPress ::
   Gdk.EventButton ->
   IO Bool
 backgroundPress inputsRef stateRef eventButton = do
-  mouseBtnNum <- get eventButton #button
-  let mouseButton = toMouseButton mouseBtnNum
+  mouseButton <- toMouseButton <$> Gdk.getEventButtonButton eventButton
   putStrLn ("Background pressed by " <> show mouseButton)
-  case toMouseButton mouseBtnNum of
+  case mouseButton of
     RightMouseButton -> rightClickAction inputsRef eventButton
     LeftMouseButton ->
       leftClickAction inputsRef stateRef eventButton
@@ -377,11 +374,9 @@ startApp app = do
   #add window backgroundArea
 
   -- geometry <- new Gdk.Geometry [ #minWidth := 500, #minHeight := 500]
-
   -- screen <- get window #screen
   -- rgbaVisual <- #getRgbaVisual screen
   -- #setVisual window rgbaVisual
-
   -- surfaceRef <- newIORef (Nothing)
 
   _ <-
@@ -395,9 +390,9 @@ startApp app = do
 
   #showAll window
   gdkWindow <- fromJust <$> #getWindow window
-  display <- fmap fromJust Gdk.displayGetDefault -- TODO unsafe
+  display <- fmap fromJust Gdk.displayGetDefault -- unsafe
   seat <- Gdk.displayGetDefaultSeat display
-  device <- fromJust <$> Gdk.seatGetPointer seat -- TODO unsafe
+  device <- fromJust <$> Gdk.seatGetPointer seat -- unsafe
   _ <-
     GLib.timeoutAdd
       GLib.PRIORITY_DEFAULT
