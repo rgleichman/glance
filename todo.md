@@ -1,7 +1,6 @@
 # Todo
 
 ## GUI Todo Now
-* Refactor and clean up GUI (gui/Main.hs).
 * Add history and undo [Bug #12](https://github.com/rgleichman/glance/issues/12)
 * Add zooming [Bug #13](https://github.com/rgleichman/glance/issues/13)
 
