@@ -87,7 +87,8 @@ data AppState = AppState
     _asEdges :: [(Element, Element)],
     _asElements :: IntMap.IntMap Element,
     -- | FPS rounded down to nearest hundred if over 200 fps.
-    _asFPSr :: Double
+    _asFPSr :: Double,
+    _asHistory :: [HistoryEvent]
   }
 
 data InputEvent
@@ -96,6 +97,14 @@ data InputEvent
       ElemId
       (Double, Double) -- relative mouse position
   | AddNode (Double, Double) -- where to add the node
+  | Undo
+
+-- | Records actions so that they can be undone.
+data HistoryEvent
+  = MovedNode -- TODO Record which node, and where the node was moved
+  -- from (and to).
+  | AddedNode ElemId -- TODO Record which node was added.
+  deriving (Show, Eq)
 
 emptyAppState :: AppState
 emptyAppState =
@@ -103,7 +112,8 @@ emptyAppState =
     { _asMovingNode = Nothing,
       _asEdges = [],
       _asElements = mempty,
-      _asFPSr = 0
+      _asFPSr = 0,
+      _asHistory = []
     }
 
 emptyInputs :: Inputs
@@ -212,9 +222,19 @@ getFps inputs =
         then fromIntegral $ div (truncate fps) 100 * (100 :: Int)
         else fps
 
+clickOnNode :: ElemId -> AppState -> AppState
+clickOnNode elemId oldState@AppState {_asMovingNode, _asHistory} =
+  case _asMovingNode of
+    Nothing -> oldState {_asMovingNode = Just elemId}
+    Just _ ->
+      oldState
+        { _asMovingNode = Nothing,
+          _asHistory = MovedNode : _asHistory
+        }
+
 -- | Add a node to the canvas at the given position.
 addNode :: (Double, Double) -> AppState -> AppState
-addNode addPosition s@AppState {_asElements} =
+addNode addPosition s@AppState {_asElements, _asHistory} =
   let biggestKey = maybe 0 fst (IntMap.lookupMax _asElements)
       newNode =
         Element
@@ -222,19 +242,35 @@ addNode addPosition s@AppState {_asElements} =
             _elSize = nodeSize,
             _elZ = 0
           }
+      nodeId = (biggestKey + 1)
       newElements =
-        IntMap.insert (biggestKey + 1) newNode _asElements
-   in s {_asElements = newElements}
+        IntMap.insert nodeId newNode _asElements
+   in s
+        { _asElements = newElements,
+          _asHistory = AddedNode (ElemId nodeId) : _asHistory
+        }
+
+removeNode :: ElemId -> AppState -> AppState
+removeNode nodeId oldState@AppState {_asElements} =
+  oldState {_asElements = IntMap.delete (_unElemId nodeId) _asElements}
+
+undo :: AppState -> AppState
+undo oldState@AppState {_asHistory} = newState
+  where
+    newState = case _asHistory of
+      [] -> oldState
+      historyEvent : restOfHistory -> undidState {_asHistory = restOfHistory}
+        where
+          undidState = case historyEvent of
+            MovedNode -> oldState -- TODO Implement undo move node.
+            AddedNode nodeId -> removeNode nodeId oldState
 
 processInput :: InputEvent -> AppState -> AppState
-processInput inputEvent oldState@AppState {_asMovingNode} =
+processInput inputEvent oldState =
   case inputEvent of
-    ClickOnNode elemId _relativePosition ->
-      let newMovingNodeId = case _asMovingNode of
-            Nothing -> Just elemId
-            Just _ -> Nothing
-       in oldState {_asMovingNode = newMovingNodeId}
+    ClickOnNode elemId _relativePosition -> clickOnNode elemId oldState
     AddNode addPosition -> addNode addPosition oldState
+    Undo -> undo oldState
 
 processInputs :: Inputs -> AppState -> AppState
 processInputs
@@ -352,6 +388,24 @@ backgroundPress inputsRef stateRef eventButton = do
     _ -> mempty
   pure Gdk.EVENT_STOP
 
+addUndoInputAction :: IORef Inputs -> IO ()
+addUndoInputAction inputsRef = do
+  putStrLn "Adding Undo input action."
+  modifyIORef' inputsRef (addEvent Undo)
+  pure ()
+
+keyPress :: IORef Inputs -> Gdk.EventKey -> IO Bool
+keyPress inputsRef eventKey = do
+  -- TODO May want to check that ctrl is pressed by checking that
+  -- getEventKeyState is ModifierTypeControlMask. May also want to use
+  -- Gdk.KEY_?.
+  key <- Gdk.getEventKeyString eventKey
+  print key
+  case key of
+    Just "\SUB" -> addUndoInputAction inputsRef -- putStrLn "ctrl-z pressed"
+    _ -> pure ()
+  pure Gdk.EVENT_STOP
+
 startApp :: Gtk.Application -> IO ()
 startApp app = do
   stateRef <- newIORef emptyAppState
@@ -366,6 +420,7 @@ startApp app = do
         #borderWidth := 0
       ]
   backgroundArea <- new Gtk.DrawingArea []
+  Gtk.widgetAddEvents window [Gdk.EventMaskKeyPressMask]
   Gtk.widgetAddEvents
     backgroundArea
     [ Gdk.EventMaskPointerMotionMask,
@@ -399,7 +454,8 @@ startApp app = do
       1
       (timeoutCallback inputsRef stateRef gdkWindow device backgroundArea)
 
-  _ <- on backgroundArea #buttonPressEvent (backgroundPress inputsRef stateRef)
+  _ <- Gtk.onWidgetButtonPressEvent backgroundArea (backgroundPress inputsRef stateRef)
+  _ <- Gtk.onWidgetKeyPressEvent window (keyPress inputsRef)
 
   #showAll window
   pure ()
