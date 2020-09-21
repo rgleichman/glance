@@ -2,6 +2,7 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -61,7 +62,7 @@ toMouseButton gtkMouseButton =
 nodeSize :: (Double, Double)
 nodeSize = (100, 40)
 
-newtype ElemId = ElemId {_unElemId :: Int} deriving (Show, Eq, Ord)
+newtype ElemId = ElemId {_unElemId :: Int} deriving (Show, Eq, Ord, Num)
 
 -- | A graphical element that can be clicked
 data Element = Element
@@ -88,7 +89,9 @@ data AppState = AppState
     _asElements :: IntMap.IntMap Element,
     -- | FPS rounded down to nearest hundred if over 200 fps.
     _asFPSr :: Double,
-    _asHistory :: [HistoryEvent]
+    _asHistory :: [HistoryEvent],
+    _asBiggestID :: ElemId -- The biggest ElemId used so far in the
+    -- program. Not updated by undo.
   }
 
 data InputEvent
@@ -113,7 +116,8 @@ emptyAppState =
       _asEdges = [],
       _asElements = mempty,
       _asFPSr = 0,
-      _asHistory = []
+      _asHistory = [],
+      _asBiggestID = 0
     }
 
 emptyInputs :: Inputs
@@ -234,20 +238,20 @@ clickOnNode elemId oldState@AppState {_asMovingNode, _asHistory} =
 
 -- | Add a node to the canvas at the given position.
 addNode :: (Double, Double) -> AppState -> AppState
-addNode addPosition s@AppState {_asElements, _asHistory} =
-  let biggestKey = maybe 0 fst (IntMap.lookupMax _asElements)
-      newNode =
+addNode addPosition state@AppState {_asElements, _asHistory, _asBiggestID} =
+  let newNode =
         Element
           { _elPosition = addPosition,
             _elSize = nodeSize,
             _elZ = 0
           }
-      nodeId = (biggestKey + 1)
+      nodeId = 1 + _asBiggestID
       newElements =
-        IntMap.insert nodeId newNode _asElements
-   in s
+        IntMap.insert (_unElemId nodeId) newNode _asElements
+   in state
         { _asElements = newElements,
-          _asHistory = AddedNode (ElemId nodeId) : _asHistory
+          _asHistory = AddedNode nodeId : _asHistory,
+          _asBiggestID = nodeId
         }
 
 removeNode :: ElemId -> AppState -> AppState
@@ -390,7 +394,7 @@ backgroundPress inputsRef stateRef eventButton = do
 
 addUndoInputAction :: IORef Inputs -> IO ()
 addUndoInputAction inputsRef = do
-  putStrLn "Adding Undo input action."
+  putStrLn "Undo"
   modifyIORef' inputsRef (addEvent Undo)
   pure ()
 
@@ -400,9 +404,8 @@ keyPress inputsRef eventKey = do
   -- getEventKeyState is ModifierTypeControlMask. May also want to use
   -- Gdk.KEY_?.
   key <- Gdk.getEventKeyString eventKey
-  print key
   case key of
-    Just "\SUB" -> addUndoInputAction inputsRef -- putStrLn "ctrl-z pressed"
+    Just "\SUB" -> addUndoInputAction inputsRef -- ctrl-z pressed
     _ -> pure ()
   pure Gdk.EVENT_STOP
 
