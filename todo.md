@@ -1,7 +1,6 @@
 # Todo
 
 ## GUI Todo Now
-* Add history and undo [Bug #12](https://github.com/rgleichman/glance/issues/12)
 * Add zooming [Bug #13](https://github.com/rgleichman/glance/issues/13)
 
 ## Non-GUI Todo Now
@@ -11,6 +10,7 @@
 * Add wiki pages discussing: Why a visual language?, History of Glance, How to contribute, Code guide [code style, ...], etc..
 
 ## Todo Later
+* Display the undo state in the app [Bug #14](https://github.com/rgleichman/glance/issues/14)
 
 ### Testing todos
 * Fix the arrowheads being too big for SyntaxGraph drawings.

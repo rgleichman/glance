@@ -82,6 +82,7 @@ data Inputs = Inputs
     _inEvents :: [InputEvent]
   }
 
+-- TODO Consider extracting History and UndoPosition into their own "object".
 data AppState = AppState
   { -- | This is a key for _asElements
     _asMovingNode :: Maybe ElemId,
@@ -89,9 +90,15 @@ data AppState = AppState
     _asElements :: IntMap.IntMap Element,
     -- | FPS rounded down to nearest hundred if over 200 fps.
     _asFPSr :: Double,
-    _asHistory :: [HistoryEvent],
-    _asBiggestID :: ElemId -- The biggest ElemId used so far in the
-    -- program. Not updated by undo.
+    -- | A full history of the state of the app. Use addHistoryEvent
+    -- to add new HistoryEvents, do not add events directly.
+    _asHistory :: [Undoable HistoryEvent],
+    -- | A pointer into _asHistory. The undo command pops this
+    -- stack, undos the HistoryEvent, and pushes the inverse of the
+    -- popped HistoryEvent onto _asHistory.
+    _asUndoPosition :: [Undoable HistoryEvent],
+    -- | The biggest ElemId used so far in the program. Not updated by undo.
+    _asBiggestID :: ElemId
   }
 
 data InputEvent
@@ -100,13 +107,24 @@ data InputEvent
       ElemId
       (Double, Double) -- relative mouse position
   | AddNode (Double, Double) -- where to add the node
-  | Undo
+  | -- | Undo the last action.
+    UndoEvent
+  | -- | Abort the current command (like C-g in Emacs).
+    AbortEvent
+
+data Undoable a = Do a | Undo a
+
+-- | Flip a Do to an Undo, and an Undo to a Do.
+invertUndoable :: Undoable a -> Undoable a
+invertUndoable undoable = case undoable of
+  Do a -> Undo a
+  Undo a -> Do a
 
 -- | Records actions so that they can be undone.
 data HistoryEvent
   = MovedNode -- TODO Record which node, and where the node was moved
   -- from (and to).
-  | AddedNode ElemId -- TODO Record which node was added.
+  | AddedNode ElemId (Double, Double) -- Id of node and position
   deriving (Show, Eq)
 
 emptyAppState :: AppState
@@ -117,6 +135,7 @@ emptyAppState =
       _asElements = mempty,
       _asFPSr = 0,
       _asHistory = [],
+      _asUndoPosition = [],
       _asBiggestID = 0
     }
 
@@ -128,6 +147,15 @@ emptyInputs =
       _inPrevTime = MkSystemTime 0 0,
       _inEvents = mempty
     }
+
+-- | Add a new HistoryEvent and reset _asUndoPosition.
+addHistoryEvent :: HistoryEvent -> AppState -> AppState
+addHistoryEvent event state@AppState {_asHistory, _asUndoPosition} =
+  let updatedHistory = Do event : _asHistory
+   in state
+        { _asHistory = updatedHistory,
+          _asUndoPosition = updatedHistory
+        }
 
 -- | Add an event to the event queue in Inputs.
 addEvent :: InputEvent -> Inputs -> Inputs
@@ -231,50 +259,68 @@ clickOnNode elemId oldState@AppState {_asMovingNode, _asHistory} =
   case _asMovingNode of
     Nothing -> oldState {_asMovingNode = Just elemId}
     Just _ ->
-      oldState
-        { _asMovingNode = Nothing,
-          _asHistory = MovedNode : _asHistory
-        }
+      addHistoryEvent MovedNode $
+        oldState {_asMovingNode = Nothing}
+
+-- | Add a node  to the canvas at the given position with a known ID.
+addNodeWithId :: ElemId -> (Double, Double) -> AppState -> AppState
+addNodeWithId
+  nodeId
+  addPosition
+  state@AppState {_asElements, _asHistory, _asBiggestID} =
+    let newNode =
+          Element
+            { _elPosition = addPosition,
+              _elSize = nodeSize,
+              _elZ = 0
+            }
+        newElements =
+          IntMap.insert (_unElemId nodeId) newNode _asElements
+     in addHistoryEvent (AddedNode nodeId addPosition) $
+          state
+            { _asElements = newElements,
+              _asBiggestID = max _asBiggestID nodeId
+            }
 
 -- | Add a node to the canvas at the given position.
 addNode :: (Double, Double) -> AppState -> AppState
-addNode addPosition state@AppState {_asElements, _asHistory, _asBiggestID} =
-  let newNode =
-        Element
-          { _elPosition = addPosition,
-            _elSize = nodeSize,
-            _elZ = 0
-          }
-      nodeId = 1 + _asBiggestID
-      newElements =
-        IntMap.insert (_unElemId nodeId) newNode _asElements
-   in state
-        { _asElements = newElements,
-          _asHistory = AddedNode nodeId : _asHistory,
-          _asBiggestID = nodeId
-        }
+addNode addPosition state@AppState {_asBiggestID} =
+  addNodeWithId (1 + _asBiggestID) addPosition state
 
 removeNode :: ElemId -> AppState -> AppState
 removeNode nodeId oldState@AppState {_asElements} =
   oldState {_asElements = IntMap.delete (_unElemId nodeId) _asElements}
 
 undo :: AppState -> AppState
-undo oldState@AppState {_asHistory} = newState
+undo oldState@AppState {_asHistory, _asUndoPosition} = newState
   where
-    newState = case _asHistory of
+    newState = case _asUndoPosition of
       [] -> oldState
-      historyEvent : restOfHistory -> undidState {_asHistory = restOfHistory}
+      historyEvent : restOfHistory ->
+        undidState
+          { _asHistory = invertUndoable historyEvent : _asHistory,
+            _asUndoPosition = restOfHistory
+          }
         where
           undidState = case historyEvent of
-            MovedNode -> oldState -- TODO Implement undo move node.
-            AddedNode nodeId -> removeNode nodeId oldState
+            Do MovedNode -> oldState -- TODO Implement undo move node.
+            Do (AddedNode nodeId _) -> removeNode nodeId oldState
+            Undo (AddedNode nodeId position) ->
+              addNodeWithId nodeId position oldState
+            Undo MovedNode -> oldState -- TODO Implement undo Undo move.
+
+-- | Abort the current action. This includes resetting the _asUndoPosition.
+abort :: AppState -> AppState
+abort state@AppState {_asHistory, _asUndoPosition} =
+  state {_asUndoPosition = _asHistory}
 
 processInput :: InputEvent -> AppState -> AppState
 processInput inputEvent oldState =
   case inputEvent of
     ClickOnNode elemId _relativePosition -> clickOnNode elemId oldState
     AddNode addPosition -> addNode addPosition oldState
-    Undo -> undo oldState
+    UndoEvent -> undo oldState
+    AbortEvent -> abort oldState
 
 processInputs :: Inputs -> AppState -> AppState
 processInputs
@@ -395,7 +441,13 @@ backgroundPress inputsRef stateRef eventButton = do
 addUndoInputAction :: IORef Inputs -> IO ()
 addUndoInputAction inputsRef = do
   putStrLn "Undo"
-  modifyIORef' inputsRef (addEvent Undo)
+  modifyIORef' inputsRef (addEvent UndoEvent)
+  pure ()
+
+addAbortAction :: IORef Inputs -> IO ()
+addAbortAction inputsRef = do
+  putStrLn "Abort"
+  modifyIORef' inputsRef (addEvent AbortEvent)
   pure ()
 
 keyPress :: IORef Inputs -> Gdk.EventKey -> IO Bool
@@ -406,6 +458,8 @@ keyPress inputsRef eventKey = do
   key <- Gdk.getEventKeyString eventKey
   case key of
     Just "\SUB" -> addUndoInputAction inputsRef -- ctrl-z pressed
+    Just "\a" -> addAbortAction inputsRef -- ctrl-g
+    -- _ -> print key
     _ -> pure ()
   pure Gdk.EVENT_STOP
 
