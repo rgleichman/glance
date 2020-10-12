@@ -15,7 +15,7 @@ import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans.Reader (runReaderT)
 import Data.Coerce (Coercible)
 import Data.Foldable (traverse_)
-import Data.GI.Base (AttrOp ((:=)), new, on, withManagedPtr)
+import Data.GI.Base (AttrOp ((:=)), new, withManagedPtr)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
 import qualified Data.IntMap.Strict as IntMap
 -- import qualified GI.GdkPixbuf as GP
@@ -483,7 +483,7 @@ startApp app = do
     [ Gdk.EventMaskPointerMotionMask,
       Gdk.EventMaskButtonPressMask
     ]
-  #add window backgroundArea
+  Gtk.containerAdd window backgroundArea
 
   -- geometry <- new Gdk.Geometry [ #minWidth := 500, #minHeight := 500]
   -- screen <- get window #screen
@@ -492,16 +492,15 @@ startApp app = do
   -- surfaceRef <- newIORef (Nothing)
 
   _ <-
-    on
+    Gtk.onWidgetDraw
       backgroundArea
-      #draw
       ( \context ->
           renderCairo context (updateBackground backgroundArea stateRef)
             >> pure Gdk.EVENT_STOP
       )
 
   #showAll window
-  gdkWindow <- fromJust <$> #getWindow window
+  gdkWindow <- fromJust <$> Gtk.widgetGetWindow window
   display <- fmap fromJust Gdk.displayGetDefault -- unsafe
   seat <- Gdk.displayGetDefaultSeat display
   device <- fromJust <$> Gdk.seatGetPointer seat -- unsafe
@@ -520,7 +519,7 @@ startApp app = do
 main :: IO ()
 main = do
   app <- new Gtk.Application []
-  _ <- on app #activate (startApp app)
+  _ <- Gio.onApplicationActivate app (startApp app)
   appStatus <- Gio.applicationRun app Nothing
   putStrLn ("Application status is " <> show appStatus)
   pure ()
