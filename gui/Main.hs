@@ -98,7 +98,16 @@ data AppState = AppState
     -- popped HistoryEvent onto _asHistory.
     _asUndoPosition :: [Undoable HistoryEvent],
     -- | The biggest ElemId used so far in the program. Not updated by undo.
-    _asBiggestID :: ElemId
+    _asBiggestID :: ElemId,
+    -- TODO Control zooming with mouse wheel
+
+    -- | Controls zooming. This is a scale factor, so the size of
+    -- vizual elements are multiplied by this number. Thus a value of
+    -- one is no zoom, values greater than 1 zooms in, and values
+    -- between 0 and 1 zooms out. Negative values result in undefined
+    -- behaviour, although it would be cool if negative values
+    -- produced a flip across both the X and Y axes.
+    _asZoom :: Double
   }
 
 data InputEvent
@@ -136,7 +145,8 @@ emptyAppState =
       _asFPSr = 0,
       _asHistory = [],
       _asUndoPosition = [],
-      _asBiggestID = 0
+      _asBiggestID = 0,
+      _asZoom = 1
     }
 
 emptyInputs :: Inputs
@@ -196,14 +206,14 @@ _drawCircle (x, y) = do
   Cairo.arc x y radius 0 tau
   Cairo.stroke
 
-drawNode :: (Int, Element) -> Render ()
-drawNode (elemId, Element {..}) = do
+drawNode :: Double -> (Int, Element) -> Render ()
+drawNode zoom (elemId, Element {..}) = do
   let (x, y) = _elPosition
-      (width, height) = _elSize
+      (width, height) = Tuple.both (* zoom) _elSize
       halfWidth = width / 2
 
   Cairo.setSourceRGB 1 0 0
-  Cairo.setLineWidth 1
+  Cairo.setLineWidth (3 * zoom)
   Cairo.rectangle x y halfWidth height
   Cairo.showText (show elemId)
   Cairo.stroke
@@ -227,14 +237,14 @@ updateBackground _canvas stateRef = do
   Cairo.moveTo 10 10
   Cairo.showText ("fps=" <> show (_asFPSr stateVal))
   Cairo.setSourceRGB 1 0 0
-  traverse_ drawNode (IntMap.toList (_asElements stateVal))
+  traverse_ (drawNode (_asZoom stateVal)) (IntMap.toList (_asElements stateVal))
 
 findElementByPosition ::
-  IntMap.IntMap Element -> (Double, Double) -> Maybe (Int, Element)
-findElementByPosition elements (mouseX, mouseY) =
+  Double -> IntMap.IntMap Element -> (Double, Double) -> Maybe (Int, Element)
+findElementByPosition zoom elements (mouseX, mouseY) =
   let mouseInElement (_elementId, Element {_elPosition, _elSize}) =
         let (x, y) = _elPosition
-            (width, height) = _elSize
+            (width, height) = Tuple.both (* zoom) _elSize
          in mouseX >= x && mouseX <= (x + width)
               && mouseY >= y
               && mouseY <= (y + height)
@@ -333,7 +343,7 @@ processInputs
 updateState :: Inputs -> AppState -> AppState
 updateState
   inputs@Inputs {_inMouseXandY, _inEvents}
-  oldState@AppState {_asElements, _asMovingNode} =
+  oldState@AppState {_asElements, _asMovingNode, _asZoom} =
     let -- Move the asMovingNode to MouseXandY
         newElements = case _asMovingNode of
           Nothing -> _asElements
@@ -344,7 +354,7 @@ updateState
                         elementwiseOp
                           (-)
                           _inMouseXandY
-                          (Tuple.both (/ 2) _elSize)
+                          (Tuple.both (* (_asZoom / 2)) _elSize)
                    in oldNode {_elPosition = newPosition}
               )
               (_unElemId nodeId)
@@ -394,7 +404,7 @@ leftClickAction inputsRef stateRef eventButton =
     mousePosition <- getXandY eventButton
     state <- readIORef stateRef
 
-    let mElem = findElementByPosition (_asElements state) mousePosition
+    let mElem = findElementByPosition (_asZoom state) (_asElements state) mousePosition
 
         addClickEvent inputs@Inputs {_inEvents} =
           case mElem of
