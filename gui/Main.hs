@@ -34,6 +34,10 @@ import qualified Graphics.Rendering.Cairo as Cairo
 import Graphics.Rendering.Cairo.Internal (Render (runRender))
 import Graphics.Rendering.Cairo.Types (Cairo (Cairo))
 
+-- Constants
+minimumZoom :: Double
+minimumZoom = 0.1
+
 -- | An Enum of mouse buttons, so order is important!
 data MouseButton
   = LeftMouseButton
@@ -111,7 +115,7 @@ data AppState = AppState
   }
 
 data InputEvent
-  = -- Which node was clicked and the relative click position within a node.
+  = -- | Which node was clicked and the relative click position within a node.
     ClickOnNode
       ElemId
       (Double, Double) -- relative mouse position
@@ -120,6 +124,8 @@ data InputEvent
     UndoEvent
   | -- | Abort the current command (like C-g in Emacs).
     AbortEvent
+  | -- | The zoom factor is multiplied by this number.
+    ZoomAdjustEvent Double
 
 data Undoable a = Do a | Undo a
 
@@ -324,6 +330,12 @@ abort :: AppState -> AppState
 abort state@AppState {_asHistory, _asUndoPosition} =
   state {_asUndoPosition = _asHistory}
 
+adjustZoom :: Double -> AppState -> AppState
+adjustZoom zoomAdjustment state@AppState {_asZoom} =
+  state {_asZoom = max minimumZoom newZoom}
+  where
+    newZoom = _asZoom * zoomAdjustment
+
 processInput :: InputEvent -> AppState -> AppState
 processInput inputEvent oldState =
   case inputEvent of
@@ -331,6 +343,7 @@ processInput inputEvent oldState =
     AddNode addPosition -> addNode addPosition oldState
     UndoEvent -> undo oldState
     AbortEvent -> abort oldState
+    ZoomAdjustEvent zoomAdjustment -> adjustZoom zoomAdjustment oldState
 
 processInputs :: Inputs -> AppState -> AppState
 processInputs
@@ -460,6 +473,16 @@ addAbortAction inputsRef = do
   modifyIORef' inputsRef (addEvent AbortEvent)
   pure ()
 
+addZoomAdjustAction ::
+  -- |  Amount by which to change the zoom factor
+  Double ->
+  IORef Inputs ->
+  IO ()
+addZoomAdjustAction zoomDelta inputsRef = do
+  putStrLn ("Adjusting zoom by " <> show zoomDelta)
+  modifyIORef' inputsRef (addEvent (ZoomAdjustEvent zoomDelta))
+  pure ()
+
 keyPress :: IORef Inputs -> Gdk.EventKey -> IO Bool
 keyPress inputsRef eventKey = do
   -- TODO May want to check that ctrl is pressed by checking that
@@ -471,6 +494,16 @@ keyPress inputsRef eventKey = do
     Just "\a" -> addAbortAction inputsRef -- ctrl-g
     -- _ -> print key
     _ -> pure ()
+  pure Gdk.EVENT_STOP
+
+scroll :: IORef Inputs -> Gdk.EventScroll -> IO Bool
+scroll inputsRef scrollEvent = do
+  -- zoom in is negative (usually -1), zoom out is positive (usually 1)
+  deltaY <- Gdk.getEventScrollDeltaY scrollEvent
+  print ("scroll y: " <> show deltaY)
+  if deltaY /= 0.0
+    then addZoomAdjustAction (1 - (0.2 * deltaY)) inputsRef
+    else pure ()
   pure Gdk.EVENT_STOP
 
 startApp :: Gtk.Application -> IO ()
@@ -491,7 +524,8 @@ startApp app = do
   Gtk.widgetAddEvents
     backgroundArea
     [ Gdk.EventMaskPointerMotionMask,
-      Gdk.EventMaskButtonPressMask
+      Gdk.EventMaskButtonPressMask,
+      Gdk.EventMaskScrollMask
     ]
   Gtk.containerAdd window backgroundArea
 
@@ -522,6 +556,7 @@ startApp app = do
 
   _ <- Gtk.onWidgetButtonPressEvent backgroundArea (backgroundPress inputsRef stateRef)
   _ <- Gtk.onWidgetKeyPressEvent window (keyPress inputsRef)
+  _ <- Gtk.onWidgetScrollEvent window (scroll inputsRef)
 
   #showAll window
   pure ()

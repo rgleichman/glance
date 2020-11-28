@@ -2,6 +2,7 @@
 
 ## GUI Todo Now
 * Add zooming [Bug #13](https://github.com/rgleichman/glance/issues/13)
+* Add panning
 
 ## Non-GUI Todo Now
 * Redesign case icon to avoid non-locality.
