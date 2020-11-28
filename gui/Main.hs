@@ -215,7 +215,7 @@ _drawCircle (x, y) = do
 drawNode :: Double -> (Int, Element) -> Render ()
 drawNode zoom (elemId, Element {..}) = do
   let (x, y) = _elPosition
-      (width, height) = Tuple.both (* zoom) _elSize
+      (width, height) = _elSize
       halfWidth = width / 2
 
   Cairo.setSourceRGB 1 0 0
@@ -246,11 +246,11 @@ updateBackground _canvas stateRef = do
   traverse_ (drawNode (_asZoom stateVal)) (IntMap.toList (_asElements stateVal))
 
 findElementByPosition ::
-  Double -> IntMap.IntMap Element -> (Double, Double) -> Maybe (Int, Element)
-findElementByPosition zoom elements (mouseX, mouseY) =
+  IntMap.IntMap Element -> (Double, Double) -> Maybe (Int, Element)
+findElementByPosition elements (mouseX, mouseY) =
   let mouseInElement (_elementId, Element {_elPosition, _elSize}) =
         let (x, y) = _elPosition
-            (width, height) = Tuple.both (* zoom) _elSize
+            (width, height) = _elSize
          in mouseX >= x && mouseX <= (x + width)
               && mouseY >= y
               && mouseY <= (y + height)
@@ -283,11 +283,11 @@ addNodeWithId :: ElemId -> (Double, Double) -> AppState -> AppState
 addNodeWithId
   nodeId
   addPosition
-  state@AppState {_asElements, _asHistory, _asBiggestID} =
+  state@AppState {_asElements, _asHistory, _asBiggestID, _asZoom} =
     let newNode =
           Element
             { _elPosition = addPosition,
-              _elSize = nodeSize,
+              _elSize = Tuple.both (* _asZoom) nodeSize,
               _elZ = 0
             }
         newElements =
@@ -330,11 +330,27 @@ abort :: AppState -> AppState
 abort state@AppState {_asHistory, _asUndoPosition} =
   state {_asUndoPosition = _asHistory}
 
+-- | Adjust the zoom factor and update the node positions with the new
+-- zoom factor.
 adjustZoom :: Double -> AppState -> AppState
-adjustZoom zoomAdjustment state@AppState {_asZoom} =
-  state {_asZoom = max minimumZoom newZoom}
+adjustZoom zoomAdjustment state@AppState {_asZoom, _asElements} =
+  state
+    { _asZoom = newZoom,
+      _asElements = newElements
+    }
   where
-    newZoom = _asZoom * zoomAdjustment
+    adjustedZoom = _asZoom * zoomAdjustment
+    (newZoom, newElements) =
+      if adjustedZoom > minimumZoom
+        then (adjustedZoom, fmap zoomElement _asElements)
+        else (_asZoom, _asElements)
+    -- newZoom = max minimumZoom (_asZoom * zoomAdjustment)
+    zoomElement :: Element -> Element
+    zoomElement element@Element {_elPosition, _elSize} =
+      element
+        { _elPosition = Tuple.both (* zoomAdjustment) _elPosition,
+          _elSize = Tuple.both (* zoomAdjustment) _elSize
+        }
 
 processInput :: InputEvent -> AppState -> AppState
 processInput inputEvent oldState =
@@ -367,7 +383,7 @@ updateState
                         elementwiseOp
                           (-)
                           _inMouseXandY
-                          (Tuple.both (* (_asZoom / 2)) _elSize)
+                          (Tuple.both (* 0.5) _elSize)
                    in oldNode {_elPosition = newPosition}
               )
               (_unElemId nodeId)
@@ -417,7 +433,7 @@ leftClickAction inputsRef stateRef eventButton =
     mousePosition <- getXandY eventButton
     state <- readIORef stateRef
 
-    let mElem = findElementByPosition (_asZoom state) (_asElements state) mousePosition
+    let mElem = findElementByPosition (_asElements state) mousePosition
 
         addClickEvent inputs@Inputs {_inEvents} =
           case mElem of
