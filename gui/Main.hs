@@ -35,8 +35,40 @@ import Graphics.Rendering.Cairo.Internal (Render (runRender))
 import Graphics.Rendering.Cairo.Types (Cairo (Cairo))
 
 -- Constants
-minimumZoom :: Double
-minimumZoom = 0.1
+minimumScale :: Double
+minimumScale = 0.1
+
+nodeSize :: (Double, Double)
+nodeSize = (100, 40)
+
+-- Types
+
+-- | A simple 2d transformation. See transform below for
+-- details.
+data Transform = Transform
+  { -- | Controls scaleing. This is a scale factor, so the size of
+    -- vizual elements are multiplied by this number. Thus a value of
+    -- one is no scale, values greater than 1 scales in, and values
+    -- between 0 and 1 scales out. Negative values result in undefined
+    -- behaviour, although it would be cool if negative values
+    -- produced a flip across both the X and Y axes.
+    _tScale :: !Double,
+    -- (x, y)
+    _tTranslate :: !(Double, Double)
+  }
+
+-- TODO Add quick check tests that transform and unTransform are inverses
+transform :: Transform -> (Double, Double) -> (Double, Double)
+transform (Transform scale (deltaX, deltaY)) (x, y) =
+  ( x * scale + deltaX,
+    y * scale + deltaY
+  )
+
+unTransform :: Transform -> (Double, Double) -> (Double, Double)
+unTransform (Transform scale (deltaX, deltaY)) (transformedX, transformedY) =
+  ( (transformedX - deltaX) / scale,
+    (transformedY - deltaY) / scale
+  )
 
 -- | An Enum of mouse buttons, so order is important!
 data MouseButton
@@ -63,14 +95,14 @@ toMouseButton gtkMouseButton =
   where
     enumNum = fromIntegral (gtkMouseButton - 1)
 
-nodeSize :: (Double, Double)
-nodeSize = (100, 40)
-
 newtype ElemId = ElemId {_unElemId :: Int} deriving (Show, Eq, Ord, Num)
 
 -- | A graphical element that can be clicked
 data Element = Element
-  { -- | (x, y) of top left corner
+  { -- | (x, y) of top left corner. These values are in Element
+    -- coordinates. Use the (transform _asTransform) function to
+    -- convert these to window coordinates and (unTransform
+    -- _asTransform) to convert window coordinates to _elPosition.
     _elPosition :: !(Double, Double),
     -- | (width, height)
     _elSize :: !(Double, Double),
@@ -103,15 +135,8 @@ data AppState = AppState
     _asUndoPosition :: [Undoable HistoryEvent],
     -- | The biggest ElemId used so far in the program. Not updated by undo.
     _asBiggestID :: ElemId,
-    -- TODO Control zooming with mouse wheel
-
-    -- | Controls zooming. This is a scale factor, so the size of
-    -- vizual elements are multiplied by this number. Thus a value of
-    -- one is no zoom, values greater than 1 zooms in, and values
-    -- between 0 and 1 zooms out. Negative values result in undefined
-    -- behaviour, although it would be cool if negative values
-    -- produced a flip across both the X and Y axes.
-    _asZoom :: Double
+    -- | Controls scalaing (aka. zooming) and translation (aka. panning)
+    _asTransform :: Transform
   }
 
 data InputEvent
@@ -124,8 +149,8 @@ data InputEvent
     UndoEvent
   | -- | Abort the current command (like C-g in Emacs).
     AbortEvent
-  | -- | The zoom factor is multiplied by this number.
-    ZoomAdjustEvent Double
+  | -- | The scale factor is multiplied by this number.
+    ScaleAdjustEvent Double
 
 data Undoable a = Do a | Undo a
 
@@ -152,7 +177,7 @@ emptyAppState =
       _asHistory = [],
       _asUndoPosition = [],
       _asBiggestID = 0,
-      _asZoom = 1
+      _asTransform = Transform 1 (0, 0)
     }
 
 emptyInputs :: Inputs
@@ -212,14 +237,15 @@ _drawCircle (x, y) = do
   Cairo.arc x y radius 0 tau
   Cairo.stroke
 
-drawNode :: Double -> (Int, Element) -> Render ()
-drawNode zoom (elemId, Element {..}) = do
-  let (x, y) = _elPosition
-      (width, height) = _elSize
+drawNode :: Transform -> (Int, Element) -> Render ()
+drawNode transformation (elemId, Element {..}) = do
+  let (x, y) = transform transformation _elPosition
+      scale = _tScale transformation
+      (width, height) = Tuple.both (* scale) _elSize
       halfWidth = width / 2
 
   Cairo.setSourceRGB 1 0 0
-  Cairo.setLineWidth (3 * zoom)
+  Cairo.setLineWidth (3 * scale)
   Cairo.rectangle x y halfWidth height
   Cairo.showText (show elemId)
   Cairo.stroke
@@ -243,7 +269,7 @@ updateBackground _canvas stateRef = do
   Cairo.moveTo 10 10
   Cairo.showText ("fps=" <> show (_asFPSr stateVal))
   Cairo.setSourceRGB 1 0 0
-  traverse_ (drawNode (_asZoom stateVal)) (IntMap.toList (_asElements stateVal))
+  traverse_ (drawNode (_asTransform stateVal)) (IntMap.toList (_asElements stateVal))
 
 findElementByPosition ::
   IntMap.IntMap Element -> (Double, Double) -> Maybe (Int, Element)
@@ -278,16 +304,17 @@ clickOnNode elemId oldState@AppState {_asMovingNode, _asHistory} =
       addHistoryEvent MovedNode $
         oldState {_asMovingNode = Nothing}
 
--- | Add a node  to the canvas at the given position with a known ID.
+-- | Add a node to the canvas at the given position in Element
+-- coordinates with a known ID.
 addNodeWithId :: ElemId -> (Double, Double) -> AppState -> AppState
 addNodeWithId
   nodeId
   addPosition
-  state@AppState {_asElements, _asHistory, _asBiggestID, _asZoom} =
+  state@AppState {_asElements, _asHistory, _asBiggestID} =
     let newNode =
           Element
             { _elPosition = addPosition,
-              _elSize = Tuple.both (* _asZoom) nodeSize,
+              _elSize = nodeSize,
               _elZ = 0
             }
         newElements =
@@ -330,27 +357,19 @@ abort :: AppState -> AppState
 abort state@AppState {_asHistory, _asUndoPosition} =
   state {_asUndoPosition = _asHistory}
 
--- | Adjust the zoom factor and update the node positions with the new
--- zoom factor.
-adjustZoom :: Double -> AppState -> AppState
-adjustZoom zoomAdjustment state@AppState {_asZoom, _asElements} =
+-- | Adjust the scale factor.
+adjustScale :: Double -> AppState -> AppState
+adjustScale scaleAdjustment state@AppState {_asTransform} =
   state
-    { _asZoom = newZoom,
-      _asElements = newElements
+    { _asTransform = _asTransform {_tScale = newScale}
     }
   where
-    adjustedZoom = _asZoom * zoomAdjustment
-    (newZoom, newElements) =
-      if adjustedZoom > minimumZoom
-        then (adjustedZoom, fmap zoomElement _asElements)
-        else (_asZoom, _asElements)
-    -- newZoom = max minimumZoom (_asZoom * zoomAdjustment)
-    zoomElement :: Element -> Element
-    zoomElement element@Element {_elPosition, _elSize} =
-      element
-        { _elPosition = Tuple.both (* zoomAdjustment) _elPosition,
-          _elSize = Tuple.both (* zoomAdjustment) _elSize
-        }
+    oldScale = _tScale _asTransform
+    adjustedScale = oldScale * scaleAdjustment
+    newScale =
+      if adjustedScale > minimumScale
+        then adjustedScale
+        else oldScale
 
 processInput :: InputEvent -> AppState -> AppState
 processInput inputEvent oldState =
@@ -359,7 +378,7 @@ processInput inputEvent oldState =
     AddNode addPosition -> addNode addPosition oldState
     UndoEvent -> undo oldState
     AbortEvent -> abort oldState
-    ZoomAdjustEvent zoomAdjustment -> adjustZoom zoomAdjustment oldState
+    ScaleAdjustEvent scaleAdjustment -> adjustScale scaleAdjustment oldState
 
 processInputs :: Inputs -> AppState -> AppState
 processInputs
@@ -372,7 +391,7 @@ processInputs
 updateState :: Inputs -> AppState -> AppState
 updateState
   inputs@Inputs {_inMouseXandY, _inEvents}
-  oldState@AppState {_asElements, _asMovingNode, _asZoom} =
+  oldState@AppState {_asElements, _asMovingNode, _asTransform} =
     let -- Move the asMovingNode to MouseXandY
         newElements = case _asMovingNode of
           Nothing -> _asElements
@@ -382,7 +401,7 @@ updateState
                   let newPosition =
                         elementwiseOp
                           (-)
-                          _inMouseXandY
+                          (unTransform _asTransform _inMouseXandY)
                           (Tuple.both (* 0.5) _elSize)
                    in oldNode {_elPosition = newPosition}
               )
@@ -423,6 +442,9 @@ timeoutCallback inputsRef stateRef gdkWindow device backgroundArea = do
   -- Use Gdk.EVENT_PROPAGATE to continue propagating the event.
   pure Gdk.EVENT_STOP
 
+windowToElementCoordinates :: AppState -> (Double, Double) -> (Double, Double)
+windowToElementCoordinates state = unTransform (_asTransform state)
+
 leftClickAction ::
   IORef Inputs ->
   IORef AppState ->
@@ -430,8 +452,8 @@ leftClickAction ::
   IO ()
 leftClickAction inputsRef stateRef eventButton =
   do
-    mousePosition <- getXandY eventButton
     state <- readIORef stateRef
+    mousePosition <- windowToElementCoordinates state <$> getXandY eventButton
 
     let mElem = findElementByPosition (_asElements state) mousePosition
 
@@ -451,11 +473,13 @@ leftClickAction inputsRef stateRef eventButton =
 
 rightClickAction ::
   IORef Inputs ->
+  IORef AppState ->
   Gdk.EventButton ->
   IO ()
-rightClickAction inputsRef eventButton =
+rightClickAction inputsRef stateRef eventButton =
   do
-    clickPosition <- getXandY eventButton
+    state <- readIORef stateRef
+    clickPosition <- windowToElementCoordinates state <$> getXandY eventButton
 
     modifyIORef'
       inputsRef
@@ -471,7 +495,7 @@ backgroundPress inputsRef stateRef eventButton = do
   mouseButton <- toMouseButton <$> Gdk.getEventButtonButton eventButton
   putStrLn ("Background pressed by " <> show mouseButton)
   case mouseButton of
-    RightMouseButton -> rightClickAction inputsRef eventButton
+    RightMouseButton -> rightClickAction inputsRef stateRef eventButton
     LeftMouseButton ->
       leftClickAction inputsRef stateRef eventButton
     _ -> mempty
@@ -489,14 +513,14 @@ addAbortAction inputsRef = do
   modifyIORef' inputsRef (addEvent AbortEvent)
   pure ()
 
-addZoomAdjustAction ::
-  -- |  Amount by which to change the zoom factor
+addScaleAdjustAction ::
+  -- |  Amount by which to change the scale factor
   Double ->
   IORef Inputs ->
   IO ()
-addZoomAdjustAction zoomDelta inputsRef = do
-  putStrLn ("Adjusting zoom by " <> show zoomDelta)
-  modifyIORef' inputsRef (addEvent (ZoomAdjustEvent zoomDelta))
+addScaleAdjustAction scaleDelta inputsRef = do
+  putStrLn ("Adjusting scale by " <> show scaleDelta)
+  modifyIORef' inputsRef (addEvent (ScaleAdjustEvent scaleDelta))
   pure ()
 
 keyPress :: IORef Inputs -> Gdk.EventKey -> IO Bool
@@ -514,11 +538,12 @@ keyPress inputsRef eventKey = do
 
 scroll :: IORef Inputs -> Gdk.EventScroll -> IO Bool
 scroll inputsRef scrollEvent = do
-  -- zoom in is negative (usually -1), zoom out is positive (usually 1)
+  -- scale in (zooming in) is negative (usually -1), scale out
+  -- (zooming out) is positive (usually 1)
   deltaY <- Gdk.getEventScrollDeltaY scrollEvent
   print ("scroll y: " <> show deltaY)
   if deltaY /= 0.0
-    then addZoomAdjustAction (1 - (0.2 * deltaY)) inputsRef
+    then addScaleAdjustAction (1 - (0.2 * deltaY)) inputsRef
     else pure ()
   pure Gdk.EVENT_STOP
 
