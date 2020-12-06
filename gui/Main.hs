@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -16,11 +17,12 @@ import Control.Monad.Trans.Reader (runReaderT)
 import Data.Coerce (Coercible)
 import Data.Foldable (traverse_)
 import Data.GI.Base (AttrOp ((:=)), new, withManagedPtr)
-import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
+import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import qualified Data.IntMap.Strict as IntMap
 -- import qualified GI.GdkPixbuf as GP
 import Data.List (find)
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust, isNothing)
+import Data.Text (Text)
 import Data.Time.Clock.System (SystemTime (MkSystemTime), getSystemTime)
 import qualified Data.Tuple.Extra as Tuple
 import Foreign.Ptr (castPtr)
@@ -41,6 +43,9 @@ minimumScale = 0.1
 nodeSize :: (Double, Double)
 nodeSize = (100, 40)
 
+translateKey :: Text
+translateKey = " "
+
 -- Types
 
 -- | A simple 2d transformation. See transform below for
@@ -53,7 +58,7 @@ data Transform = Transform
     -- behaviour, although it would be cool if negative values
     -- produced a flip across both the X and Y axes.
     _tScale :: !Double,
-    -- (x, y)
+    -- | (x, y)
     _tTranslate :: !(Double, Double)
   }
 
@@ -111,11 +116,21 @@ data Element = Element
     _elZ :: Int
   }
 
+-- | When the translation key is first pressed, these values contain
+-- the mouse position and (_tTranslate . _asTransform) at that moment.
+data Panning = Panning
+  { _panMouse :: !(Double, Double),
+    _panTranslation :: !(Double, Double)
+  }
+  deriving (Eq, Ord, Show)
+
 data Inputs = Inputs
   { _inMouseXandY :: !(Double, Double),
     _inTime :: SystemTime,
     _inPrevTime :: SystemTime,
-    _inEvents :: [InputEvent]
+    _inEvents :: [InputEvent],
+    -- | If Something, then a translation is occuring.
+    _inTranslation :: !(Maybe Panning)
   }
 
 -- TODO Consider extracting History and UndoPosition into their own "object".
@@ -186,7 +201,8 @@ emptyInputs =
     { _inMouseXandY = (0, 0),
       _inTime = MkSystemTime 0 0,
       _inPrevTime = MkSystemTime 0 0,
-      _inEvents = mempty
+      _inEvents = mempty,
+      _inTranslation = Nothing
     }
 
 -- | Add a new HistoryEvent and reset _asUndoPosition.
@@ -269,7 +285,9 @@ updateBackground _canvas stateRef = do
   Cairo.moveTo 10 10
   Cairo.showText ("fps=" <> show (_asFPSr stateVal))
   Cairo.setSourceRGB 1 0 0
-  traverse_ (drawNode (_asTransform stateVal)) (IntMap.toList (_asElements stateVal))
+  traverse_
+    (drawNode (_asTransform stateVal))
+    (IntMap.toList (_asElements stateVal))
 
 findElementByPosition ::
   IntMap.IntMap Element -> (Double, Double) -> Maybe (Int, Element)
@@ -390,7 +408,7 @@ processInputs
 -- | Update the state based on the inputs and the old state.
 updateState :: Inputs -> AppState -> AppState
 updateState
-  inputs@Inputs {_inMouseXandY, _inEvents}
+  inputs@Inputs {_inMouseXandY, _inEvents, _inTranslation}
   oldState@AppState {_asElements, _asMovingNode, _asTransform} =
     let -- Move the asMovingNode to MouseXandY
         newElements = case _asMovingNode of
@@ -407,9 +425,21 @@ updateState
               )
               (_unElemId nodeId)
               _asElements
+        newTransform =
+          case _inTranslation of
+            Nothing -> _asTransform
+            Just (Panning initialMousePosition initialTranslation) ->
+              _asTransform
+                { _tTranslate =
+                    elementwiseOp
+                      (+)
+                      initialTranslation
+                      (elementwiseOp (-) _inMouseXandY initialMousePosition)
+                }
      in oldState
           { _asElements = newElements,
-            _asFPSr = getFps inputs
+            _asFPSr = getFps inputs,
+            _asTransform = newTransform
           }
 
 timeoutCallback ::
@@ -523,17 +553,49 @@ addScaleAdjustAction scaleDelta inputsRef = do
   modifyIORef' inputsRef (addEvent (ScaleAdjustEvent scaleDelta))
   pure ()
 
-keyPress :: IORef Inputs -> Gdk.EventKey -> IO Bool
-keyPress inputsRef eventKey = do
+keyPress :: IORef Inputs -> IORef AppState -> Gdk.EventKey -> IO Bool
+keyPress inputsRef stateRef eventKey = do
   -- TODO May want to check that ctrl is pressed by checking that
   -- getEventKeyState is ModifierTypeControlMask. May also want to use
   -- Gdk.KEY_?.
   key <- Gdk.getEventKeyString eventKey
+  state <- readIORef stateRef
+  inputs <- readIORef inputsRef
   case key of
     Just "\SUB" -> addUndoInputAction inputsRef -- ctrl-z pressed
     Just "\a" -> addAbortAction inputsRef -- ctrl-g
-    -- _ -> print key
+    Just str ->
+      if
+          | str == translateKey && isNothing (_inTranslation inputs) ->
+            writeIORef
+              inputsRef
+              ( inputs
+                  { _inTranslation =
+                      Just
+                        ( Panning
+                            (_inMouseXandY inputs)
+                            (_tTranslate (_asTransform state))
+                        )
+                  }
+              )
+              >> putStrLn "translate key pressed"
+          | otherwise -> pure ()
     _ -> pure ()
+  pure Gdk.EVENT_STOP
+
+keyRelease :: IORef Inputs -> Gdk.EventKey -> IO Bool
+keyRelease inputsRef eventKey = do
+  -- TODO May want to check that ctrl is pressed by checking that
+  -- getEventKeyState is ModifierTypeControlMask. May also want to use
+  -- Gdk.KEY_?.
+  key <- Gdk.getEventKeyString eventKey
+  if
+      | key == Just translateKey ->
+        modifyIORef'
+          inputsRef
+          (\inputs -> inputs {_inTranslation = Nothing})
+          >> putStrLn "translate key released"
+      | otherwise -> pure ()
   pure Gdk.EVENT_STOP
 
 scroll :: IORef Inputs -> Gdk.EventScroll -> IO Bool
@@ -541,7 +603,6 @@ scroll inputsRef scrollEvent = do
   -- scale in (zooming in) is negative (usually -1), scale out
   -- (zooming out) is positive (usually 1)
   deltaY <- Gdk.getEventScrollDeltaY scrollEvent
-  print ("scroll y: " <> show deltaY)
   if deltaY /= 0.0
     then addScaleAdjustAction (1 - (0.2 * deltaY)) inputsRef
     else pure ()
@@ -596,7 +657,8 @@ startApp app = do
       (timeoutCallback inputsRef stateRef gdkWindow device backgroundArea)
 
   _ <- Gtk.onWidgetButtonPressEvent backgroundArea (backgroundPress inputsRef stateRef)
-  _ <- Gtk.onWidgetKeyPressEvent window (keyPress inputsRef)
+  _ <- Gtk.onWidgetKeyPressEvent window (keyPress inputsRef stateRef)
+  _ <- Gtk.onWidgetKeyReleaseEvent window (keyRelease inputsRef)
   _ <- Gtk.onWidgetScrollEvent window (scroll inputsRef)
 
   #showAll window
