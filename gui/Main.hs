@@ -25,6 +25,7 @@ import Data.Maybe (fromJust, isNothing)
 import Data.Text (Text)
 import Data.Time.Clock.System (SystemTime (MkSystemTime), getSystemTime)
 import qualified Data.Tuple.Extra as Tuple
+-- import Debug.Trace (trace)
 import Foreign.Ptr (castPtr)
 import GHC.Word (Word32)
 import qualified GI.Cairo (Context (..))
@@ -47,6 +48,20 @@ translateKey :: Text
 translateKey = " "
 
 -- Types
+
+-- | This is not an enmum so that new types of nodes can be created at runtime.
+data NodeType = NodeType
+  { _ntName :: !String,
+    _ntNumInitialPorts :: !Int,
+    -- | Returns which port was clicked on. If no port was clicked it
+    -- returns Nothing.
+    _ntPortClicked ::
+      !( (Double, Double) -> -- (x, y) in the node's coordinates.
+         Element -> -- Which element was clicked
+         Maybe Int
+       ),
+    _ntDraw :: !(Transform -> (Int, Element) -> Render ())
+  }
 
 -- | A simple 2d transformation. See transform below for
 -- details.
@@ -109,11 +124,16 @@ data Element = Element
     -- convert these to window coordinates and (unTransform
     -- _asTransform) to convert window coordinates to _elPosition.
     _elPosition :: !(Double, Double),
+    -- TODO _elSize should probably be a function in _ntType of type
+    -- Element -> (Double, Double)
+
     -- | (width, height)
     _elSize :: !(Double, Double),
     -- | Depth. Higher values are drawn on top
     -- _elZ is currently ignored
-    _elZ :: Int
+    _elZ :: !Int,
+    _elType :: !NodeType,
+    _elNumPorts :: !Int
   }
 
 -- | When the translation key is first pressed, these values contain
@@ -126,9 +146,9 @@ data Panning = Panning
 
 data Inputs = Inputs
   { _inMouseXandY :: !(Double, Double),
-    _inTime :: SystemTime,
-    _inPrevTime :: SystemTime,
-    _inEvents :: [InputEvent],
+    _inTime :: !SystemTime,
+    _inPrevTime :: !SystemTime,
+    _inEvents :: ![InputEvent],
     -- | If Something, then a translation is occuring.
     _inTranslation :: !(Maybe Panning)
   }
@@ -136,38 +156,83 @@ data Inputs = Inputs
 -- TODO Consider extracting History and UndoPosition into their own "object".
 data AppState = AppState
   { -- | This is a key for _asElements
-    _asMovingNode :: Maybe ElemId,
-    _asEdges :: [(Element, Element)],
-    _asElements :: IntMap.IntMap Element,
+    _asMovingNode :: !(Maybe ElemId),
+    _asEdges :: ![(Element, Element)],
+    _asElements :: !(IntMap.IntMap Element),
     -- | FPS rounded down to nearest hundred if over 200 fps.
-    _asFPSr :: Double,
+    _asFPSr :: !Double,
     -- | A full history of the state of the app. Use addHistoryEvent
     -- to add new HistoryEvents, do not add events directly.
-    _asHistory :: [Undoable HistoryEvent],
+    _asHistory :: ![Undoable HistoryEvent],
     -- | A pointer into _asHistory. The undo command pops this
     -- stack, undos the HistoryEvent, and pushes the inverse of the
     -- popped HistoryEvent onto _asHistory.
-    _asUndoPosition :: [Undoable HistoryEvent],
+    _asUndoPosition :: ![Undoable HistoryEvent],
     -- | The biggest ElemId used so far in the program. Not updated by undo.
-    _asBiggestID :: ElemId,
+    _asBiggestID :: !ElemId,
     -- | Controls scalaing (aka. zooming) and translation (aka. panning)
-    _asTransform :: Transform
+    _asTransform :: !Transform
   }
 
 data InputEvent
   = -- | Which node was clicked and the relative click position within a node.
     ClickOnNode
-      ElemId
-      (Double, Double) -- relative mouse position
-  | AddNode (Double, Double) -- where to add the node
+      !ElemId
+      !(Double, Double) -- relative mouse position
+  | AddNode !(Double, Double) -- where to add the node
   | -- | Undo the last action.
     UndoEvent
   | -- | Abort the current command (like C-g in Emacs).
     AbortEvent
   | -- | The scale factor is multiplied by this number.
-    ScaleAdjustEvent Double
+    ScaleAdjustEvent !Double
 
-data Undoable a = Do a | Undo a
+data Undoable a = Do !a | Undo !a
+
+-- NodeType instances
+
+-- | Draw an apply node. This function's type will probably change
+-- since some of this could be done in drawNode.
+drawApply :: Transform -> (Int, Element) -> Render ()
+drawApply transformation (elemId, Element {..}) = do
+  let (x, y) = transform transformation _elPosition
+      scale = _tScale transformation
+      (width, height) = Tuple.both (* scale) _elSize
+      numRects = 1 + _elNumPorts
+      rectWidth = width / fromIntegral numRects
+      drawPort portNum =
+        Cairo.rectangle
+          (x + rectWidth * (fromIntegral portNum + 1))
+          y
+          rectWidth
+          height
+
+  Cairo.setSourceRGB 1 1 1
+  Cairo.setLineWidth (3 * scale)
+  Cairo.rectangle x y rectWidth height
+  Cairo.showText (show elemId)
+  Cairo.stroke
+  Cairo.setSourceRGB 1 0 0
+  traverse_ drawPort [0 .. (_elNumPorts -1)]
+  Cairo.stroke
+
+applyPortClicked :: (Double, Double) -> Element -> Maybe Int
+applyPortClicked (x, _) Element {_elSize, _elNumPorts} =
+  let numRects = 1 + _elNumPorts
+      rectWidth = fst _elSize / fromIntegral numRects
+      rectClicked = floor (x / rectWidth)
+   in if rectClicked == 0
+        then Nothing
+        else Just (rectClicked - 1)
+
+apply :: NodeType
+apply =
+  NodeType
+    { _ntName = "apply",
+      _ntNumInitialPorts = 2,
+      _ntPortClicked = applyPortClicked,
+      _ntDraw = drawApply
+    }
 
 -- | Flip a Do to an Undo, and an Undo to a Do.
 invertUndoable :: Undoable a -> Undoable a
@@ -254,20 +319,7 @@ _drawCircle (x, y) = do
   Cairo.stroke
 
 drawNode :: Transform -> (Int, Element) -> Render ()
-drawNode transformation (elemId, Element {..}) = do
-  let (x, y) = transform transformation _elPosition
-      scale = _tScale transformation
-      (width, height) = Tuple.both (* scale) _elSize
-      halfWidth = width / 2
-
-  Cairo.setSourceRGB 1 0 0
-  Cairo.setLineWidth (3 * scale)
-  Cairo.rectangle x y halfWidth height
-  Cairo.showText (show elemId)
-  Cairo.stroke
-  Cairo.setSourceRGB 0 1 0
-  Cairo.rectangle (x + halfWidth) y halfWidth height
-  Cairo.stroke
+drawNode t (elemId, element) = _ntDraw (_elType element) t (elemId, element)
 
 updateBackground :: p -> IORef AppState -> Render ()
 updateBackground _canvas stateRef = do
@@ -314,13 +366,23 @@ getFps inputs =
         then fromIntegral $ div (truncate fps) 100 * (100 :: Int)
         else fps
 
-clickOnNode :: ElemId -> AppState -> AppState
-clickOnNode elemId oldState@AppState {_asMovingNode, _asHistory} =
-  case _asMovingNode of
-    Nothing -> oldState {_asMovingNode = Just elemId}
-    Just _ ->
-      addHistoryEvent MovedNode $
-        oldState {_asMovingNode = Nothing}
+clickOnNode ::
+  ElemId ->
+  (Double, Double) -> -- Click position where (0,0) is top left of element
+  AppState ->
+  AppState
+clickOnNode elemId relativePosition oldState@AppState {_asMovingNode, _asHistory, _asElements} =
+  let portClicked = case IntMap.lookup (_unElemId elemId) _asElements of
+        Nothing -> Nothing
+        Just element ->
+          _ntPortClicked (_elType element) relativePosition element
+   in case _asMovingNode of
+        Nothing -> case portClicked of
+          Nothing -> oldState {_asMovingNode = Just elemId}
+          _ -> oldState
+        Just _ ->
+          addHistoryEvent MovedNode $
+            oldState {_asMovingNode = Nothing}
 
 -- | Add a node to the canvas at the given position in Element
 -- coordinates with a known ID.
@@ -329,14 +391,16 @@ addNodeWithId
   nodeId
   addPosition
   state@AppState {_asElements, _asHistory, _asBiggestID} =
-    let newNode =
+    let applyNode =
           Element
             { _elPosition = addPosition,
               _elSize = nodeSize,
-              _elZ = 0
+              _elZ = 0,
+              _elType = apply,
+              _elNumPorts = _ntNumInitialPorts apply
             }
         newElements =
-          IntMap.insert (_unElemId nodeId) newNode _asElements
+          IntMap.insert (_unElemId nodeId) applyNode _asElements
      in addHistoryEvent (AddedNode nodeId addPosition) $
           state
             { _asElements = newElements,
@@ -392,7 +456,7 @@ adjustScale scaleAdjustment state@AppState {_asTransform} =
 processInput :: InputEvent -> AppState -> AppState
 processInput inputEvent oldState =
   case inputEvent of
-    ClickOnNode elemId _relativePosition -> clickOnNode elemId oldState
+    ClickOnNode elemId relativePosition -> clickOnNode elemId relativePosition oldState
     AddNode addPosition -> addNode addPosition oldState
     UndoEvent -> undo oldState
     AbortEvent -> abort oldState
