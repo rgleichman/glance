@@ -157,7 +157,10 @@ data Inputs = Inputs
 data AppState = AppState
   { -- | This is a key for _asElements
     _asMovingNode :: !(Maybe ElemId),
-    _asEdges :: ![(Element, Element)],
+    _asEdges :: ![(ElemId, ElemId)],
+    -- | Iff Just, an edge is currently being draw where the ElemId is
+    -- one end of the edge.
+    _asCurrentEdge :: !(Maybe ElemId),
     _asElements :: !(IntMap.IntMap Element),
     -- | FPS rounded down to nearest hundred if over 200 fps.
     _asFPSr :: !Double,
@@ -252,6 +255,7 @@ emptyAppState =
   AppState
     { _asMovingNode = Nothing,
       _asEdges = [],
+      _asCurrentEdge = Nothing,
       _asElements = mempty,
       _asFPSr = 0,
       _asHistory = [],
@@ -299,10 +303,10 @@ getXandY ::
 getXandY event =
   (\x y -> (x, y)) <$> Gdk.getEventButtonX event <*> Gdk.getEventButtonY event
 
-_drawLine :: (Double, Double) -> (Double, Double) -> Render ()
-_drawLine (fromX, fromY) (toX, toY) = do
+drawLine :: Transform -> (Double, Double) -> (Double, Double) -> Render ()
+drawLine Transform {_tScale} (fromX, fromY) (toX, toY) = do
   Cairo.setSourceRGB 0 1 0
-  Cairo.setLineWidth 5
+  Cairo.setLineWidth (5 * _tScale)
 
   Cairo.moveTo fromX fromY
   Cairo.lineTo toX toY
@@ -321,8 +325,36 @@ _drawCircle (x, y) = do
 drawNode :: Transform -> (Int, Element) -> Render ()
 drawNode t (elemId, element) = _ntDraw (_elType element) t (elemId, element)
 
-updateBackground :: p -> IORef AppState -> Render ()
-updateBackground _canvas stateRef = do
+drawCurrentEdge :: (Double, Double) -> AppState -> Render ()
+drawCurrentEdge mousePosition AppState {_asCurrentEdge, _asElements, _asTransform} =
+  case _asCurrentEdge of
+    Nothing -> pure ()
+    Just elemId -> case IntMap.lookup (_unElemId elemId) _asElements of
+      Nothing -> pure ()
+      Just element ->
+        drawLine
+          _asTransform
+          (transform _asTransform (_elPosition element))
+          mousePosition
+
+drawEdges :: AppState -> Render ()
+drawEdges AppState {_asEdges, _asElements, _asTransform} =
+  traverse_ drawEdge _asEdges
+  where
+    drawEdge :: (ElemId, ElemId) -> Render ()
+    drawEdge (from, to) = case (lookupFrom, lookupTo) of
+      (Just fromElem, Just toElem) ->
+        drawLine
+          _asTransform
+          (transform _asTransform (_elPosition fromElem))
+          (transform _asTransform (_elPosition toElem))
+      _ -> pure ()
+      where
+        lookupFrom = IntMap.lookup (_unElemId from) _asElements
+        lookupTo = IntMap.lookup (_unElemId to) _asElements
+
+updateBackground :: p -> IORef Inputs -> IORef AppState -> Render ()
+updateBackground _canvas inputsRef stateRef = do
   -- width  <- (realToFrac <$> (liftIO $ Gtk.widgetGetAllocatedWidth  canvas)
   --             :: Render Double)
   -- height <- (realToFrac <$> (liftIO $ Gtk.widgetGetAllocatedHeight canvas)
@@ -332,14 +364,16 @@ updateBackground _canvas stateRef = do
   Cairo.setSourceRGB 0 0 0
   Cairo.paint
 
-  stateVal <- Cairo.liftIO $ readIORef stateRef
+  state <- Cairo.liftIO $ readIORef stateRef
+  inputs <- Cairo.liftIO $ readIORef inputsRef
   Cairo.setSourceRGB 1 1 1
   Cairo.moveTo 10 10
-  Cairo.showText ("fps=" <> show (_asFPSr stateVal))
-  Cairo.setSourceRGB 1 0 0
+  Cairo.showText ("fps=" <> show (_asFPSr state))
+  drawCurrentEdge (_inMouseXandY inputs) state
+  drawEdges state
   traverse_
-    (drawNode (_asTransform stateVal))
-    (IntMap.toList (_asElements stateVal))
+    (drawNode (_asTransform state))
+    (IntMap.toList (_asElements state))
 
 findElementByPosition ::
   IntMap.IntMap Element -> (Double, Double) -> Maybe (Int, Element)
@@ -705,7 +739,7 @@ startApp app = do
     Gtk.onWidgetDraw
       backgroundArea
       ( \context ->
-          renderCairo context (updateBackground backgroundArea stateRef)
+          renderCairo context (updateBackground backgroundArea inputsRef stateRef)
             >> pure Gdk.EVENT_STOP
       )
 
