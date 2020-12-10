@@ -405,7 +405,7 @@ clickOnNode ::
   (Double, Double) -> -- Click position where (0,0) is top left of element
   AppState ->
   AppState
-clickOnNode elemId relativePosition oldState@AppState {_asMovingNode, _asHistory, _asElements} =
+clickOnNode elemId relativePosition oldState@AppState {_asMovingNode, _asHistory, _asElements, _asCurrentEdge, _asEdges} =
   let portClicked = case IntMap.lookup (_unElemId elemId) _asElements of
         Nothing -> Nothing
         Just element ->
@@ -413,7 +413,13 @@ clickOnNode elemId relativePosition oldState@AppState {_asMovingNode, _asHistory
    in case _asMovingNode of
         Nothing -> case portClicked of
           Nothing -> oldState {_asMovingNode = Just elemId}
-          _ -> oldState
+          Just _port -> case _asCurrentEdge of
+            Nothing -> oldState {_asCurrentEdge = Just elemId}
+            Just edgeElemId ->
+              oldState
+                { _asEdges = (edgeElemId, elemId) : _asEdges,
+                  _asCurrentEdge = Nothing
+                }
         Just _ ->
           addHistoryEvent MovedNode $
             oldState {_asMovingNode = Nothing}
