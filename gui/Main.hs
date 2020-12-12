@@ -24,7 +24,7 @@ import Data.List (find)
 import Data.Maybe (fromJust, isNothing)
 import Data.Text (Text)
 import Data.Time.Clock.System (SystemTime (MkSystemTime), getSystemTime)
-import qualified Data.Tuple.Extra as Tuple
+-- import qualified Data.Tuple.Extra as Tuple
 -- import Debug.Trace (trace)
 import Foreign.Ptr (castPtr)
 import GHC.Word (Word32)
@@ -41,15 +41,14 @@ import Graphics.Rendering.Cairo.Types (Cairo (Cairo))
 minimumScale :: Double
 minimumScale = 0.1
 
-nodeSize :: (Double, Double)
-nodeSize = (100, 40)
-
 translateKey :: Text
 translateKey = " "
 
 -- Types
 
--- | This is not an enmum so that new types of nodes can be created at runtime.
+-- | This is not an enmum so that new types of nodes can be created at
+-- runtime. Everything of type (Double, Double) is either (width,
+-- height) or (x, y).
 data NodeType = NodeType
   { _ntName :: !String,
     _ntNumInitialPorts :: !Int,
@@ -60,17 +59,26 @@ data NodeType = NodeType
          Element -> -- Which element was clicked
          Maybe Int
        ),
-    _ntDraw :: !(Transform -> (Int, Element) -> Render ())
+    _ntDraw :: !(Transform -> (Int, Element) -> Render ()),
+    -- | Given the port number, return the location of that port in
+    -- the node's coordinates.
+    _ntPortLocations :: !(Int -> (Double, Double)),
+    -- | (x, y) position of the center of the handle.
+    _ntHandleLocation :: !(Double, Double),
+    -- ? Should the argument be Element instead?
+
+    -- | Given the number of ports, return the size of the node.
+    _ntSize :: !(Int -> (Double, Double))
   }
 
 -- | A simple 2d transformation. See transform below for
 -- details.
 data Transform = Transform
-  { -- | Controls scaleing. This is a scale factor, so the size of
-    -- vizual elements are multiplied by this number. Thus a value of
+  { -- | Controls scaling. This is a scale factor, so the size of
+    -- visual elements are multiplied by this number. Thus a value of
     -- one is no scale, values greater than 1 scales in, and values
     -- between 0 and 1 scales out. Negative values result in undefined
-    -- behaviour, although it would be cool if negative values
+    -- behavior, although it would be cool if negative values
     -- produced a flip across both the X and Y axes.
     _tScale :: !Double,
     -- | (x, y)
@@ -124,11 +132,6 @@ data Element = Element
     -- convert these to window coordinates and (unTransform
     -- _asTransform) to convert window coordinates to _elPosition.
     _elPosition :: !(Double, Double),
-    -- TODO _elSize should probably be a function in _ntType of type
-    -- Element -> (Double, Double)
-
-    -- | (width, height)
-    _elSize :: !(Double, Double),
     -- | Depth. Higher values are drawn on top
     -- _elZ is currently ignored
     _elZ :: !Int,
@@ -144,6 +147,14 @@ data Panning = Panning
   }
   deriving (Eq, Ord, Show)
 
+-- | A specific port in a node.
+data Port = Port
+  { -- | The node this port is in.
+    _pNode :: ElemId,
+    -- | The port number of the port in the node.
+    _pPort :: Int
+  }
+
 data Inputs = Inputs
   { _inMouseXandY :: !(Double, Double),
     _inTime :: !SystemTime,
@@ -157,10 +168,13 @@ data Inputs = Inputs
 data AppState = AppState
   { -- | This is a key for _asElements
     _asMovingNode :: !(Maybe ElemId),
-    _asEdges :: ![(ElemId, ElemId)],
+    -- TODO _asEdges is a set, so consider using a set data structure here.
+
+    -- | The connections between nodes. Currently the edges do not have a direction.
+    _asEdges :: ![(Port, Port)],
     -- | Iff Just, an edge is currently being draw where the ElemId is
     -- one end of the edge.
-    _asCurrentEdge :: !(Maybe ElemId),
+    _asCurrentEdge :: !(Maybe Port),
     _asElements :: !(IntMap.IntMap Element),
     -- | FPS rounded down to nearest hundred if over 200 fps.
     _asFPSr :: !Double,
@@ -194,39 +208,61 @@ data Undoable a = Do !a | Undo !a
 
 -- NodeType instances
 
+handleWidth :: Double
+handleWidth = 50
+
+portWidth :: Double
+portWidth = 30
+
+applyNodeHeight :: Double
+applyNodeHeight = 30
+
 -- | Draw an apply node. This function's type will probably change
 -- since some of this could be done in drawNode.
 drawApply :: Transform -> (Int, Element) -> Render ()
 drawApply transformation (elemId, Element {..}) = do
+  -- TODO See if there's a way to scale the entire Cairo drawing.
   let (x, y) = transform transformation _elPosition
       scale = _tScale transformation
-      (width, height) = Tuple.both (* scale) _elSize
-      numRects = 1 + _elNumPorts
-      rectWidth = width / fromIntegral numRects
+      scaledPortWidth = scale * portWidth
+      scaledHeight = scale * applyNodeHeight
+      scaledHandleWidth = scale * handleWidth
       drawPort portNum =
         Cairo.rectangle
-          (x + rectWidth * (fromIntegral portNum + 1))
+          (x + scaledHandleWidth + scaledPortWidth * fromIntegral portNum)
           y
-          rectWidth
-          height
+          scaledPortWidth
+          scaledHeight
 
   Cairo.setSourceRGB 1 1 1
   Cairo.setLineWidth (3 * scale)
-  Cairo.rectangle x y rectWidth height
-  Cairo.showText (show elemId)
+  -- Draw the handle
+  Cairo.rectangle x y scaledHandleWidth scaledHeight
+  Cairo.moveTo (x + 5) (y + snd (_ntHandleLocation _elType))
+  Cairo.showText (show elemId <> " " <> _ntName _elType)
   Cairo.stroke
   Cairo.setSourceRGB 1 0 0
   traverse_ drawPort [0 .. (_elNumPorts -1)]
   Cairo.stroke
 
 applyPortClicked :: (Double, Double) -> Element -> Maybe Int
-applyPortClicked (x, _) Element {_elSize, _elNumPorts} =
-  let numRects = 1 + _elNumPorts
-      rectWidth = fst _elSize / fromIntegral numRects
-      rectClicked = floor (x / rectWidth)
-   in if rectClicked == 0
+applyPortClicked (x, _) Element {_elNumPorts} =
+  let rectClicked = floor ((x - handleWidth) / portWidth)
+   in if x <= handleWidth
         then Nothing
-        else Just (rectClicked - 1)
+        else Just rectClicked
+
+applyPortLocations :: Int -> (Double, Double)
+applyPortLocations port =
+  ( handleWidth + (portWidth / 2) + (fromIntegral port * portWidth),
+    applyNodeHeight / 2
+  )
+
+applySize :: Int -> (Double, Double)
+applySize numPorts =
+  ( handleWidth + portWidth * fromIntegral numPorts,
+    applyNodeHeight
+  )
 
 apply :: NodeType
 apply =
@@ -234,7 +270,10 @@ apply =
     { _ntName = "apply",
       _ntNumInitialPorts = 2,
       _ntPortClicked = applyPortClicked,
-      _ntDraw = drawApply
+      _ntDraw = drawApply,
+      _ntPortLocations = applyPortLocations,
+      _ntHandleLocation = (handleWidth / 2, applyNodeHeight / 2),
+      _ntSize = applySize
     }
 
 -- | Flip a Do to an Undo, and an Undo to a Do.
@@ -325,33 +364,42 @@ _drawCircle (x, y) = do
 drawNode :: Transform -> (Int, Element) -> Render ()
 drawNode t (elemId, element) = _ntDraw (_elType element) t (elemId, element)
 
+-- TODO This name should indicate that it's adding in the location of
+-- the element.
+portLocation :: Int -> Element -> (Double, Double)
+portLocation port element =
+  elementwiseOp
+    (+)
+    (_elPosition element)
+    (_ntPortLocations (_elType element) port)
+
 drawCurrentEdge :: (Double, Double) -> AppState -> Render ()
 drawCurrentEdge mousePosition AppState {_asCurrentEdge, _asElements, _asTransform} =
   case _asCurrentEdge of
     Nothing -> pure ()
-    Just elemId -> case IntMap.lookup (_unElemId elemId) _asElements of
+    Just port -> case IntMap.lookup (_unElemId $ _pNode port) _asElements of
       Nothing -> pure ()
       Just element ->
         drawLine
           _asTransform
-          (transform _asTransform (_elPosition element))
+          (transform _asTransform (portLocation (_pPort port) element))
           mousePosition
 
 drawEdges :: AppState -> Render ()
 drawEdges AppState {_asEdges, _asElements, _asTransform} =
   traverse_ drawEdge _asEdges
   where
-    drawEdge :: (ElemId, ElemId) -> Render ()
+    drawEdge :: (Port, Port) -> Render ()
     drawEdge (from, to) = case (lookupFrom, lookupTo) of
       (Just fromElem, Just toElem) ->
         drawLine
           _asTransform
-          (transform _asTransform (_elPosition fromElem))
-          (transform _asTransform (_elPosition toElem))
+          (transform _asTransform (portLocation (_pPort from) fromElem))
+          (transform _asTransform (portLocation (_pPort to) toElem))
       _ -> pure ()
       where
-        lookupFrom = IntMap.lookup (_unElemId from) _asElements
-        lookupTo = IntMap.lookup (_unElemId to) _asElements
+        lookupFrom = IntMap.lookup (_unElemId $ _pNode from) _asElements
+        lookupTo = IntMap.lookup (_unElemId $ _pNode to) _asElements
 
 updateBackground :: p -> IORef Inputs -> IORef AppState -> Render ()
 updateBackground _canvas inputsRef stateRef = do
@@ -378,9 +426,9 @@ updateBackground _canvas inputsRef stateRef = do
 findElementByPosition ::
   IntMap.IntMap Element -> (Double, Double) -> Maybe (Int, Element)
 findElementByPosition elements (mouseX, mouseY) =
-  let mouseInElement (_elementId, Element {_elPosition, _elSize}) =
+  let mouseInElement (_elementId, Element {_elPosition, _elType, _elNumPorts}) =
         let (x, y) = _elPosition
-            (width, height) = _elSize
+            (width, height) = _ntSize _elType _elNumPorts
          in mouseX >= x && mouseX <= (x + width)
               && mouseY >= y
               && mouseY <= (y + height)
@@ -413,11 +461,15 @@ clickOnNode elemId relativePosition oldState@AppState {_asMovingNode, _asHistory
    in case _asMovingNode of
         Nothing -> case portClicked of
           Nothing -> oldState {_asMovingNode = Just elemId}
-          Just _port -> case _asCurrentEdge of
-            Nothing -> oldState {_asCurrentEdge = Just elemId}
-            Just edgeElemId ->
+          Just port -> case _asCurrentEdge of
+            Nothing -> oldState {_asCurrentEdge = Just $ Port {_pNode = elemId, _pPort = port}}
+            Just edgePort ->
               oldState
-                { _asEdges = (edgeElemId, elemId) : _asEdges,
+                { _asEdges =
+                    ( edgePort,
+                      Port {_pNode = elemId, _pPort = port}
+                    ) :
+                    _asEdges,
                   _asCurrentEdge = Nothing
                 }
         Just _ ->
@@ -434,7 +486,6 @@ addNodeWithId
     let applyNode =
           Element
             { _elPosition = addPosition,
-              _elSize = nodeSize,
               _elZ = 0,
               _elType = apply,
               _elNumPorts = _ntNumInitialPorts apply
@@ -519,12 +570,12 @@ updateState
           Nothing -> _asElements
           Just nodeId ->
             IntMap.adjust
-              ( \oldNode@Element {_elPosition, _elSize} ->
+              ( \oldNode@Element {_elPosition, _elType} ->
                   let newPosition =
                         elementwiseOp
                           (-)
                           (unTransform _asTransform _inMouseXandY)
-                          (Tuple.both (* 0.5) _elSize)
+                          (_ntHandleLocation _elType)
                    in oldNode {_elPosition = newPosition}
               )
               (_unElemId nodeId)

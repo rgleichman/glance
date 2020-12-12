@@ -24,6 +24,8 @@
 * Create functions by connecting a second edge to an apply argument
   port and then selecting the second output (or maybe just the select
   the output of the function and connect the function up later?)
+* Consider not redrawing everything every cycle. Perhaps exclude
+  things from drawing, or have two drawing passes on different timers.
 
 ### Testing todos
 * Fix the arrowheads being too big for SyntaxGraph drawings.
