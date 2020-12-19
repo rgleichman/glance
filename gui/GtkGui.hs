@@ -27,6 +27,20 @@ import qualified GI.Gdk as Gdk
 import qualified GI.Gio as Gio
 import qualified GI.Gtk as Gtk
 import GuiInternals
+  ( AppState,
+    Inputs,
+    KeyEvent (AbortKey, TranslateKey, UndoKey, UnknownKey),
+    MouseButton (UnknownMouseButton),
+    backgroundPress,
+    emptyAppState,
+    emptyInputs,
+    keyPress,
+    keyRelease,
+    renderCairo,
+    scroll,
+    step,
+    updateBackground,
+  )
 
 --------- Constants -------------
 translateKey :: Text

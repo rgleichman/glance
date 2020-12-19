@@ -13,7 +13,6 @@
 * Select areas by clicking the vertices of the selection area.
 * Have a way to delete nodes and edges
 * Display the undo state in the app [Bug #14](https://github.com/rgleichman/glance/issues/14)
-* Scale based on mouse position
 * Add edge creation to history.
 * Click a button that shows an image of the mouse and keyboard controls in a new window.
 * Consider a way to keep the currentEdge after creating an edge. May

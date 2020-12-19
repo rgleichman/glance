@@ -35,14 +35,13 @@ import Data.Foldable (traverse_)
 import Data.GI.Base (withManagedPtr)
 import Data.IORef (IORef, modifyIORef', readIORef, writeIORef)
 import qualified Data.IntMap.Strict as IntMap
--- import qualified GI.GdkPixbuf as GP
 import Data.List (find)
--- import qualified Data.Tuple.Extra as Tuple
 -- import Debug.Trace (trace)
 
 import Data.Maybe (isNothing)
 import Data.Text (Text)
 import Data.Time.Clock.System (SystemTime (MkSystemTime))
+import qualified Data.Tuple.Extra as Tuple
 import Foreign.Ptr (castPtr)
 import qualified GI.Cairo (Context (..))
 import qualified Graphics.Rendering.Cairo as Cairo
@@ -158,7 +157,8 @@ data Port = Port
   }
 
 data Inputs = Inputs
-  { _inMouseXandY :: !(Double, Double),
+  { -- | Raw mouse x and y position in window coordinates.
+    _inMouseXandY :: !(Double, Double),
     _inTime :: !SystemTime,
     _inPrevTime :: !SystemTime,
     _inEvents :: ![InputEvent],
@@ -526,10 +526,14 @@ abort state@AppState {_asHistory, _asUndoPosition} =
   state {_asUndoPosition = _asHistory}
 
 -- | Adjust the scale factor.
-adjustScale :: Double -> AppState -> AppState
-adjustScale scaleAdjustment state@AppState {_asTransform} =
+adjustScale :: (Double, Double) -> Double -> AppState -> AppState
+adjustScale mousePosition scaleAdjustment state@AppState {_asTransform} =
   state
-    { _asTransform = _asTransform {_tScale = newScale}
+    { _asTransform =
+        _asTransform
+          { _tScale = newScale,
+            _tTranslate = newTranslate
+          }
     }
   where
     oldScale = _tScale _asTransform
@@ -538,22 +542,39 @@ adjustScale scaleAdjustment state@AppState {_asTransform} =
       if adjustedScale > minimumScale
         then adjustedScale
         else oldScale
+    -- When zooming, elements that are at the mouse position should
+    -- stay at the mouse position under the new transform. Elements at
+    -- the mouse position are at
+    -- unTransform _asTransform mousePosition
+    -- So
+    -- mousePosition =
+    --   transform newTransform (unTransform _asTransform mousePosision)
+    -- Which when solved for the new translation produces the code below.
+    unTransformedMousePosition = unTransform _asTransform mousePosition
+    newTranslate =
+      elementwiseOp
+        (-)
+        mousePosition
+        ( Tuple.both
+            (* newScale)
+            unTransformedMousePosition
+        )
 
-processInput :: InputEvent -> AppState -> AppState
-processInput inputEvent oldState =
+processInput :: Inputs -> InputEvent -> AppState -> AppState
+processInput Inputs {_inMouseXandY} inputEvent oldState =
   case inputEvent of
     ClickOnNode elemId relativePosition -> clickOnNode elemId relativePosition oldState
     AddNode addPosition -> addNode addPosition oldState
     UndoEvent -> undo oldState
     AbortEvent -> abort oldState
-    ScaleAdjustEvent scaleAdjustment -> adjustScale scaleAdjustment oldState
+    ScaleAdjustEvent scaleAdjustment -> adjustScale _inMouseXandY scaleAdjustment oldState
 
 processInputs :: Inputs -> AppState -> AppState
 processInputs
-  Inputs {_inEvents}
+  inputs@Inputs {_inEvents}
   oldState@AppState {_asElements, _asMovingNode} =
     let compose = foldr (.) id
-     in compose (fmap processInput _inEvents) oldState
+     in compose (fmap (processInput inputs) _inEvents) oldState
 
 -- | Update the state based on the inputs and the old state.
 updateState :: Inputs -> AppState -> AppState
