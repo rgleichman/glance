@@ -18,9 +18,11 @@ module GtkGui (gtkMain) where
 import Control.Monad.IO.Class (MonadIO)
 import Data.GI.Base (AttrOp ((:=)), new)
 import Data.IORef (IORef, newIORef)
+import qualified Data.Map.Strict as Map
 import Data.Maybe (fromJust)
 import Data.Text (Text)
 import Data.Time.Clock.System (getSystemTime)
+import Data.Word (Word16)
 import GHC.Word (Word32)
 import qualified GI.GLib as GLib
 import qualified GI.Gdk as Gdk
@@ -29,8 +31,8 @@ import qualified GI.Gtk as Gtk
 import GuiInternals
   ( AppState,
     Inputs,
-    KeyEvent (AbortKey, TranslateKey, UndoKey, UnknownKey),
-    MouseButton (UnknownMouseButton),
+    KeyEvent (..),
+    MouseButton (..),
     backgroundPress,
     emptyAppState,
     emptyInputs,
@@ -43,8 +45,22 @@ import GuiInternals
   )
 
 --------- Constants -------------
-translateKey :: Text
-translateKey = " "
+keyStrings :: Map.Map Text KeyEvent
+keyStrings =
+  Map.fromList
+    [ ("\SUB", UndoKey), -- ctrl-z
+      ("\a", AbortKey) -- ctrl-g
+    ]
+
+keyCodes :: Map.Map Word16 KeyEvent
+keyCodes =
+  Map.fromList
+    [ (25, MoveUp), -- qwerty w
+      (38, MoveLeft), -- querty a
+      (39, MoveDown), -- querty s
+      (40, MoveRight), -- querty d
+      (65, MouseTranslateKey) -- spacebar
+    ]
 
 -- | A mapping between mouse button names and the GTK
 -- mouse button numbers via Enum, so order is important!
@@ -100,20 +116,33 @@ backgroundPressCallback inputsRef stateRef eventButton = do
   backgroundPress inputsRef stateRef mouseButton rawMousePosition
   pure Gdk.EVENT_STOP
 
+decodeKey :: Maybe Text -> Word16 -> KeyEvent
+decodeKey mKeyStr keyCode =
+  case mKeyStr of
+    Nothing -> UnknownKey
+    Just keyStr -> case Map.lookup keyStr keyStrings of
+      Just e -> e
+      Nothing -> case Map.lookup keyCode keyCodes of
+        Just e -> e
+        Nothing -> UnknownKey
+
 keyPressCallback :: IORef Inputs -> IORef AppState -> Gdk.EventKey -> IO Bool
 keyPressCallback inputsRef stateRef eventKey = do
   -- TODO May want to check that ctrl is pressed by checking that
   -- getEventKeyState is ModifierTypeControlMask. May also want to use
   -- Gdk.KEY_?.
-  key <- Gdk.getEventKeyString eventKey
-  let keyEvent = case key of
-        Nothing -> UnknownKey ""
-        Just "\SUB" -> UndoKey -- ctrl-z pressed
-        Just "\a" -> AbortKey -- ctrl-g
-        Just str ->
-          if
-              | str == translateKey -> TranslateKey
-              | otherwise -> UnknownKey str
+  --
+  -- The KeyString is the character that was typed. This is affected
+  -- by the keyboard layout.
+  mKey <- Gdk.getEventKeyString eventKey
+  -- The hardware keycode is a number corresponding to a specific
+  -- physical key on the keyboard, so changing the keyboard layout has
+  -- no affect on the keycode.
+  keyCode <- Gdk.getEventKeyHardwareKeycode eventKey
+  -- putStrLn $ "key: " <> show mKey
+  -- putStrLn $ "keycode: " <> show keyCode
+  let keyEvent = decodeKey mKey keyCode
+  -- print keyEvent
   keyPress inputsRef stateRef keyEvent
   pure Gdk.EVENT_STOP
 
@@ -122,11 +151,9 @@ keyReleaseCallback inputsRef eventKey = do
   -- TODO May want to check that ctrl is pressed by checking that
   -- getEventKeyState is ModifierTypeControlMask. May also want to use
   -- Gdk.KEY_?.
-  key <- Gdk.getEventKeyString eventKey
-  let keyEvent =
-        if
-            | key == Just translateKey -> TranslateKey
-            | otherwise -> UnknownKey ""
+  mKey <- Gdk.getEventKeyString eventKey
+  keyCode <- Gdk.getEventKeyHardwareKeycode eventKey
+  let keyEvent = decodeKey mKey keyCode
   keyRelease inputsRef keyEvent
   pure Gdk.EVENT_STOP
 
@@ -183,7 +210,7 @@ startApp app = do
   _ <-
     GLib.timeoutAdd
       GLib.PRIORITY_DEFAULT
-      1
+      2 -- milliseconds between callbacks
       (timeoutCallback inputsRef stateRef gdkWindow device backgroundArea)
 
   _ <-

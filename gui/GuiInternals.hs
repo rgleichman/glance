@@ -5,6 +5,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
@@ -39,7 +40,7 @@ import Data.List (find)
 -- import Debug.Trace (trace)
 
 import Data.Maybe (isNothing)
-import Data.Text (Text)
+import qualified Data.Set as Set
 import Data.Time.Clock.System (SystemTime (MkSystemTime))
 import qualified Data.Tuple.Extra as Tuple
 import Foreign.Ptr (castPtr)
@@ -51,6 +52,9 @@ import Graphics.Rendering.Cairo.Types (Cairo (Cairo))
 -- Constants
 minimumScale :: Double
 minimumScale = 0.1
+
+panSpeed :: Double
+panSpeed = 2000
 
 -- Types
 
@@ -66,8 +70,13 @@ data MouseButton
 data KeyEvent
   = UndoKey
   | AbortKey
-  | TranslateKey
-  | UnknownKey Text
+  | MouseTranslateKey
+  | MoveUp
+  | MoveLeft
+  | MoveDown
+  | MoveRight
+  | UnknownKey
+  deriving (Eq, Ord, Show)
 
 -- | This is not an enmum so that new types of nodes can be created at
 -- runtime. Everything of type (Double, Double) is either (width,
@@ -163,7 +172,9 @@ data Inputs = Inputs
     _inPrevTime :: !SystemTime,
     _inEvents :: ![InputEvent],
     -- | If Something, then a translation is occuring.
-    _inTranslation :: !(Maybe Panning)
+    _inTranslation :: !(Maybe Panning),
+    -- | All keys currently being pressed.
+    _inPressedKeys :: !(Set.Set KeyEvent)
   }
 
 -- TODO Consider extracting History and UndoPosition into their own "object".
@@ -179,7 +190,7 @@ data AppState = AppState
     _asCurrentEdge :: !(Maybe Port),
     _asElements :: !(IntMap.IntMap Element),
     -- | FPS rounded down to nearest hundred if over 200 fps.
-    _asFPSr :: !Double,
+    _asFPSr :: !Int,
     -- | A full history of the state of the app. Use addHistoryEvent
     -- to add new HistoryEvents, do not add events directly.
     _asHistory :: ![Undoable HistoryEvent],
@@ -312,7 +323,8 @@ emptyInputs =
       _inTime = MkSystemTime 0 0,
       _inPrevTime = MkSystemTime 0 0,
       _inEvents = mempty,
-      _inTranslation = Nothing
+      _inTranslation = Nothing,
+      _inPressedKeys = mempty
     }
 
 -- | Add a new HistoryEvent and reset _asUndoPosition.
@@ -409,9 +421,12 @@ updateBackground _canvas inputsRef stateRef = do
 
   state <- Cairo.liftIO $ readIORef stateRef
   inputs <- Cairo.liftIO $ readIORef inputsRef
-  Cairo.setSourceRGB 1 1 1
+  let fps = _asFPSr state
+  if fps >= 120
+    then Cairo.setSourceRGB 1 1 1
+    else Cairo.setSourceRGB 1 0 0
   Cairo.moveTo 10 10
-  Cairo.showText ("fps=" <> show (_asFPSr state))
+  Cairo.showText ("fps=" <> show fps)
   drawCurrentEdge (_inMouseXandY inputs) state
   drawEdges state
   traverse_
@@ -429,18 +444,26 @@ findElementByPosition elements (mouseX, mouseY) =
               && mouseY <= (y + height)
    in find mouseInElement (IntMap.toList elements)
 
-getFps :: Inputs -> Double
+-- | Time between steps in seconds.
+calcFrameTime :: Inputs -> Double
+calcFrameTime Inputs {_inTime, _inPrevTime} =
+  frameTime
+  where
+    nanoToSecond nanoSecond = fromIntegral nanoSecond / (10 ^ (9 :: Int))
+    frameTime =
+      fromIntegral secondsDiff + nanosecondDiff
+    (MkSystemTime seconds nanoseconds) = _inTime
+    (MkSystemTime oldSeconds oldNanoseconds) = _inPrevTime
+    secondsDiff = seconds - oldSeconds
+    -- nanoseconds in MkSystemTime are unsigned, so they can not be directly subtracted.
+    nanosecondDiff = nanoToSecond nanoseconds - nanoToSecond oldNanoseconds
+
+getFps :: Inputs -> Int
 getFps inputs =
-  let (MkSystemTime seconds nanoseconds) = _inTime inputs
-      (MkSystemTime oldSeconds oldNanoseconds) = _inPrevTime inputs
-      secondsDiff = seconds - oldSeconds
-      nanosecondDiff = nanoseconds - oldNanoseconds
-      fps =
-        if secondsDiff == 0
-          then fromIntegral (div (10 ^ (9 :: Int)) nanosecondDiff)
-          else 1 / fromIntegral secondsDiff
+  let fps :: Int
+      fps = round $ 1 / calcFrameTime inputs
    in if fps >= 200
-        then fromIntegral $ div (truncate fps) 100 * (100 :: Int)
+        then div fps 100 * (100 :: Int)
         else fps
 
 clickOnNode ::
@@ -576,10 +599,23 @@ processInputs
     let compose = foldr (.) id
      in compose (fmap (processInput inputs) _inEvents) oldState
 
+-- The amount by which to adjust the translation when the panning keys
+-- are pressed.
+keyPanAdjustment :: Double -> Set.Set KeyEvent -> (Double, Double)
+keyPanAdjustment frameTime pressedKeys = (xAdjust, yAdjust)
+  where
+    moveAmount = frameTime * panSpeed
+    moveLeft = if Set.member MoveLeft pressedKeys then moveAmount else 0
+    moveRight = if Set.member MoveRight pressedKeys then (- moveAmount) else 0
+    moveUp = if Set.member MoveUp pressedKeys then moveAmount else 0
+    moveDown = if Set.member MoveDown pressedKeys then (- moveAmount) else 0
+    xAdjust = moveLeft + moveRight
+    yAdjust = moveUp + moveDown
+
 -- | Update the state based on the inputs and the old state.
 updateState :: Inputs -> AppState -> AppState
 updateState
-  inputs@Inputs {_inMouseXandY, _inEvents, _inTranslation}
+  inputs@Inputs {_inMouseXandY, _inEvents, _inTranslation, _inPressedKeys}
   oldState@AppState {_asElements, _asMovingNode, _asTransform} =
     let -- Move the asMovingNode to MouseXandY
         newElements = case _asMovingNode of
@@ -596,21 +632,27 @@ updateState
               )
               (_unElemId nodeId)
               _asElements
-        newTransform =
+        mousePanTranslate =
           case _inTranslation of
-            Nothing -> _asTransform
+            Nothing -> _tTranslate _asTransform
             Just (Panning initialMousePosition initialTranslation) ->
-              _asTransform
-                { _tTranslate =
-                    elementwiseOp
-                      (+)
-                      initialTranslation
-                      (elementwiseOp (-) _inMouseXandY initialMousePosition)
-                }
+              elementwiseOp
+                (+)
+                initialTranslation
+                (elementwiseOp (-) _inMouseXandY initialMousePosition)
+
+        newTranslate =
+          elementwiseOp
+            (+)
+            mousePanTranslate
+            ( keyPanAdjustment
+                (calcFrameTime inputs)
+                _inPressedKeys
+            )
      in oldState
           { _asElements = newElements,
             _asFPSr = getFps inputs,
-            _asTransform = newTransform
+            _asTransform = _asTransform {_tTranslate = newTranslate}
           }
 
 ---------- Input Callbacks ---------------------------------
@@ -681,11 +723,18 @@ addAbortAction inputsRef = do
 keyPress :: IORef Inputs -> IORef AppState -> KeyEvent -> IO ()
 keyPress inputsRef stateRef keyEvent = do
   state <- readIORef stateRef
-  inputs <- readIORef inputsRef
+  preKeyPressedInputs <- readIORef inputsRef
+  let inputs =
+        preKeyPressedInputs
+          { _inPressedKeys =
+              Set.insert keyEvent (_inPressedKeys preKeyPressedInputs)
+          }
+  writeIORef inputsRef inputs
+  print (_inPressedKeys inputs)
   case keyEvent of
     UndoKey -> addUndoInputAction inputsRef
     AbortKey -> addAbortAction inputsRef
-    TranslateKey ->
+    MouseTranslateKey ->
       if
           | isNothing (_inTranslation inputs) ->
             writeIORef
@@ -701,16 +750,28 @@ keyPress inputsRef stateRef keyEvent = do
               )
               >> putStrLn "translate key pressed"
           | otherwise -> pure ()
-    UnknownKey _ -> pure ()
+    UnknownKey -> pure ()
+    _ -> pure ()
   pure ()
 
 keyRelease :: IORef Inputs -> KeyEvent -> IO ()
 keyRelease inputsRef keyEvent = do
+  modifyIORef'
+    inputsRef
+    ( \inputs ->
+        inputs
+          { _inPressedKeys = Set.delete keyEvent (_inPressedKeys inputs)
+          }
+    )
   case keyEvent of
-    TranslateKey ->
+    MouseTranslateKey ->
       modifyIORef'
         inputsRef
-        (\inputs -> inputs {_inTranslation = Nothing})
+        ( \inputs ->
+            inputs
+              { _inTranslation = Nothing
+              }
+        )
         >> putStrLn "translate key released"
     _ -> pure ()
 
