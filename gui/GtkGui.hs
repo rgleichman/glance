@@ -19,7 +19,7 @@ import Control.Monad.IO.Class (MonadIO)
 import Data.GI.Base (AttrOp ((:=)), new)
 import Data.IORef (IORef, newIORef)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust, fromMaybe)
 import Data.Text (Text)
 import Data.Time.Clock.System (getSystemTime)
 import Data.Word (Word16)
@@ -32,6 +32,7 @@ import GuiInternals
   ( AppState,
     Inputs,
     KeyEvent (..),
+    KeyInput (..),
     MouseButton (..),
     backgroundPress,
     emptyAppState,
@@ -119,15 +120,17 @@ backgroundPressCallback inputsRef stateRef eventButton = do
 decodeKey :: Maybe Text -> Word16 -> KeyEvent
 decodeKey mKeyStr keyCode =
   case mKeyStr of
-    Nothing -> UnknownKey
-    Just keyStr -> case Map.lookup keyStr keyStrings of
-      Just e -> e
-      Nothing -> case Map.lookup keyCode keyCodes of
-        Just e -> e
-        Nothing -> UnknownKey
+    Nothing -> OtherKey ""
+    Just keyStr ->
+      fromMaybe
+        ( fromMaybe
+            (OtherKey keyStr)
+            (Map.lookup keyCode keyCodes)
+        )
+        (Map.lookup keyStr keyStrings)
 
-keyPressCallback :: IORef Inputs -> IORef AppState -> Gdk.EventKey -> IO Bool
-keyPressCallback inputsRef stateRef eventKey = do
+getKeyInput :: MonadIO m => Gdk.EventKey -> m KeyInput
+getKeyInput eventKey = do
   -- TODO May want to check that ctrl is pressed by checking that
   -- getEventKeyState is ModifierTypeControlMask. May also want to use
   -- Gdk.KEY_?.
@@ -141,9 +144,13 @@ keyPressCallback inputsRef stateRef eventKey = do
   keyCode <- Gdk.getEventKeyHardwareKeycode eventKey
   -- putStrLn $ "key: " <> show mKey
   -- putStrLn $ "keycode: " <> show keyCode
-  let keyEvent = decodeKey mKey keyCode
+  pure $ KeyInput (fromMaybe "" mKey) (decodeKey mKey keyCode)
+
+keyPressCallback :: IORef Inputs -> IORef AppState -> Gdk.EventKey -> IO Bool
+keyPressCallback inputsRef stateRef eventKey = do
   -- print keyEvent
-  keyPress inputsRef stateRef keyEvent
+  keyInput <- getKeyInput eventKey
+  keyPress inputsRef stateRef keyInput
   pure Gdk.EVENT_STOP
 
 keyReleaseCallback :: IORef Inputs -> Gdk.EventKey -> IO Bool
@@ -151,10 +158,8 @@ keyReleaseCallback inputsRef eventKey = do
   -- TODO May want to check that ctrl is pressed by checking that
   -- getEventKeyState is ModifierTypeControlMask. May also want to use
   -- Gdk.KEY_?.
-  mKey <- Gdk.getEventKeyString eventKey
-  keyCode <- Gdk.getEventKeyHardwareKeycode eventKey
-  let keyEvent = decodeKey mKey keyCode
-  keyRelease inputsRef keyEvent
+  keyInput <- getKeyInput eventKey
+  keyRelease inputsRef keyInput
   pure Gdk.EVENT_STOP
 
 scrollCallback :: IORef Inputs -> Gdk.EventScroll -> IO Bool

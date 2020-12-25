@@ -1,6 +1,7 @@
 # Todo
 
 ## GUI Todo Now
+* Export as a Haskell (.hs) file.
 
 ## Non-GUI Todo Now
 * Redesign case icon to avoid non-locality.
@@ -9,7 +10,6 @@
 * Add wiki pages discussing: Why a visual language?, History of Glance, How to contribute, Code guide [code style, ...], etc..
 
 ## GUI Todo Later
-* Literal/textual nodes
 * Select areas by clicking the vertices of the selection area.
 * Have a way to delete nodes and edges
 * Display the undo state in the app [Bug #14](https://github.com/rgleichman/glance/issues/14)
@@ -25,6 +25,14 @@
   things from drawing, or have two drawing passes on different timers.
 * Use diagrams library for Cairo drawings.
 * Extract out Cairo code into a module.
+* Port expansion: similar to embedding, if a port is connected to a
+  node that is on top of it, the port expands to fit that node.
+* Use a Gtk text box or similar for port text input/editing.
+* Add dark boxes behind text to make it more legible
+* Increase number of ports when the last port is connected.
+* Update the port text's of connected ports when updating or
+  connecting a new port.
+* Evaluate and display values. (e.g it should say x = 4) above a port.
 
 ### Testing todos
 * Fix the arrowheads being too big for SyntaxGraph drawings.

@@ -19,6 +19,7 @@ module GuiInternals
     AppState (..),
     emptyAppState,
     MouseButton (..),
+    KeyInput (..),
     KeyEvent (..),
     renderCairo,
     updateBackground,
@@ -30,6 +31,9 @@ module GuiInternals
   )
 where
 
+-- import Debug.Trace (trace)
+
+import Control.Monad (when)
 import Control.Monad.Trans.Reader (runReaderT)
 import Data.Coerce (Coercible)
 import Data.Foldable (traverse_)
@@ -37,10 +41,9 @@ import Data.GI.Base (withManagedPtr)
 import Data.IORef (IORef, modifyIORef', readIORef, writeIORef)
 import qualified Data.IntMap.Strict as IntMap
 import Data.List (find)
--- import Debug.Trace (trace)
-
-import Data.Maybe (isNothing)
+import Data.Maybe (fromMaybe, isNothing)
 import qualified Data.Set as Set
+import Data.Text (Text)
 import Data.Time.Clock.System (SystemTime (MkSystemTime))
 import qualified Data.Tuple.Extra as Tuple
 import Foreign.Ptr (castPtr)
@@ -56,6 +59,9 @@ minimumScale = 0.1
 panSpeed :: Double
 panSpeed = 2000
 
+baseFontSize :: Double
+baseFontSize = 24
+
 -- Types
 
 -- | An Enum of mouse buttons, so order is important!
@@ -66,6 +72,11 @@ data MouseButton
   | UnknownMouseButton
   deriving (Eq, Ord, Enum, Bounded, Show)
 
+data KeyInput = KeyInput
+  { _kiKeyString :: Text,
+    _kiKeyEvent :: KeyEvent
+  }
+
 -- | What action should be taken when you press a key?
 data KeyEvent
   = UndoKey
@@ -75,7 +86,7 @@ data KeyEvent
   | MoveLeft
   | MoveDown
   | MoveRight
-  | UnknownKey
+  | OtherKey Text
   deriving (Eq, Ord, Show)
 
 -- | This is not an enmum so that new types of nodes can be created at
@@ -91,7 +102,12 @@ data NodeType = NodeType
          Element -> -- Which element was clicked
          Maybe Int
        ),
-    _ntDraw :: !(Transform -> (Int, Element) -> Render ()),
+    _ntDraw ::
+      !( Transform ->
+         (Int, Element) ->
+         Maybe Port -> -- Currently selected port
+         Render ()
+       ),
     -- | Given the port number, return the location of that port in
     -- the node's coordinates.
     _ntPortLocations :: !(Int -> (Double, Double)),
@@ -116,6 +132,7 @@ data Transform = Transform
     -- | (x, y)
     _tTranslate :: !(Double, Double)
   }
+  deriving (Show, Eq)
 
 -- TODO Add quick check tests that transform and unTransform are inverses
 transform :: Transform -> (Double, Double) -> (Double, Double)
@@ -146,7 +163,8 @@ data Element = Element
     -- _elZ is currently ignored
     _elZ :: !Int,
     _elType :: !NodeType,
-    _elNumPorts :: !Int
+    _elNumPorts :: !Int,
+    _elPortText :: !(IntMap.IntMap Text)
   }
 
 -- | When the translation key is first pressed, these values contain
@@ -164,6 +182,7 @@ data Port = Port
     -- | The port number of the port in the node.
     _pPort :: Int
   }
+  deriving (Eq, Show)
 
 data Inputs = Inputs
   { -- | Raw mouse x and y position in window coordinates.
@@ -188,6 +207,12 @@ data AppState = AppState
     -- | Iff Just, an edge is currently being draw where the ElemId is
     -- one end of the edge.
     _asCurrentEdge :: !(Maybe Port),
+    -- TODO current edge and current port have the same type. Can they
+    -- be combined? Also, may want to edit the node type /
+    -- handle. Should that be a "port" too?
+
+    -- | Iff Just, then currently the text of this port is being edited.
+    _asCurrentPort :: !(Maybe Port),
     _asElements :: !(IntMap.IntMap Element),
     -- | FPS rounded down to nearest hundred if over 200 fps.
     _asFPSr :: !Int,
@@ -207,6 +232,7 @@ data AppState = AppState
 data InputEvent
   = -- | Which node was clicked and the relative click position within a node.
     ClickOnNode
+      !MouseButton
       !ElemId
       !(Double, Double) -- relative mouse position
   | AddNode !(Double, Double) -- where to add the node
@@ -219,40 +245,54 @@ data InputEvent
 
 data Undoable a = Do !a | Undo !a
 
--- NodeType instances
+---------- NodeType instances ----------
+
+---- Apply Node ----
 
 handleWidth :: Double
-handleWidth = 50
+handleWidth = 70
 
 portWidth :: Double
-portWidth = 30
+portWidth = 100
 
 applyNodeHeight :: Double
-applyNodeHeight = 30
+applyNodeHeight = 40
 
 -- | Draw an apply node. This function's type will probably change
 -- since some of this could be done in drawNode.
-drawApply :: Transform -> (Int, Element) -> Render ()
-drawApply transformation (elemId, Element {..}) = do
+drawApply :: Transform -> (Int, Element) -> Maybe Port -> Render ()
+drawApply transformation (elemId, Element {..}) selectedPort = do
   -- TODO See if there's a way to scale the entire Cairo drawing.
   let (x, y) = transform transformation _elPosition
       scale = _tScale transformation
       scaledPortWidth = scale * portWidth
       scaledHeight = scale * applyNodeHeight
       scaledHandleWidth = scale * handleWidth
-      drawPort portNum =
+      fontHeight = baseFontSize * scale
+      drawPort portNum = do
+        if
+            | selectedPort == Just (Port {_pNode = ElemId elemId, _pPort = portNum}) ->
+              Cairo.setSourceRGB 0 1 0
+            | portNum == 0 -> Cairo.setSourceRGB 1 1 1
+            | otherwise -> Cairo.setSourceRGB 1 0 0
+        let portText = fromMaybe "" $ IntMap.lookup portNum _elPortText
         Cairo.rectangle
           (x + scaledHandleWidth + scaledPortWidth * fromIntegral portNum)
           y
           scaledPortWidth
           scaledHeight
+        Cairo.moveTo xPos (y - 0.4 * fontHeight)
+        Cairo.showText portText
+        Cairo.stroke
+        where
+          xPos = x + scaledHandleWidth + scaledPortWidth * fromIntegral portNum
 
-  Cairo.setSourceRGB 1 1 1
+  Cairo.setSourceRGB 0.5 0.5 0.5
   Cairo.setLineWidth (3 * scale)
   -- Draw the handle
   Cairo.rectangle x y scaledHandleWidth scaledHeight
-  Cairo.moveTo (x + 5) (y + snd (_ntHandleLocation _elType))
-  Cairo.showText (show elemId <> " " <> _ntName _elType)
+  Cairo.moveTo (x + 5 * scale) (y + scale * snd (_ntHandleLocation _elType))
+  -- Cairo.showText (show elemId <> " " <> _ntName _elType)
   Cairo.stroke
   Cairo.setSourceRGB 1 0 0
   traverse_ drawPort [0 .. (_elNumPorts -1)]
@@ -281,13 +321,17 @@ apply :: NodeType
 apply =
   NodeType
     { _ntName = "apply",
-      _ntNumInitialPorts = 2,
+      _ntNumInitialPorts = 3,
       _ntPortClicked = applyPortClicked,
       _ntDraw = drawApply,
       _ntPortLocations = applyPortLocations,
       _ntHandleLocation = (handleWidth / 2, applyNodeHeight / 2),
       _ntSize = applySize
     }
+
+---- TextNode ----
+
+-------- Types ----------
 
 -- | Flip a Do to an Undo, and an Undo to a Do.
 invertUndoable :: Undoable a -> Undoable a
@@ -308,6 +352,7 @@ emptyAppState =
     { _asMovingNode = Nothing,
       _asEdges = [],
       _asCurrentEdge = Nothing,
+      _asCurrentPort = Nothing,
       _asElements = mempty,
       _asFPSr = 0,
       _asHistory = [],
@@ -368,8 +413,9 @@ _drawCircle (x, y) = do
   Cairo.arc x y radius 0 tau
   Cairo.stroke
 
-drawNode :: Transform -> (Int, Element) -> Render ()
-drawNode t (elemId, element) = _ntDraw (_elType element) t (elemId, element)
+drawNode :: AppState -> (Int, Element) -> Render ()
+drawNode AppState {_asCurrentPort, _asTransform} (elemId, element) =
+  _ntDraw (_elType element) _asTransform (elemId, element) _asCurrentPort
 
 -- TODO This name should indicate that it's adding in the location of
 -- the element.
@@ -418,6 +464,7 @@ updateBackground _canvas inputsRef stateRef = do
   -- TODO This should be moved into the setup phase
   Cairo.setSourceRGB 0 0 0
   Cairo.paint
+  Cairo.setFontSize baseFontSize
 
   state <- Cairo.liftIO $ readIORef stateRef
   inputs <- Cairo.liftIO $ readIORef inputsRef
@@ -425,12 +472,13 @@ updateBackground _canvas inputsRef stateRef = do
   if fps >= 120
     then Cairo.setSourceRGB 1 1 1
     else Cairo.setSourceRGB 1 0 0
-  Cairo.moveTo 10 10
+  Cairo.moveTo 10 baseFontSize
   Cairo.showText ("fps=" <> show fps)
+  Cairo.setFontSize (baseFontSize * _tScale (_asTransform state))
   drawCurrentEdge (_inMouseXandY inputs) state
   drawEdges state
   traverse_
-    (drawNode (_asTransform state))
+    (drawNode state)
     (IntMap.toList (_asElements state))
 
 findElementByPosition ::
@@ -455,7 +503,8 @@ calcFrameTime Inputs {_inTime, _inPrevTime} =
     (MkSystemTime seconds nanoseconds) = _inTime
     (MkSystemTime oldSeconds oldNanoseconds) = _inPrevTime
     secondsDiff = seconds - oldSeconds
-    -- nanoseconds in MkSystemTime are unsigned, so they can not be directly subtracted.
+    -- nanoseconds in MkSystemTime are unsigned, so they can not be
+    -- directly subtracted.
     nanosecondDiff = nanoToSecond nanoseconds - nanoToSecond oldNanoseconds
 
 getFps :: Inputs -> Int
@@ -467,32 +516,63 @@ getFps inputs =
         else fps
 
 clickOnNode ::
+  MouseButton ->
   ElemId ->
   (Double, Double) -> -- Click position where (0,0) is top left of element
   AppState ->
   AppState
-clickOnNode elemId relativePosition oldState@AppState {_asMovingNode, _asHistory, _asElements, _asCurrentEdge, _asEdges} =
-  let portClicked = case IntMap.lookup (_unElemId elemId) _asElements of
-        Nothing -> Nothing
-        Just element ->
-          _ntPortClicked (_elType element) relativePosition element
-   in case _asMovingNode of
-        Nothing -> case portClicked of
-          Nothing -> oldState {_asMovingNode = Just elemId}
-          Just port -> case _asCurrentEdge of
-            Nothing -> oldState {_asCurrentEdge = Just $ Port {_pNode = elemId, _pPort = port}}
-            Just edgePort ->
-              oldState
-                { _asEdges =
-                    ( edgePort,
-                      Port {_pNode = elemId, _pPort = port}
-                    ) :
-                    _asEdges,
-                  _asCurrentEdge = Nothing
-                }
-        Just _ ->
-          addHistoryEvent MovedNode $
-            oldState {_asMovingNode = Nothing}
+clickOnNode mouseButton = case mouseButton of
+  LeftMouseButton -> clickOnNodePrimaryAction
+  RightMouseButton -> clickOnNodeSecondaryAction
+  _ -> \_ _ -> id
+
+clickOnNodePrimaryAction ::
+  ElemId ->
+  (Double, Double) -> -- Click position where (0,0) is top left of element
+  AppState ->
+  AppState
+clickOnNodePrimaryAction
+  elemId
+  relativePosition
+  oldState@AppState {_asMovingNode, _asHistory, _asElements, _asCurrentEdge, _asEdges} =
+    let portClicked = case IntMap.lookup (_unElemId elemId) _asElements of
+          Nothing -> Nothing
+          Just element ->
+            _ntPortClicked (_elType element) relativePosition element
+     in case _asMovingNode of
+          Nothing -> case portClicked of
+            Nothing -> oldState {_asMovingNode = Just elemId}
+            Just port -> case _asCurrentEdge of
+              Nothing -> oldState {_asCurrentEdge = Just $ Port {_pNode = elemId, _pPort = port}}
+              Just edgePort ->
+                oldState
+                  { _asEdges =
+                      ( edgePort,
+                        Port {_pNode = elemId, _pPort = port}
+                      ) :
+                      _asEdges,
+                    _asCurrentEdge = Nothing
+                  }
+          Just _ ->
+            addHistoryEvent MovedNode $
+              oldState {_asMovingNode = Nothing}
+
+clickOnNodeSecondaryAction ::
+  ElemId ->
+  (Double, Double) -> -- Click position where (0,0) is top left of element
+  AppState ->
+  AppState
+clickOnNodeSecondaryAction
+  elemId
+  relativePosition
+  oldState@AppState {_asMovingNode, _asHistory, _asElements, _asCurrentPort, _asEdges} =
+    let portClicked = case IntMap.lookup (_unElemId elemId) _asElements of
+          Nothing -> Nothing
+          Just element ->
+            _ntPortClicked (_elType element) relativePosition element
+     in case (portClicked, _asCurrentPort) of
+          (Just port, _) -> oldState {_asCurrentPort = Just $ Port {_pNode = elemId, _pPort = port}}
+          _ -> oldState {_asCurrentPort = Nothing}
 
 -- | Add a node to the canvas at the given position in Element
 -- coordinates with a known ID.
@@ -506,7 +586,8 @@ addNodeWithId
             { _elPosition = addPosition,
               _elZ = 0,
               _elType = apply,
-              _elNumPorts = _ntNumInitialPorts apply
+              _elNumPorts = _ntNumInitialPorts apply,
+              _elPortText = mempty
             }
         newElements =
           IntMap.insert (_unElemId nodeId) applyNode _asElements
@@ -586,7 +667,7 @@ adjustScale mousePosition scaleAdjustment state@AppState {_asTransform} =
 processInput :: Inputs -> InputEvent -> AppState -> AppState
 processInput Inputs {_inMouseXandY} inputEvent oldState =
   case inputEvent of
-    ClickOnNode elemId relativePosition -> clickOnNode elemId relativePosition oldState
+    ClickOnNode mouseButton elemId relativePosition -> clickOnNode mouseButton elemId relativePosition oldState
     AddNode addPosition -> addNode addPosition oldState
     UndoEvent -> undo oldState
     AbortEvent -> abort oldState
@@ -672,24 +753,49 @@ leftClickAction inputsRef stateRef mousePosition =
             Just (elemId, element) ->
               addEvent
                 ( ClickOnNode
+                    LeftMouseButton
                     (ElemId elemId)
                     (elementwiseOp (-) mousePosition (_elPosition element))
                 )
                 inputs
+    writeIORef stateRef (state {_asCurrentPort = Nothing})
     modifyIORef'
       inputsRef
       addClickEvent
 
+-- TODO Refactor with leftClickAction. Passing the MouseButton to
+-- ClickOnNode feels wrong since actions should be separate from
+-- inputs. Perhaps PrimaryAction and SecondaryAction instead?
 rightClickAction ::
   IORef Inputs ->
   IORef AppState ->
   (Double, Double) ->
   IO ()
-rightClickAction inputsRef _stateRef mousePosition =
+rightClickAction inputsRef stateRef mousePosition =
   do
+    state <- readIORef stateRef
+    let mElem = findElementByPosition (_asElements state) mousePosition
+        addClickEvent inputs@Inputs {_inEvents} =
+          case mElem of
+            Nothing ->
+              addEvent (AddNode mousePosition) inputs
+            Just (elemId, element) ->
+              addEvent
+                ( ClickOnNode -- TODO Event should be move node or
+                -- something like that. Selecting a port should be
+                -- instant, not an event.
+                    RightMouseButton
+                    (ElemId elemId)
+                    (elementwiseOp (-) mousePosition (_elPosition element))
+                )
+                inputs
+    when
+      (isNothing mElem)
+      (writeIORef stateRef (state {_asCurrentPort = Nothing}))
+
     modifyIORef'
       inputsRef
-      (addEvent (AddNode mousePosition))
+      addClickEvent
     pure ()
 
 backgroundPress ::
@@ -720,42 +826,59 @@ addAbortAction inputsRef = do
   modifyIORef' inputsRef (addEvent AbortEvent)
   pure ()
 
-keyPress :: IORef Inputs -> IORef AppState -> KeyEvent -> IO ()
-keyPress inputsRef stateRef keyEvent = do
+editPortText :: Port -> Text -> AppState -> AppState
+editPortText Port {_pNode, _pPort} newText oldState@AppState {_asElements} =
+  oldState {_asElements = IntMap.adjust modifyElem (_unElemId _pNode) _asElements}
+  where
+    modifyElem :: Element -> Element
+    modifyElem el@Element {_elPortText} =
+      el {_elPortText = IntMap.alter changeText _pPort _elPortText}
+
+    changeText = Just . maybe newText (<> newText)
+
+keyPress :: IORef Inputs -> IORef AppState -> KeyInput -> IO ()
+keyPress inputsRef stateRef keyInput = do
+  let keyEvent = _kiKeyEvent keyInput
   state <- readIORef stateRef
   preKeyPressedInputs <- readIORef inputsRef
-  let inputs =
-        preKeyPressedInputs
-          { _inPressedKeys =
-              Set.insert keyEvent (_inPressedKeys preKeyPressedInputs)
-          }
-  writeIORef inputsRef inputs
-  print (_inPressedKeys inputs)
-  case keyEvent of
-    UndoKey -> addUndoInputAction inputsRef
-    AbortKey -> addAbortAction inputsRef
-    MouseTranslateKey ->
-      if
-          | isNothing (_inTranslation inputs) ->
-            writeIORef
-              inputsRef
-              ( inputs
-                  { _inTranslation =
-                      Just
-                        ( Panning
-                            (_inMouseXandY inputs)
-                            (_tTranslate (_asTransform state))
-                        )
-                  }
-              )
-              >> putStrLn "translate key pressed"
-          | otherwise -> pure ()
-    UnknownKey -> pure ()
-    _ -> pure ()
-  pure ()
+  case _asCurrentPort state of
+    Just port -> modifyIORef' stateRef (editPortText port (_kiKeyString keyInput))
+    Nothing -> do
+      let inputs =
+            preKeyPressedInputs
+              { _inPressedKeys =
+                  Set.insert keyEvent (_inPressedKeys preKeyPressedInputs)
+              }
+      writeIORef inputsRef inputs
+      -- print (_inPressedKeys inputs)
+      case keyEvent of
+        UndoKey -> addUndoInputAction inputsRef
+        AbortKey -> addAbortAction inputsRef
+        MouseTranslateKey ->
+          if
+              | isNothing (_inTranslation inputs) ->
+                writeIORef
+                  inputsRef
+                  ( inputs
+                      { _inTranslation =
+                          Just
+                            ( Panning
+                                (_inMouseXandY inputs)
+                                (_tTranslate (_asTransform state))
+                            )
+                      }
+                  )
+                  >> putStrLn "translate key pressed"
+              | otherwise -> pure ()
+        OtherKey keyStr -> print keyStr
+        _ -> pure ()
 
-keyRelease :: IORef Inputs -> KeyEvent -> IO ()
-keyRelease inputsRef keyEvent = do
+-- pure
+-- ()
+
+keyRelease :: IORef Inputs -> KeyInput -> IO ()
+keyRelease inputsRef keyInput = do
+  let keyEvent = _kiKeyEvent keyInput
   modifyIORef'
     inputsRef
     ( \inputs ->
@@ -781,12 +904,12 @@ addScaleAdjustAction ::
   IORef Inputs ->
   IO ()
 addScaleAdjustAction scaleDelta inputsRef = do
-  putStrLn ("Adjusting scale by " <> show scaleDelta)
+  -- putStrLn ("Adjusting scale by " <> show scaleDelta)
   modifyIORef' inputsRef (addEvent (ScaleAdjustEvent scaleDelta))
   pure ()
 
 scroll :: IORef Inputs -> Double -> IO ()
-scroll inputsRef deltaY = do
+scroll inputsRef deltaY =
   -- scale in (zooming in) is negative (usually -1), scale out
   -- (zooming out) is positive (usually 1)
   if deltaY /= 0.0
@@ -814,4 +937,6 @@ step inputsRef stateRef newTime (mouseX, mouseY) drawCommand = do
   inputs <- readIORef inputsRef
   modifyIORef' stateRef (updateState inputs . processInputs inputs)
   modifyIORef' inputsRef (\i -> i {_inEvents = []}) -- Clear the event queue.
+  -- state <- readIORef stateRef
+  -- print (_asCurrentPort state)
   drawCommand
