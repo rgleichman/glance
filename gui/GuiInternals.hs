@@ -43,7 +43,7 @@ import qualified Data.IntMap.Strict as IntMap
 import Data.List (find)
 import Data.Maybe (fromMaybe, isNothing)
 import qualified Data.Set as Set
-import Data.Text (Text)
+import qualified Data.Text as Text
 import Data.Time.Clock.System (SystemTime (MkSystemTime))
 import qualified Data.Tuple.Extra as Tuple
 import Foreign.Ptr (castPtr)
@@ -73,9 +73,10 @@ data MouseButton
   deriving (Eq, Ord, Enum, Bounded, Show)
 
 data KeyInput = KeyInput
-  { _kiKeyString :: Text,
+  { _kiKeyString :: Text.Text,
     _kiKeyEvent :: KeyEvent
   }
+  deriving (Show, Eq)
 
 -- | What action should be taken when you press a key?
 data KeyEvent
@@ -86,7 +87,7 @@ data KeyEvent
   | MoveLeft
   | MoveDown
   | MoveRight
-  | OtherKey Text
+  | OtherKey Text.Text
   deriving (Eq, Ord, Show)
 
 -- | This is not an enmum so that new types of nodes can be created at
@@ -164,7 +165,7 @@ data Element = Element
     _elZ :: !Int,
     _elType :: !NodeType,
     _elNumPorts :: !Int,
-    _elPortText :: !(IntMap.IntMap Text)
+    _elPortText :: !(IntMap.IntMap Text.Text)
   }
 
 -- | When the translation key is first pressed, these values contain
@@ -826,7 +827,7 @@ addAbortAction inputsRef = do
   modifyIORef' inputsRef (addEvent AbortEvent)
   pure ()
 
-editPortText :: Port -> Text -> AppState -> AppState
+editPortText :: Port -> Text.Text -> AppState -> AppState
 editPortText Port {_pNode, _pPort} newText oldState@AppState {_asElements} =
   oldState {_asElements = IntMap.adjust modifyElem (_unElemId _pNode) _asElements}
   where
@@ -834,10 +835,20 @@ editPortText Port {_pNode, _pPort} newText oldState@AppState {_asElements} =
     modifyElem el@Element {_elPortText} =
       el {_elPortText = IntMap.alter changeText _pPort _elPortText}
 
-    changeText = Just . maybe newText (<> newText)
+    changeText :: (Maybe Text.Text -> Maybe Text.Text)
+    changeText = case newText of
+      -- "\b" is backspace
+      "\b" ->
+        \mText -> do
+          -- Maybe monad
+          text <- mText
+          (inits, _) <- Text.unsnoc text
+          pure inits
+      _ -> Just . maybe newText (<> newText)
 
 keyPress :: IORef Inputs -> IORef AppState -> KeyInput -> IO ()
 keyPress inputsRef stateRef keyInput = do
+  -- print keyInput
   let keyEvent = _kiKeyEvent keyInput
   state <- readIORef stateRef
   preKeyPressedInputs <- readIORef inputsRef
