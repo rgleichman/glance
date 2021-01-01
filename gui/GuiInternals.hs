@@ -183,7 +183,7 @@ data Port = Port
     -- | The port number of the port in the node.
     _pPort :: Int
   }
-  deriving (Eq, Show)
+  deriving (Eq, Ord, Show)
 
 data Inputs = Inputs
   { -- | Raw mouse x and y position in window coordinates.
@@ -203,8 +203,12 @@ data AppState = AppState
     _asMovingNode :: !(Maybe ElemId),
     -- TODO _asEdges is a set, so consider using a set data structure here.
 
-    -- | The connections between nodes. Currently the edges do not have a direction.
-    _asEdges :: ![(Port, Port)],
+    -- | The connections between nodes. Each edge is a set of at least
+    -- two ports that are connected.
+    _asEdges ::
+      !( Set.Set
+           (Set.Set Port) -- Each Set of Ports is a single "edge".
+       ),
     -- | Iff Just, an edge is currently being draw where the ElemId is
     -- one end of the edge.
     _asCurrentEdge :: !(Maybe Port),
@@ -351,7 +355,7 @@ emptyAppState :: AppState
 emptyAppState =
   AppState
     { _asMovingNode = Nothing,
-      _asEdges = [],
+      _asEdges = mempty,
       _asCurrentEdge = Nothing,
       _asCurrentPort = Nothing,
       _asElements = mempty,
@@ -441,8 +445,20 @@ drawCurrentEdge mousePosition AppState {_asCurrentEdge, _asElements, _asTransfor
 
 drawEdges :: AppState -> Render ()
 drawEdges AppState {_asEdges, _asElements, _asTransform} =
-  traverse_ drawEdge _asEdges
+  traverse_
+    drawEdge
+    (Set.toList _asEdges >>= allPairs)
   where
+    -- TODO Replace with a minimum spanning tree.
+    -- For each edge, generate all pairs of ports
+    allPairs :: Set.Set Port -> [(Port, Port)]
+    allPairs portSet = do
+      let ports = Set.toList portSet
+      a <- ports
+      let portsMinusA = Set.toList (Set.delete a portSet)
+      b <- portsMinusA
+      [(a, b)]
+
     drawEdge :: (Port, Port) -> Render ()
     drawEdge (from, to) = case (lookupFrom, lookupTo) of
       (Just fromElem, Just toElem) ->
@@ -548,10 +564,14 @@ clickOnNodePrimaryAction
               Just edgePort ->
                 oldState
                   { _asEdges =
-                      ( edgePort,
-                        Port {_pNode = elemId, _pPort = port}
-                      ) :
-                      _asEdges,
+                      -- TODO May want to add one of the ports to the other's existing edge.
+                      Set.insert
+                        ( Set.fromList
+                            [ edgePort,
+                              Port {_pNode = elemId, _pPort = port}
+                            ]
+                        )
+                        _asEdges,
                     _asCurrentEdge = Nothing
                   }
           Just _ ->
@@ -746,6 +766,7 @@ leftClickAction ::
 leftClickAction inputsRef stateRef mousePosition =
   do
     state <- readIORef stateRef
+    -- print (_asEdges state)
     let mElem = findElementByPosition (_asElements state) mousePosition
 
         addClickEvent inputs@Inputs {_inEvents} =
