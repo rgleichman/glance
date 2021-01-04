@@ -276,7 +276,8 @@ drawApply transformation (elemId, Element {..}) selectedPort = do
       fontHeight = baseFontSize * scale
       drawPort portNum = do
         if
-            | selectedPort == Just (Port {_pNode = ElemId elemId, _pPort = portNum}) ->
+            | selectedPort
+                == Just (Port {_pNode = ElemId elemId, _pPort = portNum}) ->
               Cairo.setSourceRGB 0 1 0
             | portNum == 0 -> Cairo.setSourceRGB 1 1 1
             | otherwise -> Cairo.setSourceRGB 1 0 0
@@ -432,16 +433,18 @@ portLocation port element =
     (_ntPortLocations (_elType element) port)
 
 drawCurrentEdge :: (Double, Double) -> AppState -> Render ()
-drawCurrentEdge mousePosition AppState {_asCurrentEdge, _asElements, _asTransform} =
-  case _asCurrentEdge of
-    Nothing -> pure ()
-    Just port -> case IntMap.lookup (_unElemId $ _pNode port) _asElements of
+drawCurrentEdge
+  mousePosition
+  AppState {_asCurrentEdge, _asElements, _asTransform} =
+    case _asCurrentEdge of
       Nothing -> pure ()
-      Just element ->
-        drawLine
-          _asTransform
-          (transform _asTransform (portLocation (_pPort port) element))
-          mousePosition
+      Just port -> case IntMap.lookup (_unElemId $ _pNode port) _asElements of
+        Nothing -> pure ()
+        Just element ->
+          drawLine
+            _asTransform
+            (transform _asTransform (portLocation (_pPort port) element))
+            mousePosition
 
 drawEdges :: AppState -> Render ()
 drawEdges AppState {_asEdges, _asElements, _asTransform} =
@@ -551,7 +554,13 @@ clickOnNodePrimaryAction ::
 clickOnNodePrimaryAction
   elemId
   relativePosition
-  oldState@AppState {_asMovingNode, _asHistory, _asElements, _asCurrentEdge, _asEdges} =
+  oldState@AppState
+    { _asMovingNode,
+      _asHistory,
+      _asElements,
+      _asCurrentEdge,
+      _asEdges
+    } =
     let portClicked = case IntMap.lookup (_unElemId elemId) _asElements of
           Nothing -> Nothing
           Just element ->
@@ -560,11 +569,16 @@ clickOnNodePrimaryAction
           Nothing -> case portClicked of
             Nothing -> oldState {_asMovingNode = Just elemId}
             Just port -> case _asCurrentEdge of
-              Nothing -> oldState {_asCurrentEdge = Just $ Port {_pNode = elemId, _pPort = port}}
+              Nothing ->
+                oldState
+                  { _asCurrentEdge =
+                      Just $ Port {_pNode = elemId, _pPort = port}
+                  }
               Just edgePort ->
                 oldState
                   { _asEdges =
-                      -- TODO May want to add one of the ports to the other's existing edge.
+                      -- TODO May want to add one of the ports to the
+                      -- other's existing edge.
                       Set.insert
                         ( Set.fromList
                             [ edgePort,
@@ -586,13 +600,27 @@ clickOnNodeSecondaryAction ::
 clickOnNodeSecondaryAction
   elemId
   relativePosition
-  oldState@AppState {_asMovingNode, _asHistory, _asElements, _asCurrentPort, _asEdges} =
+  oldState@AppState
+    { _asMovingNode,
+      _asHistory,
+      _asElements,
+      _asCurrentPort,
+      _asEdges
+    } =
     let portClicked = case IntMap.lookup (_unElemId elemId) _asElements of
           Nothing -> Nothing
           Just element ->
             _ntPortClicked (_elType element) relativePosition element
      in case (portClicked, _asCurrentPort) of
-          (Just port, _) -> oldState {_asCurrentPort = Just $ Port {_pNode = elemId, _pPort = port}}
+          (Just port, _) ->
+            oldState
+              { _asCurrentPort =
+                  Just $
+                    Port
+                      { _pNode = elemId,
+                        _pPort = port
+                      }
+              }
           _ -> oldState {_asCurrentPort = Nothing}
 
 -- | Add a node to the canvas at the given position in Element
@@ -688,11 +716,13 @@ adjustScale mousePosition scaleAdjustment state@AppState {_asTransform} =
 processInput :: Inputs -> InputEvent -> AppState -> AppState
 processInput Inputs {_inMouseXandY} inputEvent oldState =
   case inputEvent of
-    ClickOnNode mouseButton elemId relativePosition -> clickOnNode mouseButton elemId relativePosition oldState
+    ClickOnNode mouseButton elemId relativePosition ->
+      clickOnNode mouseButton elemId relativePosition oldState
     AddNode addPosition -> addNode addPosition oldState
     UndoEvent -> undo oldState
     AbortEvent -> abort oldState
-    ScaleAdjustEvent scaleAdjustment -> adjustScale _inMouseXandY scaleAdjustment oldState
+    ScaleAdjustEvent scaleAdjustment ->
+      adjustScale _inMouseXandY scaleAdjustment oldState
 
 processInputs :: Inputs -> AppState -> AppState
 processInputs
@@ -850,7 +880,10 @@ addAbortAction inputsRef = do
 
 editPortText :: Port -> Text.Text -> AppState -> AppState
 editPortText Port {_pNode, _pPort} newText oldState@AppState {_asElements} =
-  oldState {_asElements = IntMap.adjust modifyElem (_unElemId _pNode) _asElements}
+  oldState
+    { _asElements =
+        IntMap.adjust modifyElem (_unElemId _pNode) _asElements
+    }
   where
     modifyElem :: Element -> Element
     modifyElem el@Element {_elPortText} =
@@ -874,7 +907,8 @@ keyPress inputsRef stateRef keyInput = do
   state <- readIORef stateRef
   preKeyPressedInputs <- readIORef inputsRef
   case _asCurrentPort state of
-    Just port -> modifyIORef' stateRef (editPortText port (_kiKeyString keyInput))
+    Just port ->
+      modifyIORef' stateRef (editPortText port (_kiKeyString keyInput))
     Nothing -> do
       let inputs =
             preKeyPressedInputs
